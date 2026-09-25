@@ -1,0 +1,527 @@
+---
+import Page from '../../layouts/Page.astro';
+---
+
+<Page
+    title="저장 중 꺼져도 남는 한 벌 · 게임 실험실"
+    description="본문을 쓰는 도중 끊어 보고, 이전 정상본과 지원 버전을 기준으로 복원하세요."
+>
+    <main class="lab">
+        <nav aria-label="실험실 탐색">
+            <button id="menu" aria-label="설정 메뉴 열기" aria-controls="settings" aria-expanded="false">
+                ☰
+            </button>
+            <a href="/">게임 실험실</a>
+            <button id="help" aria-label="원인과 해결 설명 열기">
+                ?
+            </button>
+        </nav>
+        <header>
+            <p class="eyebrow">저장 복구 · 세대와 두 슬롯</p>
+            <h1>저장 중 꺼져도 남는 한 벌</h1>
+            <p class="intro">본문을 쓰는 도중 끊어 보고, 이전 정상본과 지원 버전을 기준으로 복원하세요.</p>
+        </header>
+
+        <section class="stage" aria-label="저장 중 꺼져도 남는 한 벌 실험 장면">
+            <canvas
+                id="scene"
+                aria-label="저장 중 꺼져도 남는 한 벌 관찰도"
+                aria-describedby="summary"
+            ></canvas>
+        </section>
+        <div class="toolbar" role="group" aria-label="실험 실행">
+            <button id="chest" class="">
+                상자 보상 받기
+            </button>
+            <button id="move" class="">
+                3칸 이동
+            </button>
+            <button id="gate" class="">
+                문 상태 변경
+            </button>
+            <button id="request" class="primary">
+                저장 요청
+            </button>
+            <button id="step" class="">
+                쓰기 +1단계
+            </button>
+            <button id="recover" class="">
+                중단 후 복구
+            </button>
+            <button id="reset" class="">
+                처음으로
+            </button>
+        </div>
+        <section class="metrics" aria-label="계산 결과" aria-live="polite">
+            <div>
+                <span>복원 가능한 최신 세대</span>
+                <strong id="metric-0">—</strong>
+            </div>
+            <div>
+                <span>진행 중 / 대기 요청</span>
+                <strong id="metric-1">—</strong>
+            </div>
+            <div>
+                <span>현재 플레이 상태</span>
+                <strong id="metric-2">—</strong>
+            </div>
+        </section>
+        <p id="summary" class="status" role="status"></p>
+        <p id="save-info" class="extra"></p>
+        <div id="backdrop" class="backdrop" hidden></div>
+        <div id="settings" role="dialog" aria-modal="true" aria-label="실험 설정" hidden>
+            <div class="heading">
+                <h2>실험 조건</h2>
+                <button id="close" aria-label="설정 메뉴 닫기">
+                    ×
+                </button>
+            </div>
+            <label for="version">새 저장본 버전</label>
+            <select id="version">
+                <option value="2">버전 2 · 현재 번호표</option>
+                <option value="1">버전 1 · 이전 번호표</option>
+                <option value="3">버전 3 · 미지원 예시</option>
+            </select>
+            <label for="reader">복원기가 지원하는 버전</label>
+            <select id="reader">
+                <option value="2">버전 1과 2</option>
+                <option value="1">버전 1만</option>
+            </select>
+            <label class="check">
+                <input id="consistent" type="checkbox" checked />한 시점의 상태를 복사
+            </label>
+            <label class="check">
+                <input id="queued" type="checkbox" checked />
+                동시 요청의 순서 보장
+            </label>
+            <label for="fault">슬롯 손상 주입</label>
+            <select id="fault">
+                <option value="checksum">최신 슬롯 검사값 변경</option>
+                <option value="truncate">최신 슬롯 본문 잘림</option>
+                <option value="both">두 슬롯 모두 손상</option>
+            </select>
+            <button id="corrupt" class="">
+                손상 적용
+            </button>
+            <button id="race" class="">
+                두 요청의 역순 완료 실험
+            </button>
+            <p class="note">
+                한 단계씩: 헤더 → 본문 절반 → 전체 본문 → 검사값 → 읽어서 검증. 새 요청은 진행 중에도 받을 수
+                있습니다.
+            </p>
+            <p class="note">
+                상자 이벤트 0과 문 이벤트 3을 2바이트에 저장합니다. 버전 1은 두 비트의 의미가 반대여서 읽을 때
+                변환합니다.
+            </p>
+        </div>
+        <dialog id="explanation" aria-labelledby="explain-title">
+            <div class="heading">
+                <h2 id="explain-title">원인과 해결</h2>
+                <button id="explain-close" aria-label="설명 닫기">
+                    ×
+                </button>
+            </div>
+            <h3>문제 · 저장 도중 중단되거나 서로 다른 순간을 섞을 때</h3>
+            <p>
+                상자 플래그는 지급 후, 가방은 지급 전 값을 읽으면 실제로 존재하지 않았던 상태가 됩니다. 일관된
+                복사를 끄면 보상을 받은 상태에서 이 오류를 주입합니다. 이 세계에서는 상자를 받은 플래그에
+                보석이 없으면 저장본을 거부합니다.
+            </p>
+            <h3>해결 · 정상본을 보존하며 다른 슬롯에 쓰기</h3>
+            <p>
+                A의 세대 7을 남겨 두고 B에 세대 8의 헤더·본문·검사값을 씁니다. 복원기는 두 슬롯 각각의 구조,
+                UTF-8 길이, 검사값, 지원 버전, 필드 범위를 확인하고 가장 최신 유효 세대를 선택합니다. 둘 다
+                손상되면 오류를 표시하고 덮지 않습니다.
+            </p>
+            <h3>버전과 요청 순서도 계약입니다</h3>
+            <p>
+                버전 1의 상자·문 비트 번호를 현재 의미로 변환합니다. 미지원 최신본은 건너뛰고 이전 지원본을
+                고릅니다. 역순 완료 실험에서 순서 보장을 끄면 두 요청이 같은 B를 골라 세대 9를 늦은 8이
+                덮습니다. 큐를 쓰면 8 검증 후 다른 슬롯에 9를 씁니다.
+            </p>
+            <h3>대가와 실제 장치의 경계</h3>
+            <p>
+                두 벌의 공간과 검증 작업, 최근 진행을 잃을 가능성이 있습니다. 이 페이지 안의 문자열 메모리
+                장치이며 실제 파일이나 브라우저 저장소를 변경하지 않습니다. FNV 검사값은 손상 감지용으로
+                인증이 아닙니다. 실제 원자성·쓰기 순서·영속화는 플랫폼 API와 파일 시스템에서 검증해야 합니다.
+                비동기 완료와 전원 차단 안전성은 별개입니다.
+            </p>
+            <p class="sources">
+                <a href="https://dev.epicgames.com/documentation/en-us/unreal-engine/saving-and-loading-your-game-in-unreal-engine">
+                    Epic · Saving and Loading ↗
+                </a>{' '}
+                ·{' '}
+                <a href="https://docs.godotengine.org/en/stable/tutorials/io/saving_games.html">
+                    Godot · JSON과 바이너리 저장 ↗
+                </a>
+            </p>
+        </dialog>
+    </main>
+    <script>
+        import '../../experiments/save-systems/client';
+    </script>
+</Page>
+<style>
+    .lab {
+        min-height: 100svh;
+        display: flex;
+        flex-direction: column;
+        background: #edf1f3;
+        color: #263b44;
+    }
+    nav {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        padding: 16px 26px;
+    }
+    nav a {
+        font-size: 17px;
+        font-weight: 750;
+        color: inherit;
+        text-decoration: none;
+    }
+    nav button:last-child {
+        margin-left: auto;
+    }
+    button {
+        min-height: 44px;
+        min-width: 44px;
+        border: 1px solid #c8d5d9;
+        border-radius: 11px;
+        background: #fff;
+        color: #26474c;
+        cursor: pointer;
+        padding: 8px 14px;
+    }
+    button:hover {
+        background: #deece9;
+    }
+    button:disabled {
+        opacity: 0.45;
+        cursor: default;
+    }
+    nav button {
+        font-size: 21px;
+        padding: 6px;
+    }
+    header {
+        padding: 8px 30px 18px;
+    }
+    header .eyebrow {
+        font-size: 12px;
+        font-weight: 750;
+        color: #0e726a;
+        letter-spacing: 0.07em;
+        margin: 0 0 6px;
+    }
+    h1 {
+        font-size: clamp(24px, 3vw, 37px);
+        letter-spacing: -0.04em;
+        margin: 0 0 7px;
+    }
+    header .intro {
+        font-size: 14px;
+        line-height: 1.7;
+        color: #4c656e;
+        margin: 0;
+    }
+    .stage {
+        position: relative;
+        flex: 1;
+        min-height: 400px;
+        margin: 0 24px;
+        background: #e4ecee;
+        border: 1px solid #d0dde0;
+        border-radius: 20px;
+        overflow: hidden;
+    }
+    canvas {
+        display: block;
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+    }
+    .toolbar {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 9px;
+        padding: 15px 28px 5px;
+    }
+    .primary {
+        background: #147f77;
+        color: white;
+        border-color: #147f77;
+    }
+    .primary:hover {
+        background: #0c6962;
+    }
+    .metrics {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 16px;
+        padding: 16px 30px 8px;
+    }
+    .metrics span {
+        display: block;
+        font-size: 12px;
+        color: #4c656e;
+        margin-bottom: 6px;
+    }
+    .metrics strong {
+        font-size: 21px;
+        font-variant-numeric: tabular-nums;
+        overflow-wrap: anywhere;
+    }
+    .status {
+        margin: 0;
+        padding: 7px 30px 22px;
+        line-height: 1.7;
+        font-size: 13px;
+        color: #536e78;
+        min-height: 42px;
+    }
+    .backdrop {
+        position: fixed;
+        inset: 0;
+        z-index: 3;
+        background: #1b35424a;
+    }
+    #settings {
+        position: fixed;
+        inset: 12px auto 12px 12px;
+        width: 318px;
+        max-width: calc(100vw - 24px);
+        z-index: 4;
+        background: #f8fbfc;
+        border: 1px solid #d1dfe2;
+        box-shadow: 0 18px 65px #2039402a;
+        border-radius: 20px;
+        padding: 20px;
+        overflow-y: auto;
+    }
+    .heading {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 14px;
+        margin-bottom: 12px;
+    }
+    .heading h2 {
+        font-size: 19px;
+        margin: 0;
+    }
+    .heading button {
+        font-size: 24px;
+        flex-shrink: 0;
+        padding: 5px;
+    }
+    #settings label {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 9px;
+        font-size: 13px;
+        font-weight: 650;
+        margin: 19px 0 6px;
+    }
+    input[type='range'] {
+        width: 100%;
+        accent-color: #12877e;
+        min-height: 40px;
+        margin: 0;
+    }
+    output {
+        color: #0c8177;
+        font-variant-numeric: tabular-nums;
+    }
+    select,
+    input[type='text'] {
+        min-height: 44px;
+        width: 100%;
+        border: 1px solid #c5d5da;
+        border-radius: 10px;
+        background: white;
+        color: inherit;
+        padding: 9px;
+    }
+    #settings .check {
+        justify-content: flex-start;
+        min-height: 42px;
+        margin: 7px 0;
+    }
+    .check input {
+        width: 19px;
+        height: 19px;
+        accent-color: #168b81;
+        flex-shrink: 0;
+    }
+    .note {
+        font-size: 12px;
+        line-height: 1.8;
+        color: #536e78;
+    }
+    .items {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 0 8px;
+    }
+    .items label {
+        font-size: 12px;
+    }
+    .drawer-button {
+        width: 100%;
+        margin-top: 9px;
+    }
+    dialog {
+        width: min(670px, calc(100vw - 28px));
+        max-height: calc(100svh - 36px);
+        padding: 25px;
+        border: 1px solid #c8d7db;
+        border-radius: 20px;
+        color: #263e47;
+        background: #f8fbfc;
+        overflow: auto;
+    }
+    dialog::backdrop {
+        background: #17354070;
+    }
+    dialog h3 {
+        font-size: 15px;
+        margin: 24px 0 7px;
+    }
+    dialog p {
+        font-size: 14px;
+        line-height: 1.85;
+        margin: 0;
+    }
+    dialog a {
+        color: #087c72;
+        font-size: 13px;
+        line-height: 1.8;
+        overflow-wrap: anywhere;
+    }
+    dialog .sources {
+        margin-top: 20px;
+    }
+    code {
+        overflow-wrap: anywhere;
+    }
+    .code-tools {
+        display: flex;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 10px;
+        padding: 0 28px 16px;
+    }
+    .code-tools label {
+        font-size: 13px;
+        font-weight: 650;
+    }
+    .code-tools input {
+        width: 150px;
+        font:
+            700 24px ui-monospace,
+            monospace;
+        letter-spacing: 0.12em;
+    }
+    .code-tools output {
+        font:
+            750 28px ui-monospace,
+            monospace;
+        letter-spacing: 0.15em;
+    }
+    .code-tools button {
+        min-width: 100px;
+    }
+    .bits {
+        padding: 0 30px 12px;
+        display: flex;
+        gap: 6px;
+        flex-wrap: wrap;
+        font:
+            12px ui-monospace,
+            monospace;
+    }
+    .bits span {
+        background: #dce9e7;
+        padding: 8px;
+        border-radius: 8px;
+    }
+    .extra {
+        padding: 0 30px 12px;
+        font-size: 12px;
+        line-height: 1.8;
+        color: #4c656e;
+        overflow-wrap: anywhere;
+    }
+    @media (max-width: 650px) {
+        nav {
+            padding: 12px 16px;
+        }
+        header {
+            padding: 5px 18px 15px;
+        }
+        header .intro {
+            font-size: 12px;
+        }
+        h1 {
+            font-size: 25px;
+        }
+        .stage {
+            margin: 0 10px;
+            min-height: 455px;
+            border-radius: 16px;
+        }
+        .toolbar {
+            padding: 13px 14px 3px;
+            gap: 7px;
+        }
+        .toolbar button {
+            font-size: 12px;
+            padding: 8px 11px;
+        }
+        .metrics {
+            padding: 16px 18px 5px;
+            gap: 12px;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+        .metrics > div:last-child {
+            grid-column: 1/-1;
+        }
+        .metrics strong {
+            font-size: 17px;
+        }
+        .metrics span {
+            font-size: 11px;
+            line-height: 1.55;
+        }
+        .status {
+            padding: 8px 18px 18px;
+            font-size: 12px;
+        }
+        .code-tools {
+            padding: 0 18px 12px;
+        }
+        .bits,
+        .extra {
+            padding-left: 18px;
+            padding-right: 18px;
+        }
+        .bits {
+            gap: 4px;
+            font-size: 10px;
+        }
+        .bits span {
+            padding: 6px;
+        }
+        .heading h2 {
+            font-size: 18px;
+        }
+        dialog {
+            padding: 20px;
+        }
+    }
+</style>

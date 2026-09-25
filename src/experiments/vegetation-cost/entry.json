@@ -1,0 +1,8 @@
+{
+    "id": "vegetation-cost",
+    "title": "풀밭의 비용은 한 가지가 아니다",
+    "description": "컬링, LOD, 인스턴싱과 카드 여백을 바꾸며 서로 다른 작업량을 비교합니다.",
+    "tags": ["렌더링·가시성", "최적화", "잔디"],
+    "thumbnail": "/images/vegetation-cost.svg",
+    "href": "/experiments/vegetation-cost/"
+}

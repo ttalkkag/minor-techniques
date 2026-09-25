@@ -1,0 +1,646 @@
+---
+import Page from '../../layouts/Page.astro';
+---
+
+<Page
+    title="반격으로 되찾는 체력에는 한도가 있다 | 게임 실험실"
+    description="회복 창·대기 비용·경로 보상을 바꾸고 자원 수지를 비교합니다."
+>
+    <div class="lab">
+        <header>
+            <button
+                id="menu"
+                class="menu"
+                aria-label="설정 열기 및 닫기"
+                aria-controls="settings"
+                aria-expanded="true"
+            >
+                ☰
+            </button>
+            <h1>반격으로 되찾는 체력에는 한도가 있다</h1>
+            <a href="/">목록으로</a>
+        </header>
+        <div id="menu-backdrop" class="menu-backdrop" aria-hidden="true" hidden></div>
+        <main>
+            <div class="settings" id="settings" role="complementary" aria-label="실험 설정">
+                <div class="settings-heading">
+                    <h2>회복과 행동 비용</h2>
+                    <button id="close-menu" aria-label="설정 닫기" hidden>×</button>
+                </div>
+                <label for="window">
+                    새 피격의 회복 창<output id="window-out">3초</output>
+                </label>
+                <input id="window" type="range" min="1" max="8" value="3" step="1" />
+                <label class="check">
+                    <input id="regen" type="checkbox" />
+                    3초 뒤 대기 회복 · 상한 80
+                </label>
+                <label for="pressure">
+                    5초 이후 대기당 피해<output id="pressure-out">2</output>
+                </label>
+                <input id="pressure" type="range" min="0" max="10" value="2" step="1" />
+                <label for="drop">처치 한 번의 보상</label>
+                <select id="drop">
+                    <option value="health">체력 +20</option>
+                    <option value="ammo">탄약 +12</option>
+                    <option value="armor">방어구 +15</option>
+                </select>
+                <h2 style="margin-top:25px">위험 경로</h2>
+                <label for="chance">
+                    성공 확률<output id="chance-out">50%</output>
+                </label>
+                <input id="chance" type="range" min="0" max="100" value="50" step="1" />
+                <label for="prize">
+                    성공 보상<output id="prize-out">20</output>
+                </label>
+                <input id="prize" type="range" min="5" max="40" value="20" step="1" />
+                <label for="loss">
+                    실패 손실<output id="loss-out">10</output>
+                </label>
+                <input id="loss" type="range" min="0" max="30" value="10" step="1" />
+                <label for="cost">
+                    시도 비용<output id="cost-out">0</output>
+                </label>
+                <input id="cost" type="range" min="0" max="10" value="0" step="1" />
+                <p>안전 경로는 확정 +5입니다. 설정 변경은 현재 자원을 유지하며 이후 행동부터 적용합니다.</p>
+                <div class="actions">
+                    <button id="explain">원인과 해결</button>
+                    <button id="reset">초기화</button>
+                </div>
+            </div>
+            <section class="stage" aria-label="실험 장면">
+                <p class="intro">
+                    체력 40, 되찾을 수 있는 피해 20에서 시작합니다. 반격을 두 번 눌러 12 + 8의 회복 상한을
+                    확인하고, 대기로 시간 창을 넘겨 보세요.
+                </p>
+                <div class="metrics" aria-live="polite">
+                    <div class="metric">
+                        <small>현재 체력 / 최대</small>
+                        <strong id="hp">—</strong>
+                    </div>
+                    <div class="metric">
+                        <small>회복 가능량 · 남은 시간</small>
+                        <strong id="recoverable">—</strong>
+                    </div>
+                    <div class="metric">
+                        <small>경과 시간</small>
+                        <strong id="clock">—</strong>
+                    </div>
+                </div>
+                <div class="split">
+                    <section class="surface">
+                        <h2>자원 상태</h2>
+                        <div class="rowlabel">
+                            <span>체력 + 회복 가능 피해</span>
+                            <span id="hp-label"></span>
+                        </div>
+                        <div class="bar">
+                            <i id="hp-bar"></i>
+                            <em id="rally-bar"></em>
+                        </div>
+                        <div class="rowlabel">
+                            <span>탄약 / 40</span>
+                            <strong id="ammo"></strong>
+                        </div>
+                        <div class="bar">
+                            <i id="ammo-bar"></i>
+                        </div>
+                        <div class="rowlabel">
+                            <span>방어구 / 50</span>
+                            <strong id="armor"></strong>
+                        </div>
+                        <div class="bar">
+                            <i id="armor-bar"></i>
+                        </div>
+                        <div class="actions">
+                            <button id="counter" class="primary">
+                                반격 · 탄약 1
+                            </button>
+                            <button id="hit">피격 −20</button>
+                            <button id="wait">대기 +1초</button>
+                            <button id="kill">현재 적 처치</button>
+                            <button id="spawn">다음 적 +1초</button>
+                        </div>
+                        <p class="note" id="enemy-state"></p>
+                    </section>
+                    <section class="surface">
+                        <h2>안전과 위험 경로</h2>
+                        <div class="rowlabel">
+                            <span>안전 · 기대값 / 분산</span>
+                            <strong>5 / 0</strong>
+                        </div>
+                        <p class="big" id="risk-mean"></p>
+                        <p class="muted" id="risk-variance"></p>
+                        <div class="actions">
+                            <button id="safe">안전 경로 선택</button>
+                            <button id="risky">위험 경로 선택</button>
+                            <button id="batch">위험 100회</button>
+                        </div>
+                        <p id="path-score" class="note"></p>
+                        <ol id="events" class="log"></ol>
+                    </section>
+                </div>
+                <p id="summary" class="status" role="status">
+                    계산 중입니다.
+                </p>
+            </section>
+        </main>
+    </div>
+    <dialog id="explanation" aria-label="실험 설명">
+        <div class="dialog-heading">
+            <h2>행동을 보상하는 자원 흐름</h2>
+            <button id="close-dialog" aria-label="설명 닫기">
+                닫기
+            </button>
+        </div>
+        <h3>문제와 원인</h3>
+        <p>
+            대기 중 체력이 공짜로 차면 기다리는 선택의 가치가 커집니다. 반격 회복을 무제한 지급하면 잃은
+            체력보다 더 많이 회복하는 오류가 생깁니다.
+        </p>
+        <h3>해결 · 예산과 만료를 분리</h3>
+        <p>
+            이 모델의 회복은 min(12, 회복 가능량, 최대 체력 − 현재 체력)입니다. 새 피격은 기존 회복 예산을
+            이번 손실로 교체하고 시간을 연장합니다. 정확히 만료 시각부터 예산을 제거하며 사망 후에는 회복하지
+            않습니다. 반격과 피격은 같은 시각의 별도 이벤트이며 시간은 대기/다음 적에서만 흐릅니다.
+        </p>
+        <h3>보상과 위험의 대가</h3>
+        <p>
+            한 적은 선택한 자원만 한 번 지급합니다. 체력·탄약·방어구의 행동별 보상 구분은{' '}
+            <a href="https://help.bethesda.net/app/answers/detail/a_id/49879/~/why-do-i-keep-running-out-of-health-and-ammo-in-doom-eternal">
+                Bethesda의 공식 설명
+            </a>
+            을 참고했습니다. 수치는 자체 모형이며 처치 조건이나 전투 피해를 재현하지 않습니다. 방어구는 여기서
+            자원 잔량으로만 표시합니다.
+        </p>
+        <p>
+            경로의 기대 순보상은 pB−(1−p)L−C, 분산은 p(1−p)(B+L)²입니다. 기본값에서는 평균이 모두 5지만 위험
+            경로 분산은 225입니다. 시드가 고정된 32비트 생성기로 시행하며 경험 평균과 이론 평균은 다를 수
+            있습니다. 실제 재미·플레이어의 전략 변화는 이 수치만으로 판정하지 않습니다.
+        </p>
+    </dialog>
+</Page>
+<script>
+    import '../../experiments/combat-risk-reward/client';
+</script>
+<style>
+    .lab {
+        min-height: 100svh;
+        display: flex;
+        flex-direction: column;
+        color: #29434a;
+    }
+    header {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 14px 20px;
+        background: #f8fafa;
+        border-bottom: 1px solid #cad9d9;
+    }
+    h1 {
+        font-size: clamp(17px, 2vw, 23px);
+        margin: 0;
+        word-break: keep-all;
+    }
+    header a {
+        margin-left: auto;
+        color: #1d6564;
+        white-space: nowrap;
+        font-size: 13px;
+    }
+    button,
+    select,
+    input[type='number'] {
+        min-height: 42px;
+        border: 1px solid #b8ccce;
+        border-radius: 9px;
+        background: #fff;
+        color: #29434a;
+        padding: 8px 12px;
+        font: inherit;
+    }
+    button {
+        cursor: pointer;
+    }
+    button:hover {
+        background: #e4f1ed;
+    }
+    button:disabled {
+        opacity: 0.5;
+        cursor: default;
+    }
+    button.primary {
+        background: #187c72;
+        color: #fff;
+        border-color: #187c72;
+    }
+    .menu {
+        font-size: 20px;
+        min-width: 44px;
+        padding: 4px;
+    }
+    main {
+        display: flex;
+        flex: 1;
+        min-width: 0;
+    }
+    .settings {
+        flex: 0 0 260px;
+        max-height: calc(100svh - 72px);
+        overflow: auto;
+        border-right: 1px solid #cad9d9;
+        padding: 19px;
+        background: #f8fafa;
+    }
+    .settings-heading {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        margin-bottom: 20px;
+    }
+    .settings-heading h2 {
+        margin: 0;
+    }
+    #close-menu {
+        flex: 0 0 42px;
+        font-size: 22px;
+    }
+    .menu-backdrop {
+        position: fixed;
+        inset: 0;
+        z-index: 4;
+        background: #244f5966;
+    }
+    .settings h2 {
+        font-size: 14px;
+        margin: 0;
+    }
+    .settings label {
+        display: block;
+        font-size: 13px;
+        line-height: 1.6;
+        margin: 14px 0 4px;
+    }
+    .settings output {
+        float: right;
+        font-weight: 700;
+    }
+    input[type='range'] {
+        width: 100%;
+        min-height: 40px;
+        accent-color: #147b72;
+        margin: 0;
+    }
+    select,
+    input[type='number'] {
+        width: 100%;
+        font-size: 13px;
+    }
+    .settings .check {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        min-height: 42px;
+    }
+    .check input {
+        width: 18px;
+        height: 18px;
+        accent-color: #147b72;
+    }
+    .settings p,
+    .note {
+        font-size: 12px;
+        line-height: 1.7;
+        color: #537079;
+    }
+    .stage {
+        flex: 1;
+        min-width: 0;
+        padding: 22px;
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+    }
+    .intro {
+        font-size: 14px;
+        line-height: 1.7;
+        margin: 0;
+        color: #4a6670;
+    }
+    .metrics {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+    }
+    .metric {
+        background: white;
+        border: 1px solid #cbdcdd;
+        border-radius: 12px;
+        padding: 13px 16px;
+        flex: 1;
+        min-width: 125px;
+    }
+    .metric small {
+        font-size: 12px;
+        color: #56747b;
+        display: block;
+        margin-bottom: 8px;
+    }
+    .metric strong {
+        font-size: 22px;
+        color: #146f66;
+        font-variant-numeric: tabular-nums;
+    }
+    .surface {
+        background: #f9fcfb;
+        border: 1px solid #cbdcdd;
+        border-radius: 16px;
+        padding: 22px;
+        min-width: 0;
+    }
+    .surface h2 {
+        font-size: 16px;
+        margin: 0 0 16px;
+    }
+    .split {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 16px;
+    }
+    .actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 9px;
+    }
+    .actions button {
+        font-size: 13px;
+    }
+    .status {
+        background: #e1efea;
+        color: #25544e;
+        padding: 14px 17px;
+        border-radius: 10px;
+        font-size: 13px;
+        line-height: 1.7;
+        margin: 0;
+    }
+    .scroll {
+        overflow: auto;
+        max-width: 100%;
+    }
+    table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 13px;
+        text-align: left;
+    }
+    th {
+        font-size: 11px;
+        color: #527078;
+        white-space: nowrap;
+    }
+    td,
+    th {
+        padding: 12px 8px;
+        border-bottom: 1px solid #d5e3e0;
+    }
+    td small {
+        display: block;
+        font-size: 11px;
+        color: #58717a;
+        margin-top: 5px;
+    }
+    .good {
+        color: #107264;
+    }
+    .bad {
+        color: #ac4d36;
+    }
+    .pill {
+        display: inline-block;
+        padding: 5px 9px;
+        background: #d7ede6;
+        border-radius: 6px;
+        font-size: 12px;
+    }
+    .muted {
+        color: #597079;
+        font-size: 12px;
+    }
+    .bar {
+        height: 20px;
+        border-radius: 5px;
+        overflow: hidden;
+        background: #dbe6e3;
+        position: relative;
+        margin: 9px 0 16px;
+    }
+    .bar > i {
+        display: block;
+        height: 100%;
+        background: #19877a;
+        transition: width 0.15s;
+    }
+    .bar > em {
+        position: absolute;
+        top: 0;
+        height: 100%;
+        background: #e7ad61;
+    }
+    .log {
+        max-height: 225px;
+        overflow: auto;
+        font-size: 12px;
+        line-height: 1.8;
+        margin: 0;
+        padding-left: 20px;
+    }
+    .chart {
+        width: 100%;
+        height: auto;
+        display: block;
+    }
+    .token-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 5px;
+    }
+    .token {
+        width: 32px;
+        height: 36px;
+        display: grid;
+        place-content: center;
+        border-radius: 6px;
+        background: #e0e9e5;
+        font-size: 13px;
+    }
+    .token.hit {
+        background: #207f70;
+        color: white;
+    }
+    .token.miss {
+        background: #e8d4c7;
+        color: #743e25;
+    }
+    .big {
+        font-size: 38px;
+        font-weight: 750;
+        line-height: 1.3;
+        margin: 12px 0;
+        color: #17766c;
+    }
+    .rowlabel {
+        display: flex;
+        justify-content: space-between;
+        gap: 10px;
+        font-size: 13px;
+    }
+    .visual-card {
+        padding: 16px;
+        border: 1px solid #ccddda;
+        border-radius: 11px;
+        background: white;
+    }
+    .visual-card h3 {
+        font-size: 14px;
+        margin: 0 0 10px;
+    }
+    .outcomes {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 3px;
+        min-height: 24px;
+    }
+    .outcomes i {
+        width: 9px;
+        height: 15px;
+        background: #cbddd6;
+        border-radius: 2px;
+    }
+    .outcomes i.success {
+        background: #167e6e;
+    }
+    .histogram {
+        display: flex;
+        align-items: end;
+        gap: 5px;
+        height: 145px;
+    }
+    .histogram > div {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: end;
+        height: 100%;
+        font-size: 10px;
+    }
+    .histogram i {
+        display: block;
+        width: 100%;
+        background: #269382;
+        min-height: 1px;
+    }
+    .histogram span {
+        margin-top: 5px;
+    }
+    dialog {
+        max-width: min(680px, calc(100vw - 28px));
+        max-height: 85svh;
+        border: 1px solid #bbd1cd;
+        border-radius: 16px;
+        background: #fbfdfc;
+        color: #29434a;
+        padding: 25px;
+    }
+    dialog::backdrop {
+        background: #244f5966;
+    }
+    dialog h2 {
+        font-size: 21px;
+        margin-top: 0;
+    }
+    dialog h3 {
+        font-size: 15px;
+        color: #137367;
+        margin-bottom: 5px;
+    }
+    dialog p {
+        font-size: 14px;
+        line-height: 1.8;
+    }
+    dialog a {
+        color: #14786c;
+    }
+    .dialog-heading {
+        display: flex;
+        align-items: flex-start;
+        gap: 12px;
+        margin-bottom: 18px;
+    }
+    .dialog-heading h2 {
+        flex: 1;
+        min-width: 0;
+        margin: 0;
+    }
+    .dialog-heading button {
+        flex-shrink: 0;
+    }
+    code {
+        font-size: 12px;
+        background: #e2ede8;
+        padding: 3px 5px;
+        border-radius: 4px;
+    }
+    @media (max-width: 780px) {
+        header {
+            position: relative;
+            z-index: 6;
+            padding: 11px 12px;
+            gap: 9px;
+        }
+        header a {
+            font-size: 12px;
+        }
+        .settings {
+            position: fixed;
+            z-index: 5;
+            inset: 68px auto 0 0;
+            width: min(282px, calc(100vw - 25px));
+            max-height: calc(100svh - 68px);
+            box-shadow: 12px 0 30px #244e4b22;
+        }
+        .stage {
+            padding: 13px;
+            gap: 12px;
+        }
+        .split {
+            grid-template-columns: 1fr;
+        }
+        .surface {
+            padding: 15px;
+        }
+        .metric {
+            min-width: 105px;
+            padding: 11px;
+        }
+        .metric strong {
+            font-size: 19px;
+        }
+        .intro {
+            font-size: 13px;
+        }
+        .actions button {
+            flex: 1 0 100px;
+        }
+        td,
+        th {
+            padding: 10px 6px;
+        }
+        h1 {
+            max-width: 210px;
+        }
+    }
+</style>

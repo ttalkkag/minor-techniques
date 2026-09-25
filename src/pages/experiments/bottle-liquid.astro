@@ -1,0 +1,296 @@
+---
+import Page from '../../layouts/Page.astro';
+---
+
+<Page
+    title="기울인 병의 수면 · 게임 실험실"
+    description="병의 회전, 세계 수면, 부피 보존을 비교하는 액체 근사 실험"
+>
+    <main>
+        <nav>
+            <button id="menu" aria-label="설정 메뉴 열기" aria-controls="settings" aria-expanded="false">
+                ☰
+            </button>
+            <a href="/">게임 실험실</a>
+            <button id="explain">원리 보기</button>
+        </nav>
+        <header>
+            <p>좌표계와 액체의 양</p>
+            <h1>병은 돌아가도, 수면은?</h1>
+            <span>같은 병을 기울여 두 수면의 방향과 남은 양을 비교해 보세요.</span>
+        </header>
+        <section class="stage" aria-label="액체 단면 비교">
+            <canvas
+                id="scene"
+                aria-label="병 고정 수면과 세계 기준 수면 단면"
+                aria-describedby="summary"
+            ></canvas>
+        </section>
+        <p id="summary" role="status" class="summary"></p>
+        <div id="settings" role="complementary" hidden aria-label="액체 실험 설정">
+            <div class="panel-head">
+                <h2>병과 수면</h2>
+                <button id="close-menu" aria-label="설정 메뉴 닫기">
+                    ×
+                </button>
+            </div>
+            <label for="shape">
+                병 형상
+                <select id="shape">
+                    <option value="bottle">좁은 목이 있는 병</option>
+                    <option value="cylinder">같은 높이의 원통</option>
+                </select>
+            </label>
+            <label for="tilt">
+                병 회전 <output id="tilt-value"></output>
+                <input id="tilt" type="range" min="-85" max="85" value="55" step="1" />
+            </label>
+            <label for="fill">
+                목표 채움 비율 <output id="fill-value"></output>
+                <input id="fill" type="range" min="10" max="90" value="40" step="1" />
+            </label>
+            <label for="level">
+                오른쪽 수면 높이
+                <select id="level">
+                    <option value="fixed">세웠을 때 높이 고정</option>
+                    <option value="volume">회전할 때 부피 보정</option>
+                </select>
+            </label>
+            <label for="damping">
+                출렁임 감쇠 ζ <output id="damping-value"></output>
+                <input id="damping" type="range" min="0.05" max="1.5" value="0.25" step="0.05" />
+            </label>
+            <button id="pulse">옆으로 한 번 흔들기</button>
+            <button id="stop">출렁임 멈추기</button>
+            <button id="reset">초기화</button>
+            <p>
+                흔들기는 수면 각속도에 +2 rad/s를 한 번 더합니다. 카메라 입력이나 유체 흐름을 계산하지
+                않습니다.
+            </p>
+        </div>
+        <dialog id="info" aria-labelledby="info-title">
+            <div class="dialog-head">
+                <h2 id="info-title">높이와 양은 다른 조건</h2>
+                <button id="close-info" aria-label="설명 닫기">
+                    ×
+                </button>
+            </div>
+            <h3>문제 · 회전하는 수면과 변하는 양</h3>
+            <p>
+                왼쪽은 수면을 병 좌표에 고정해 함께 기울어집니다. 오른쪽은 세계의 위 방향을 사용하지만 높이를
+                고정하면 병 안에 남는 액체의 양이 달라질 수 있습니다.
+            </p>
+            <h3>원인 · 좌표 변환과 병의 단면</h3>
+            <p>
+                세계 수면을 병 좌표로 옮기면 n = (sin θ, cos θ), 액체 조건은 n·q ≤ h입니다. 목이 좁은 병은
+                높이마다 단면적도 다릅니다.
+            </p>
+            <h3>해결 · 목표 부피에 맞춰 높이 찾기</h3>
+            <p>
+                오른쪽을 ‘부피 보정’으로 바꾸세요. 회전한 수면 아래의 샘플 부피를 더해 목표량에 맞는 높이를
+                찾습니다. 단면 그림과 달리 계산은 회전체의 깊이 2√(r²−x²)를 곱한 3차원 부피입니다.
+            </p>
+            <h3>대가와 한계</h3>
+            <p>
+                80×80 적분 격자를 사용하므로 작은 양자화 오차가 남습니다. 출렁임은 θ″+2ζωθ′+ω²θ=0, ω=5 rad/s인
+                감쇠 진동입니다. ζ≥1은 진동하지 않으며 감쇠를 늘릴수록 언제나 빨리 복귀하는 것은 아닙니다.
+                닫힌 병의 단면 근사여서 흘러넘침·분리된 액체·압력·굴절은 계산하지 않습니다.
+            </p>
+            <p>
+                <a
+                    href="https://steamcommunity.com/games/546560/announcements/detail/2229791404478061089"
+                    target="_blank"
+                    rel="noreferrer"
+                >
+                    Valve의 액체 표현 추가 공지
+                </a>
+                는 현상의 출발점입니다. 여기의 부피·감쇠 모델은 직접 구성한 교육용 모델입니다.
+            </p>
+        </dialog>
+    </main>
+    <style>
+        main {
+            min-height: 100svh;
+            background: radial-gradient(circle at 65% 38%, #fff, #edf1f3 70%);
+            padding: 20px 28px 24px;
+        }
+        nav {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+        }
+        nav a {
+            color: #263340;
+            text-decoration: none;
+            font-weight: 750;
+            margin-right: auto;
+        }
+        button,
+        select {
+            min-height: 44px;
+            border: 1px solid #bccbce;
+            border-radius: 12px;
+            background: #fff;
+            color: #263340;
+            padding: 9px 14px;
+            cursor: pointer;
+        }
+        button:hover {
+            background: #e0efed;
+        }
+        header {
+            text-align: center;
+            margin: 24px auto 10px;
+        }
+        header p {
+            color: #0c716c;
+            font-size: 13px;
+            letter-spacing: 0.08em;
+        }
+        h1 {
+            font-size: clamp(25px, 3vw, 44px);
+            margin: 10px 0;
+        }
+        header span {
+            color: #52646b;
+            font-size: 14px;
+        }
+        .stage {
+            width: 100%;
+            height: clamp(390px, 63vh, 680px);
+        }
+        canvas {
+            width: 100%;
+            height: 100%;
+            display: block;
+        }
+        .summary {
+            max-width: 850px;
+            margin: 0 auto;
+            background: #ffffffcc;
+            border: 1px solid #d5dfe0;
+            border-radius: 16px;
+            padding: 16px;
+            text-align: center;
+            line-height: 1.7;
+            font-size: 14px;
+        }
+        #settings {
+            position: fixed;
+            top: 80px;
+            left: 24px;
+            width: 300px;
+            max-height: calc(100svh - 104px);
+            overflow: auto;
+            z-index: 5;
+            background: #fffffff5;
+            box-shadow: 0 18px 70px #24383b30;
+            border: 1px solid #cad7d8;
+            border-radius: 20px;
+            padding: 20px;
+        }
+        h2 {
+            font-size: 18px;
+            margin: 0;
+        }
+        .panel-head,
+        .dialog-head {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+        }
+        .panel-head button,
+        .dialog-head button {
+            font-size: 23px;
+        }
+        label {
+            display: block;
+            font-size: 14px;
+            font-weight: 650;
+            margin: 20px 0;
+        }
+        output {
+            float: right;
+            color: #0a726e;
+        }
+        input[type='range'] {
+            display: block;
+            width: 100%;
+            height: 40px;
+            accent-color: #13837d;
+        }
+        select {
+            display: block;
+            width: 100%;
+            margin-top: 9px;
+        }
+        #settings > button {
+            width: 100%;
+            margin-bottom: 8px;
+        }
+        #settings p {
+            font-size: 12px;
+            line-height: 1.65;
+            color: #596b70;
+        }
+        dialog {
+            max-width: 640px;
+            width: calc(100% - 32px);
+            max-height: 85svh;
+            overflow: auto;
+            border: 1px solid #bbcfd0;
+            border-radius: 22px;
+            padding: 26px;
+            color: #263340;
+        }
+        dialog::backdrop {
+            background: #162b3b77;
+        }
+        dialog p {
+            line-height: 1.8;
+            font-size: 14px;
+        }
+        dialog h3 {
+            font-size: 15px;
+            margin-top: 24px;
+        }
+        dialog a {
+            color: #0b716b;
+        }
+        @media (max-width: 600px) {
+            main {
+                padding: 14px 12px;
+            }
+            header {
+                margin-top: 24px;
+            }
+            header span {
+                display: block;
+                line-height: 1.7;
+                padding: 0 15px;
+            }
+            .stage {
+                height: 630px;
+            }
+            #settings {
+                left: 12px;
+                top: 74px;
+                width: min(300px, calc(100% - 24px));
+            }
+            nav {
+                gap: 8px;
+            }
+            nav button {
+                padding: 9px 12px;
+            }
+            .summary {
+                font-size: 13px;
+                padding: 12px;
+            }
+        }
+    </style>
+    <script>
+        import '../../experiments/bottle-liquid/client';
+    </script>
+</Page>

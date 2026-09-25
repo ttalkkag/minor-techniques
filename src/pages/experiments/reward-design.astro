@@ -1,0 +1,618 @@
+---
+import Page from '../../layouts/Page.astro';
+---
+
+<Page
+    title="점수는 높은데 도착하지 않는 정책 · 게임 실험실"
+    description="왕복·위험한 지름길·안전한 우회에 같은 보상식을 적용해 보세요."
+>
+    <main class="lab">
+        <nav aria-label="실험실 탐색">
+            <button id="menu" aria-label="설정 메뉴 열기" aria-controls="settings" aria-expanded="false">
+                ☰
+            </button>
+            <a href="/">게임 실험실</a>
+            <button id="help" aria-label="원인과 해결 설명 열기">
+                ?
+            </button>
+        </nav>
+        <header>
+            <p class="eyebrow">게임 AI / 보상과 종료</p>
+            <h1>점수는 높은데 도착하지 않는 정책</h1>
+            <p>왕복·위험한 지름길·안전한 우회에 같은 보상식을 적용해 보세요.</p>
+        </header>
+        <section class="stage" aria-label="실험 장면">
+            <canvas
+                id="scene"
+                aria-label="점수는 높은데 도착하지 않는 정책 관찰 그림"
+                aria-describedby="summary"
+            ></canvas>
+        </section>
+        <section class="readouts" aria-label="관찰값">
+            <div class="metric">
+                <span>선택된 후보 정책</span>
+                <strong id="metric-0">—</strong>
+            </div>
+            <div class="metric">
+                <span>누적 점수 / 실제 결과</span>
+                <strong id="metric-1">—</strong>
+            </div>
+            <div class="metric">
+                <span>현재 전이의 학습 타깃 y</span>
+                <strong id="metric-2">—</strong>
+            </div>
+        </section>
+        <div class="toolbar" role="group" aria-label="실험 조작">
+            <button id="play" class="primary">
+                정책 재생
+            </button>
+            <button id="step">한 행동</button>
+            <button id="fix">목표 중심 보상 예시</button>
+            <button id="reset">초기화</button>
+        </div>
+        <p id="summary" class="summary" role="status"></p>
+        <section class="extra">
+            <table class="reward-table">
+                <thead>
+                    <tr>
+                        <th>후보 정책</th>
+                        <th>할인 보상</th>
+                        <th>실제 결과</th>
+                        <th>스텝</th>
+                    </tr>
+                </thead>
+                <tbody id="candidates"></tbody>
+            </table>
+            <p id="transition-detail" role="status"></p>
+        </section>
+        <div id="backdrop" class="backdrop" hidden></div>
+        <div id="settings" class="settings" role="dialog" aria-modal="true" aria-label="실험 설정" hidden>
+            <h2>
+                실험 설정
+                <button id="close-menu" aria-label="설정 메뉴 닫기">
+                    ×
+                </button>
+            </h2>
+            <div class="control">
+                <label for="reward">진행 보상의 정의</label>
+                <select id="reward">
+                    <option value="move">이동할 때마다 +1</option>
+                    <option value="progress">가로 위치 변화 Δx</option>
+                    <option value="novelty">처음 방문한 칸만 +1</option>
+                </select>
+            </div>
+            <div class="control">
+                <label for="bonus">
+                    도착 보상<output id="bonus-value"></output>
+                </label>
+                <input id="bonus" type="range" min="0" max="20" value="0" step="1" />
+            </div>
+            <div class="control">
+                <label for="death">
+                    실패 벌점<output id="death-value"></output>
+                </label>
+                <input id="death" type="range" min="0" max="15" value="0" step="1" />
+            </div>
+            <div class="control">
+                <label for="cost">
+                    스텝당 비용<output id="cost-value"></output>
+                </label>
+                <input id="cost" type="range" min="0" max="1" value="0" step="0.1" />
+            </div>
+            <div class="control">
+                <label for="limit">
+                    스텝 제한<output id="limit-value"></output>
+                </label>
+                <input id="limit" type="range" min="2" max="14" value="8" step="1" />
+            </div>
+            <div class="control">
+                <label for="timeout">제한의 의미</label>
+                <select id="timeout">
+                    <option value="external">외부 수집 중단 · truncated</option>
+                    <option value="finite">시간 내 도착이 규칙 · terminated</option>
+                </select>
+            </div>
+            <div class="control">
+                <label for="gamma">
+                    할인율 γ<output id="gamma-value"></output>
+                </label>
+                <input id="gamma" type="range" min="0.5" max="1" value="0.9" step="0.05" />
+            </div>
+            <div class="control">
+                <label for="route">따라갈 후보 정책</label>
+                <select id="route">
+                    <option value="auto">세 후보 중 할인 보상 최대</option>
+                    <option value="loop">왕복 반복</option>
+                    <option value="direct">위험한 지름길</option>
+                    <option value="safe">안전한 우회</option>
+                </select>
+            </div>
+            <hr />
+            <h3>다음 상태의 가치 예제</h3>
+            <div class="control">
+                <label for="target-method">타깃 계산</label>
+                <select id="target-method">
+                    <option value="double">Double DQN · 선택과 평가 분리</option>
+                    <option value="dqn">DQN · 타깃 값의 최댓값</option>
+                </select>
+            </div>
+            <p id="value-error" class="note value-error" role="status" hidden>네 가치에 -20부터 20까지의 유한한 숫자를 입력하세요. 잘못된 값은 계산에 적용하지 않습니다.</p>
+            <div class="mini-grid">
+                <div class="control">
+                    <label for="online-left">온라인 왼쪽</label>
+                    <input id="online-left" aria-describedby="value-error" required type="number" step="any" min="-20" max="20" value="8" />
+                </div>
+                <div class="control">
+                    <label for="online-right">온라인 오른쪽</label>
+                    <input id="online-right" aria-describedby="value-error" required type="number" step="any" min="-20" max="20" value="7" />
+                </div>
+                <div class="control">
+                    <label for="target-left">타깃 왼쪽</label>
+                    <input id="target-left" aria-describedby="value-error" required type="number" step="any" min="-20" max="20" value="4" />
+                </div>
+                <div class="control">
+                    <label for="target-right">타깃 오른쪽</label>
+                    <input id="target-right" aria-describedby="value-error" required type="number" step="any" min="-20" max="20" value="9" />
+                </div>
+            </div>
+        </div>
+        <noscript>실험을 조작하려면 JavaScript를 켜주세요.</noscript>
+    </main>
+    <dialog id="explanation" aria-labelledby="explanation-title">
+        <div class="dialog-top">
+            <span>원인과 해결</span>
+            <button id="close-help" aria-label="설명 닫기">
+                ×
+            </button>
+        </div>
+        <h2 id="explanation-title">점수는 높은데 도착하지 않는 정책</h2>
+        <p class="guide">
+            기본 보상은 안전한 도착보다 왕복의 점수를 높게 만듭니다. ‘목표 중심 보상 예시’를 누르고 선택되는
+            후보가 바뀌는지 확인하세요.
+        </p>
+        <h3>문제 · 점수와 목적의 분리</h3>
+        <p>
+            모든 이동에 +1을 주면 제자리 왕복도 이득입니다. Δx는 뒤로 간 만큼 보상을 되돌리고, 최초 방문은
+            방문 기록이 있어야 중복을 막습니다. 다만 γ&lt;1이면 +1, −1 왕복의 할인합도 1−γ이므로 Δx만으로
+            모든 왕복 이득이 사라지지는 않습니다. 도착 보상과 실패 벌점은 실제 종료 상태에서 한 번 적용합니다.
+        </p>
+        <h3>종료와 외부 중단</h3>
+        <p>
+            도착·죽음은 terminated이므로 타깃 y는 현재 보상입니다. 외부 데이터 수집이 끝났을 뿐 게임이 계속될
+            상태는 truncated로 다음 가치 γQ를 남깁니다. ‘시간 내 도착’ 자체가 규칙이면 제한 도달은 진짜
+            종료이며 남은 시간을 관측 상태에 포함합니다.
+        </p>
+        <h3>Double DQN의 구분</h3>
+        <p>
+            온라인 값 8,7은 왼쪽을 선택합니다. 타깃 값 4,9 중 선택한 왼쪽의 4로 평가합니다. DQN의 타깃 최댓값
+            9와 다릅니다. 단순히 네트워크가 두 개 있다는 설명만으로 Double DQN을 정의하지 않습니다.
+        </p>
+        <h3>대가와 실험 범위</h3>
+        <p>
+            왕복·지름길·우회의 세 가지 고정 후보를 같은 환경 규칙에서 실행하고 할인 보상을 비교합니다. 전체
+            정책 공간의 최적화나 신경망 학습은 하지 않습니다. 순위가 바뀌어도 일반적인 게임 성공률 개선을
+            증명하지 않습니다. 표시하는 점수, 도착 여부, 종료 플래그를 함께 보세요.
+        </p>
+        <a href="https://arxiv.org/html/1509.06461v3" target="_blank" rel="noopener noreferrer">
+            Double DQN 원 논문 · 선택과 평가 분리 ↗
+        </a>
+        <a
+            href="https://gymnasium.farama.org/tutorials/gymnasium_basics/handling_time_limits/"
+            target="_blank"
+            rel="noopener noreferrer"
+        >
+            Gymnasium · Termination / Truncation ↗
+        </a>
+    </dialog>
+    <script>
+        import '../../experiments/reward-design/client';
+    </script>
+</Page>
+<style>
+    .lab {
+        min-height: 100svh;
+        padding: 18px 28px 28px;
+        background: radial-gradient(ellipse at 50% 30%, #fff, #edf2f3 75%);
+        color: #283f49;
+    }
+    nav {
+        display: flex;
+        gap: 14px;
+        align-items: center;
+        max-width: 1450px;
+        margin: auto;
+    }
+    nav a {
+        font-weight: 750;
+        color: inherit;
+        text-decoration: none;
+    }
+    button,
+    select {
+        min-height: 44px;
+        border: 1px solid #cbd8db;
+        border-radius: 12px;
+        padding: 9px 14px;
+        background: #fff;
+        color: #2c4650;
+        font: inherit;
+        cursor: pointer;
+    }
+    button:hover {
+        background: #e7f1ef;
+    }
+    nav button {
+        font-size: 21px;
+        width: 44px;
+        padding: 0;
+    }
+    nav button:last-child {
+        margin-left: auto;
+    }
+    header {
+        text-align: center;
+        margin: 28px 0 23px;
+    }
+    header h1 {
+        word-break: keep-all;
+        font-size: clamp(25px, 3.1vw, 40px);
+        letter-spacing: -0.055em;
+        margin: 8px 0 12px;
+    }
+    header p {
+        font-size: 13px;
+        color: #526b75;
+        margin: 0;
+        line-height: 1.7;
+    }
+    .eyebrow {
+        font-size: 11px !important;
+        color: #197d76 !important;
+        letter-spacing: 0.12em;
+    }
+    .stage {
+        max-width: 1240px;
+        margin: auto;
+        border: 1px solid #d0dce0;
+        border-radius: 22px;
+        overflow: hidden;
+        background: linear-gradient(#f3f7f7, #eaf0f2);
+    }
+    canvas {
+        display: block;
+        width: 100%;
+        height: 385px;
+    }
+    .readouts {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 16px;
+        max-width: 1150px;
+        margin: 18px auto;
+    }
+    .metric {
+        padding: 6px 12px;
+        min-width: 0;
+        border-left: 2px solid #bdd9d4;
+    }
+    .metric span {
+        display: block;
+        font-size: 11px;
+        color: #526b75;
+    }
+    .metric strong {
+        word-break: keep-all;
+        display: block;
+        font-size: clamp(16px, 2.2vw, 25px);
+        letter-spacing: -0.04em;
+        margin-top: 6px;
+        overflow-wrap: anywhere;
+    }
+    .metric small {
+        font-size: 12px;
+    }
+    .toolbar {
+        display: flex;
+        justify-content: center;
+        flex-wrap: wrap;
+        gap: 9px;
+        margin: 18px auto;
+    }
+    .primary {
+        background: #187e76;
+        color: white;
+        border-color: #187e76;
+    }
+    .primary:hover {
+        background: #146860;
+    }
+    .summary {
+        text-align: center;
+        max-width: 1040px;
+        font-size: 12px;
+        line-height: 1.8;
+        color: #526b75;
+        margin: 16px auto;
+    }
+    .extra {
+        max-width: 1150px;
+        margin: 14px auto;
+        border-top: 1px solid #d0dedf;
+        padding-top: 15px;
+    }
+    .extra p {
+        font-size: 12px;
+        line-height: 1.7;
+        margin: 6px 0;
+    }
+    .extra strong {
+        color: #157b74;
+    }
+    .log {
+        font-size: 11px;
+        line-height: 1.8;
+        color: #576e76;
+        min-height: 44px;
+        max-height: 100px;
+        overflow: auto;
+    }
+    .backdrop {
+        position: fixed;
+        inset: 0;
+        z-index: 3;
+        background: #263f4833;
+    }
+    .settings {
+        position: fixed;
+        top: 12px;
+        left: 12px;
+        bottom: 12px;
+        width: 312px;
+        max-width: calc(100vw - 24px);
+        overflow: auto;
+        padding: 21px;
+        z-index: 4;
+        background: #f9fbfc;
+        border: 1px solid #ccdbdd;
+        border-radius: 20px;
+        box-shadow: 0 20px 80px #283e4628;
+    }
+    .settings h2 {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        font-size: 18px;
+        margin: 0 0 20px;
+    }
+    .settings h2 button {
+        font-size: 23px;
+        width: 44px;
+        padding: 0;
+    }
+    .control {
+        margin-top: 19px;
+    }
+    .control label {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        font-size: 12px;
+        font-weight: 650;
+        margin-bottom: 9px;
+    }
+    .control input[type='range'] {
+        width: 100%;
+        height: 32px;
+        accent-color: #177c73;
+        margin: 0;
+    }
+    .control input[type='number'] {
+        width: 100%;
+        height: 42px;
+        border: 1px solid #c5d8db;
+        border-radius: 9px;
+        padding: 6px 10px;
+        background: #fff;
+    }
+    .control select {
+        width: 100%;
+        font-size: 12px;
+        padding: 10px;
+    }
+    .control output {
+        color: #187c74;
+    }
+    .check {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        font-size: 12px;
+        min-height: 44px;
+        margin-top: 8px;
+    }
+    .check input {
+        width: 18px;
+        height: 18px;
+        accent-color: #187f76;
+    }
+    .note {
+        font-size: 11px;
+        line-height: 1.75;
+        color: #536a74;
+    }
+    .settings .wide {
+        width: 100%;
+        margin-top: 12px;
+        font-size: 12px;
+    }
+    .settings hr {
+        border: 0;
+        border-top: 1px solid #d7e1e3;
+        margin: 22px 0;
+    }
+    .settings h3 {
+        font-size: 13px;
+        color: #197b75;
+    }
+    .settings :disabled {
+        opacity: 0.55;
+    }
+    .value-error {
+        color: #873d2b;
+    }
+    input[aria-invalid="true"] {
+        outline: 2px solid #a74730;
+        outline-offset: 1px;
+    }
+    .mini-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 8px;
+    }
+    .mini-grid .control {
+        margin-top: 8px;
+    }
+    .mini-grid input {
+        min-width: 0;
+    }
+    dialog {
+        width: min(670px, calc(100vw - 28px));
+        max-height: calc(100svh - 40px);
+        overflow: auto;
+        border: 1px solid #cddbdd;
+        border-radius: 22px;
+        padding: 25px 30px;
+        background: #fbfcfc;
+        color: #2b444c;
+    }
+    dialog::backdrop {
+        background: #263e4777;
+        backdrop-filter: blur(4px);
+    }
+    dialog h2 {
+        font-size: 26px;
+        letter-spacing: -0.045em;
+        margin: 20px 0;
+    }
+    dialog h3 {
+        font-size: 16px;
+        margin: 24px 0 8px;
+    }
+    dialog p {
+        font-size: 13px;
+        line-height: 1.85;
+        color: #5c717a;
+    }
+    dialog a {
+        font-size: 12px;
+        color: #137c75;
+        line-height: 1.9;
+        display: block;
+        margin-top: 10px;
+    }
+    .dialog-top {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        color: #1a7d75;
+        font-size: 12px;
+    }
+    .dialog-top button {
+        font-size: 22px;
+        width: 44px;
+        padding: 0;
+    }
+    dialog .guide {
+        color: #405b65;
+        padding: 14px;
+        background: #e2efec;
+        border-radius: 12px;
+    }
+    .tabular {
+        font-variant-numeric: tabular-nums;
+    }
+    .reward-table {
+        width: 100%;
+        font-size: 12px;
+        border-collapse: collapse;
+    }
+    .reward-table th,
+    .reward-table td {
+        text-align: left;
+        padding: 8px;
+        border-bottom: 1px solid #d9e4e4;
+    }
+    .route {
+        font-size: 12px;
+    }
+    .tag {
+        border-radius: 5px;
+        padding: 3px 6px;
+        background: #e0efec;
+    }
+    @media (max-width: 700px) {
+        .lab {
+            padding: 12px 14px 22px;
+        }
+        header {
+            margin: 24px 0 18px;
+        }
+        header h1 {
+            word-break: keep-all;
+            font-size: 27px;
+            line-height: 1.25;
+        }
+        header p {
+            font-size: 11px;
+        }
+        canvas {
+            height: 390px;
+        }
+        .stage {
+            border-radius: 16px;
+        }
+        .readouts {
+            gap: 6px;
+            margin: 15px 0;
+        }
+        .metric {
+            padding: 3px 8px;
+        }
+        .metric span {
+            font-size: 10px;
+        }
+        .metric strong {
+            font-size: 16px;
+            line-height: 1.4;
+        }
+        .toolbar {
+            gap: 7px;
+        }
+        .toolbar button {
+            font-size: 12px;
+            padding: 9px 12px;
+        }
+        .summary {
+            font-size: 11px;
+        }
+        .extra {
+            padding-top: 10px;
+        }
+        .reward-table {
+            font-size: 10px;
+        }
+        .reward-table th,
+        .reward-table td {
+            padding: 7px 4px;
+        }
+        dialog {
+            padding: 20px;
+        }
+        dialog h2 {
+            font-size: 23px;
+        }
+        .log {
+            font-size: 10px;
+        }
+    }
+</style>

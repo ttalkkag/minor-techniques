@@ -1,0 +1,607 @@
+---
+import Page from '../../layouts/Page.astro';
+---
+
+<Page
+    title="효과음이 리듬 채널을 빌려 갈 때 · 게임 실험실"
+    description="4개 음원의 소유권과 곡 시계, 시퀀스·PCM 저장량을 따로 비교하세요."
+>
+    <main class="lab">
+        <nav aria-label="실험실 탐색">
+            <button id="menu" aria-label="설정 메뉴 열기" aria-controls="settings" aria-expanded="false">
+                ☰
+            </button>
+            <a href="/">게임 실험실</a>
+            <button id="help" aria-label="원인과 해결 설명 열기">
+                ?
+            </button>
+        </nav>
+        <header>
+            <p class="eyebrow">오디오 / 음원 예산</p>
+            <h1>효과음이 리듬 채널을 빌려 갈 때</h1>
+            <p>4개 음원의 소유권과 곡 시계, 시퀀스·PCM 저장량을 따로 비교하세요.</p>
+        </header>
+        <section class="stage" aria-label="실험 장면">
+            <canvas
+                id="scene"
+                aria-label="효과음이 리듬 채널을 빌려 갈 때 관찰 그림"
+                aria-describedby="summary"
+            ></canvas>
+        </section>
+        <section class="readouts" aria-label="관찰값">
+            <div class="metric">
+                <span>현재 곡 위치</span>
+                <strong id="metric-0">—</strong>
+            </div>
+            <div class="metric">
+                <span>효과음 처리</span>
+                <strong id="metric-1">—</strong>
+            </div>
+            <div class="metric">
+                <span>샘플 재생 비율 · 길이</span>
+                <strong id="metric-2">—</strong>
+            </div>
+        </section>
+        <div class="toolbar" role="group" aria-label="실험 조작">
+            <button id="play" class="primary">
+                소리 켜고 재생
+            </button>
+            <button id="effect">효과음 요청</button>
+            <button id="step">½초 진행 (무음)</button>
+            <button id="reset">초기화</button>
+        </div>
+        <p id="summary" class="summary" role="status"></p>
+        <section class="extra">
+            <p id="storage"></p>
+            <p id="channel-result" role="status">
+                효과음 요청을 기다립니다.
+            </p>
+        </section>
+        <div id="backdrop" class="backdrop" hidden></div>
+        <div id="settings" class="settings" role="dialog" aria-modal="true" aria-label="실험 설정" hidden>
+            <h2>
+                실험 설정
+                <button id="close-menu" aria-label="설정 메뉴 닫기">
+                    ×
+                </button>
+            </h2>
+            <div class="control">
+                <label for="effect-channel">효과음이 요청하는 음원</label>
+                <select id="effect-channel">
+                    <option value="3">Noise · 리듬</option>
+                    <option value="0">Pulse 1 · 선율</option>
+                    <option value="1">Pulse 2 · 화음</option>
+                    <option value="2">Wave · 베이스</option>
+                </select>
+            </div>
+            <div class="control">
+                <label for="priority">
+                    효과음 우선순위<output id="priority-value"></output>
+                </label>
+                <input id="priority" type="range" min="0" max="4" value="2" step="1" />
+            </div>
+            <div class="control">
+                <label for="duration">
+                    효과음 길이 (초)<output id="duration-value"></output>
+                </label>
+                <input id="duration" type="range" min="0.25" max="3" value="1.5" step="0.25" />
+            </div>
+            <label class="check">
+                <input id="replace" type="checkbox" checked />
+                같은 우선순위면 새 효과음으로 교체
+            </label>
+            <div class="control">
+                <label for="budget">
+                    동시에 쓸 음악 음원 수<output id="budget-value"></output>
+                </label>
+                <input id="budget" type="range" min="1" max="4" value="4" step="1" />
+            </div>
+            <div class="control">
+                <label for="volume">
+                    청취 음량 (%)<output id="volume-value"></output>
+                </label>
+                <input id="volume" type="range" min="0" max="40" value="12" step="1" />
+            </div>
+            <hr />
+            <h3>저장 데이터 · 음원 채널과 별개</h3>
+            <div class="control">
+                <label for="seconds">
+                    곡 길이 (초)<output id="seconds-value"></output>
+                </label>
+                <input id="seconds" type="range" min="10" max="180" value="60" step="10" />
+            </div>
+            <div class="control">
+                <label for="rate">PCM 샘플레이트</label>
+                <select id="rate">
+                    <option value="48000">48 kHz</option>
+                    <option value="22050">22.05 kHz</option>
+                </select>
+            </div>
+            <div class="control">
+                <label for="outputs">PCM 저장 채널</label>
+                <select id="outputs">
+                    <option value="2">스테레오 2개</option>
+                    <option value="1">모노 1개</option>
+                </select>
+            </div>
+            <div class="control">
+                <label for="bank">
+                    공유 악기 데이터 (kB)<output id="bank-value"></output>
+                </label>
+                <input id="bank" type="range" min="0" max="500" value="200" step="20" />
+            </div>
+            <div class="control">
+                <label for="semitones">
+                    2초 샘플의 반음 이동<output id="semitones-value"></output>
+                </label>
+                <input id="semitones" type="range" min="-12" max="12" value="0" step="1" />
+            </div>
+            <button id="sample" class="wide">
+                샘플 한 번 듣기
+            </button>
+            <p class="note">
+                PCM은 16비트 비압축·헤더 제외입니다. 시퀀스는 초당 명령·메타데이터 약 66.7B + 악기 뱅크로
+                가정합니다. 네 음원은 정확한 칩 에뮬레이션이 아닙니다.
+            </p>
+        </div>
+        <noscript>실험을 조작하려면 JavaScript를 켜주세요.</noscript>
+    </main>
+    <dialog id="explanation" aria-labelledby="explanation-title">
+        <div class="dialog-top">
+            <span>원인과 해결</span>
+            <button id="close-help" aria-label="설명 닫기">
+                ×
+            </button>
+        </div>
+        <h2 id="explanation-title">효과음이 리듬 채널을 빌려 갈 때</h2>
+        <p class="guide">
+            재생 중 ‘효과음 요청’을 누르면 선택 채널의 음악이 잠시 빠집니다. 낮은 우선순위 요청이나 같은
+            우선순위 연타를 비교하세요.
+        </p>
+        <h3>문제 · 음원 수의 제한</h3>
+        <p>
+            여기서 채널은 소리를 만드는 Pulse 1·2, Wave, Noise입니다. 좌우 저장 채널과는 다릅니다. 효과음은
+            선택 채널 한 개의 소유권을 요청하고, 음악의 우선순위는 1입니다.
+        </p>
+        <h3>해결 · 소유권과 곡 시계 분리</h3>
+        <p>
+            더 중요한 요청은 채널을 선점하고 이전 효과음을 끊습니다. 종료하면 계속 흐르던 곡의 현재 박자에
+            맞춰 돌아옵니다. 정지는 모든 음원과 시계를 초기화합니다. 무음 진행은 같은 소유권 상태를
+            계산합니다.
+        </p>
+        <h3>저장 예산과 샘플 재생</h3>
+        <p>
+            PCM 바이트=초×샘플레이트×16/8×출력채널. 60초·48kHz·스테레오는 11,520,000B입니다. 시퀀스
+            명령·메타데이터 4,000B와 악기 200,000B는 합쳐서 204,000B입니다. 표현과 음질이 동일하다는 보장은
+            없습니다.
+        </p>
+        <p>
+            자작 2초 샘플의 재생 비율 r=2^(반음/12), 길이=2/r입니다. +12반음이면 두 배 속도·1초가 됩니다.
+            음높이와 길이를 독립적으로 바꾸려면 별도 처리가 필요합니다.
+        </p>
+        <h3>대가와 범위</h3>
+        <p>
+            선점은 음악 일부를 잃고, 요청 거부는 효과음을 놓칩니다. 소프트웨어 합산에는 다른 계산·믹싱 예산이
+            필요합니다. 이 페이지는 네 음원 배분 모델이며 특정 게임의 사운드 드라이버나 파형 RAM·칩 타이밍을
+            복제하지 않습니다. Pan Docs는 Nintendo 제조사 문서가 아닌 gbdev 연구 자료입니다.
+        </p>
+        <a
+            href="https://raw.githubusercontent.com/gbdev/pandocs/master/src/Audio_Registers.md"
+            target="_blank"
+            rel="noopener noreferrer"
+        >
+            gbdev Pan Docs · 음원 구조 ↗
+        </a>
+        <a
+            href="https://www.w3.org/TR/webaudio-1.0/#dom-audiobuffersourcenode-playbackrate"
+            target="_blank"
+            rel="noopener noreferrer"
+        >
+            W3C · 샘플 재생률 ↗
+        </a>
+    </dialog>
+    <script>
+        import '../../experiments/audio-channel-budget/client';
+    </script>
+</Page>
+<style>
+    .lab {
+        min-height: 100svh;
+        padding: 18px 28px 28px;
+        background: radial-gradient(ellipse at 50% 30%, #fff, #edf2f3 75%);
+        color: #283f49;
+    }
+    nav {
+        display: flex;
+        gap: 14px;
+        align-items: center;
+        max-width: 1450px;
+        margin: auto;
+    }
+    nav a {
+        font-weight: 750;
+        color: inherit;
+        text-decoration: none;
+    }
+    button,
+    select {
+        min-height: 44px;
+        border: 1px solid #cbd8db;
+        border-radius: 12px;
+        padding: 9px 14px;
+        background: #fff;
+        color: #2c4650;
+        font: inherit;
+        cursor: pointer;
+    }
+    button:hover {
+        background: #e7f1ef;
+    }
+    nav button {
+        font-size: 21px;
+        width: 44px;
+        padding: 0;
+    }
+    nav button:last-child {
+        margin-left: auto;
+    }
+    header {
+        text-align: center;
+        margin: 28px 0 23px;
+    }
+    header h1 {
+        word-break: keep-all;
+        font-size: clamp(25px, 3.1vw, 40px);
+        letter-spacing: -0.055em;
+        margin: 8px 0 12px;
+    }
+    header p {
+        font-size: 13px;
+        color: #526b75;
+        margin: 0;
+        line-height: 1.7;
+    }
+    .eyebrow {
+        font-size: 11px !important;
+        color: #197d76 !important;
+        letter-spacing: 0.12em;
+    }
+    .stage {
+        max-width: 1240px;
+        margin: auto;
+        border: 1px solid #d0dce0;
+        border-radius: 22px;
+        overflow: hidden;
+        background: linear-gradient(#f3f7f7, #eaf0f2);
+    }
+    canvas {
+        display: block;
+        width: 100%;
+        height: 385px;
+    }
+    .readouts {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 16px;
+        max-width: 1150px;
+        margin: 18px auto;
+    }
+    .metric {
+        padding: 6px 12px;
+        min-width: 0;
+        border-left: 2px solid #bdd9d4;
+    }
+    .metric span {
+        display: block;
+        font-size: 11px;
+        color: #526b75;
+    }
+    .metric strong {
+        word-break: keep-all;
+        display: block;
+        font-size: clamp(16px, 2.2vw, 25px);
+        letter-spacing: -0.04em;
+        margin-top: 6px;
+        overflow-wrap: anywhere;
+    }
+    .metric small {
+        font-size: 12px;
+    }
+    .toolbar {
+        display: flex;
+        justify-content: center;
+        flex-wrap: wrap;
+        gap: 9px;
+        margin: 18px auto;
+    }
+    .primary {
+        background: #187e76;
+        color: white;
+        border-color: #187e76;
+    }
+    .primary:hover {
+        background: #146860;
+    }
+    .summary {
+        text-align: center;
+        max-width: 1040px;
+        font-size: 12px;
+        line-height: 1.8;
+        color: #526b75;
+        margin: 16px auto;
+    }
+    .extra {
+        max-width: 1150px;
+        margin: 14px auto;
+        border-top: 1px solid #d0dedf;
+        padding-top: 15px;
+    }
+    .extra p {
+        font-size: 12px;
+        line-height: 1.7;
+        margin: 6px 0;
+    }
+    .extra strong {
+        color: #157b74;
+    }
+    .log {
+        font-size: 11px;
+        line-height: 1.8;
+        color: #576e76;
+        min-height: 44px;
+        max-height: 100px;
+        overflow: auto;
+    }
+    .backdrop {
+        position: fixed;
+        inset: 0;
+        z-index: 3;
+        background: #263f4833;
+    }
+    .settings {
+        position: fixed;
+        top: 12px;
+        left: 12px;
+        bottom: 12px;
+        width: 312px;
+        max-width: calc(100vw - 24px);
+        overflow: auto;
+        padding: 21px;
+        z-index: 4;
+        background: #f9fbfc;
+        border: 1px solid #ccdbdd;
+        border-radius: 20px;
+        box-shadow: 0 20px 80px #283e4628;
+    }
+    .settings h2 {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        font-size: 18px;
+        margin: 0 0 20px;
+    }
+    .settings h2 button {
+        font-size: 23px;
+        width: 44px;
+        padding: 0;
+    }
+    .control {
+        margin-top: 19px;
+    }
+    .control label {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        font-size: 12px;
+        font-weight: 650;
+        margin-bottom: 9px;
+    }
+    .control input[type='range'] {
+        width: 100%;
+        height: 32px;
+        accent-color: #177c73;
+        margin: 0;
+    }
+    .control input[type='number'] {
+        width: 100%;
+        height: 42px;
+        border: 1px solid #c5d8db;
+        border-radius: 9px;
+        padding: 6px 10px;
+        background: #fff;
+    }
+    .control select {
+        width: 100%;
+        font-size: 12px;
+        padding: 10px;
+    }
+    .control output {
+        color: #187c74;
+    }
+    .check {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        font-size: 12px;
+        min-height: 44px;
+        margin-top: 8px;
+    }
+    .check input {
+        width: 18px;
+        height: 18px;
+        accent-color: #187f76;
+    }
+    .note {
+        font-size: 11px;
+        line-height: 1.75;
+        color: #536a74;
+    }
+    .settings .wide {
+        width: 100%;
+        margin-top: 12px;
+        font-size: 12px;
+    }
+    .settings hr {
+        border: 0;
+        border-top: 1px solid #d7e1e3;
+        margin: 22px 0;
+    }
+    .settings h3 {
+        font-size: 13px;
+        color: #197b75;
+    }
+    .settings :disabled {
+        opacity: 0.55;
+    }
+    .mini-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 8px;
+    }
+    .mini-grid .control {
+        margin-top: 8px;
+    }
+    .mini-grid input {
+        min-width: 0;
+    }
+    dialog {
+        width: min(670px, calc(100vw - 28px));
+        max-height: calc(100svh - 40px);
+        overflow: auto;
+        border: 1px solid #cddbdd;
+        border-radius: 22px;
+        padding: 25px 30px;
+        background: #fbfcfc;
+        color: #2b444c;
+    }
+    dialog::backdrop {
+        background: #263e4777;
+        backdrop-filter: blur(4px);
+    }
+    dialog h2 {
+        font-size: 26px;
+        letter-spacing: -0.045em;
+        margin: 20px 0;
+    }
+    dialog h3 {
+        font-size: 16px;
+        margin: 24px 0 8px;
+    }
+    dialog p {
+        font-size: 13px;
+        line-height: 1.85;
+        color: #5c717a;
+    }
+    dialog a {
+        font-size: 12px;
+        color: #137c75;
+        line-height: 1.9;
+        display: block;
+        margin-top: 10px;
+    }
+    .dialog-top {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        color: #1a7d75;
+        font-size: 12px;
+    }
+    .dialog-top button {
+        font-size: 22px;
+        width: 44px;
+        padding: 0;
+    }
+    dialog .guide {
+        color: #405b65;
+        padding: 14px;
+        background: #e2efec;
+        border-radius: 12px;
+    }
+    .tabular {
+        font-variant-numeric: tabular-nums;
+    }
+    .reward-table {
+        width: 100%;
+        font-size: 12px;
+        border-collapse: collapse;
+    }
+    .reward-table th,
+    .reward-table td {
+        text-align: left;
+        padding: 8px;
+        border-bottom: 1px solid #d9e4e4;
+    }
+    .route {
+        font-size: 12px;
+    }
+    .tag {
+        border-radius: 5px;
+        padding: 3px 6px;
+        background: #e0efec;
+    }
+    @media (max-width: 700px) {
+        .lab {
+            padding: 12px 14px 22px;
+        }
+        header {
+            margin: 24px 0 18px;
+        }
+        header h1 {
+            word-break: keep-all;
+            font-size: 27px;
+            line-height: 1.25;
+        }
+        header p {
+            font-size: 11px;
+        }
+        canvas {
+            height: 390px;
+        }
+        .stage {
+            border-radius: 16px;
+        }
+        .readouts {
+            gap: 6px;
+            margin: 15px 0;
+        }
+        .metric {
+            padding: 3px 8px;
+        }
+        .metric span {
+            font-size: 10px;
+        }
+        .metric strong {
+            font-size: 16px;
+            line-height: 1.4;
+        }
+        .toolbar {
+            gap: 7px;
+        }
+        .toolbar button {
+            font-size: 12px;
+            padding: 9px 12px;
+        }
+        .summary {
+            font-size: 11px;
+        }
+        .extra {
+            padding-top: 10px;
+        }
+        .reward-table {
+            font-size: 10px;
+        }
+        .reward-table th,
+        .reward-table td {
+            padding: 7px 4px;
+        }
+        dialog {
+            padding: 20px;
+        }
+        dialog h2 {
+            font-size: 23px;
+        }
+        .log {
+            font-size: 10px;
+        }
+    }
+</style>

@@ -1,0 +1,8 @@
+{
+    "id": "input-grace",
+    "title": "조금 늦게, 조금 일찍 누른 점프",
+    "description": "접지 유예와 입력 버퍼를 따로 조절해 같은 입력의 성공 여부를 비교합니다.",
+    "tags": ["이동과 충돌", "입력", "시간"],
+    "thumbnail": "/images/input-grace.svg",
+    "href": "/experiments/input-grace/"
+}

@@ -1,0 +1,8 @@
+{
+    "id": "matchmaking",
+    "title": "가까운 점수의 상대를 기다리는 이유",
+    "description": "점수 범위·핑·파티 조건과 대기시간을 바꾸고 경기 뒤 Elo를 갱신합니다.",
+    "tags": ["게임 규칙", "대기열", "실력 추정"],
+    "thumbnail": "/images/matchmaking.svg",
+    "href": "/experiments/matchmaking/"
+}

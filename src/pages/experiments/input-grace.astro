@@ -1,0 +1,375 @@
+---
+import Page from '../../layouts/Page.astro';
+---
+
+<Page
+    title="조금 늦게, 조금 일찍 누른 점프 · 게임 실험실"
+    description="발판을 떠난 시각과 점프를 누른 시각을 따로 저장하면 사라지던 입력을 살릴 수 있습니다."
+>
+    <main>
+        <nav aria-label="실험실 탐색">
+            <button id="menu" aria-label="설정 메뉴 열기" aria-controls="settings" aria-expanded="false">
+                ☰
+            </button>
+            <a href="/">게임 실험실</a>
+            <button id="explain" aria-label="원인과 해결 설명 열기">
+                ?
+            </button>
+        </nav>
+        <header>
+            <p class="eyebrow">입력을 기억하는 시간</p>
+            <h1>조금 늦게, 조금 일찍 누른 점프</h1>
+            <p>발판을 떠난 시각과 점프를 누른 시각을 따로 저장하면 사라지던 입력을 살릴 수 있습니다.</p>
+        </header>
+        <canvas
+            id="scene"
+            tabindex="0"
+            aria-label="조금 늦게, 조금 일찍 누른 점프 실험 장면"
+            aria-describedby="summary hint"
+        ></canvas>
+        <section class="results" id="summary" aria-label="실험 결과">
+            <div>
+                <span>A · 현재 틱에서만 판단</span>
+                <strong id="raw-result">출발 대기</strong>
+            </div>
+            <div>
+                <span>B · 접지와 입력을 기억</span>
+                <strong id="fixed-result">출발 대기</strong>
+            </div>
+        </section>
+        <div class="controls" role="group" aria-label="실험 조작">
+            <button id="play" class="primary">
+                예시 재생
+            </button>
+            <button id="step">한 틱</button>
+            <button id="jump">점프 입력</button>
+            <button id="left" aria-label="왼쪽으로 이동">
+                ←
+            </button>
+            <button id="right" aria-label="오른쪽으로 이동">
+                →
+            </button>
+            <button id="reset">초기화</button>
+        </div>
+        <p id="log" role="status" aria-live="polite"></p>
+        <p class="hint" id="hint">
+            Space 또는 점프 버튼 누름/해제 · ← → 이동 · 타임라인: 주황 누름, 청록 승인 · 조건을 바꾸면 초기화
+        </p>
+        <div id="menu-backdrop" hidden></div>
+        <div id="settings" role="dialog" aria-modal="true" aria-label="실험 설정" hidden>
+            <button id="close-menu" aria-label="설정 메뉴 닫기">
+                ×
+            </button>
+            <h2>실험 설정</h2>
+            <label for="scenario">입력 상황</label>
+            <select id="scenario">
+                <option value="coyote">발판 이탈 후 누르기</option>
+                <option value="buffer">착지 전에 누르기</option>
+                <option value="manual">직접 움직이고 점프</option>
+            </select>
+            <label for="offset">
+                이탈 후 / 착지 전 입력 차이 <output id="offset-value">50 ms</output>
+            </label>
+            <input id="offset" type="range" min="0" max="250" step="10" value="50" />
+            <label for="coyote">
+                접지 유예 <output id="coyote-value">80 ms</output>
+            </label>
+            <input id="coyote" type="range" min="0" max="250" step="10" value="80" />
+            <label for="buffer">
+                입력 버퍼 <output id="buffer-value">100 ms</output>
+            </label>
+            <input id="buffer" type="range" min="0" max="250" step="10" value="100" />
+            <label for="hz">물리 틱 빈도</label>
+            <select id="hz">
+                <option value="30">30 Hz</option>
+                <option value="60" selected>
+                    60 Hz
+                </option>
+                <option value="120">120 Hz</option>
+            </select>
+            <label>
+                <input id="require-held" type="checkbox" /> 승인 때 버튼 유지도 필요
+            </label>
+            <label>
+                <input id="hold-example" type="checkbox" checked /> 예시 입력을 계속 유지
+            </label>
+        </div>
+        <noscript>JavaScript를 켜면 실험을 조작할 수 있습니다.</noscript>
+    </main>
+    <dialog id="explanation" aria-labelledby="explanation-title">
+        <button id="close-explanation" aria-label="설명 닫기">
+            ×
+        </button>
+        <h2 id="explanation-title">조금 늦게, 조금 일찍 누른 점프</h2>
+        <h3>문제 · 눌렀는데 점프하지 않습니다</h3>
+        <p>
+            발판에서 떨어진 뒤 누른 입력은 접지가 없어서, 착지 직전에 누른 입력은 입력 시점에 접지가 없어서
+            사라집니다. 두 실패는 비슷해 보여도 기억할 사건이 다릅니다.
+        </p>
+        <h3>원인 · 마지막 접지와 마지막 누름을 분리해야 합니다</h3>
+        <p>
+            접지 유예는 마지막 접지 이후의 허용 시간입니다. 버퍼는 소비하지 않은 누름의 유효 시간입니다. B는
+            둘의 조건이 함께 참일 때만 점프합니다. 한 번 승인하면 입력과 접지 자격을 모두 소비하므로 연타로
+            공중 재점프하지 않습니다.
+        </p>
+        <h3>해결 · 시간을 기록하고 실제 착지에서 자격을 복구합니다</h3>
+        <p>
+            이 모델은 입력 기록 → 이동·접지 갱신 → 점프 승인 순서로 처리합니다. 경계는 포함하며 실제 입력
+            적용은 다음 물리 틱으로 양자화합니다. ‘유지 필요’를 켜면 누름 기록이 남아도 버튼을 놓은 뒤에는
+            실행하지 않습니다. 예시 입력 유지를 끄면 누르고 약 33ms 뒤 놓습니다.
+        </p>
+        <h3>대가 · 오래된 입력이 뒤늦게 실행될 수 있습니다</h3>
+        <p>
+            유예를 늘리면 실수를 받아주지만 이미 취소하고 싶은 입력이 착지에서 실행될 수도 있습니다. 이 실험은
+            수평 발판, 중력, 단일 점프의 자체 2D 모델입니다. 벽 점프·대시 우선순위·이동 발판은 별도
+            규칙입니다. 예시 착지 시각은 이 실험의 이산 적분으로 미리 계산합니다.
+        </p>
+        <a
+            href="https://maddymakesgames.com/articles/celeste_and_forgiveness/index.html"
+            target="_blank"
+            rel="noopener noreferrer"
+        >
+            제작자 글 · Coyote Time과 Jump Buffering
+        </a>
+    </dialog>
+    <script>
+        import '../../experiments/input-grace/client';
+    </script>
+</Page>
+<style>
+    main {
+        min-height: 100svh;
+        display: flex;
+        flex-direction: column;
+        padding: 24px clamp(16px, 4vw, 64px);
+        gap: 16px;
+        background: radial-gradient(ellipse at 70% 40%, #f8faf9, #e9eef0);
+    }
+    nav {
+        position: relative;
+        z-index: 6;
+        display: flex;
+        align-items: center;
+        gap: 14px;
+    }
+    nav a {
+        font-size: 18px;
+        font-weight: 800;
+        color: inherit;
+        text-decoration: none;
+    }
+    nav button:last-child {
+        margin-left: auto;
+    }
+    button,
+    select {
+        min-height: 44px;
+        border: 1px solid #bbc9cd;
+        border-radius: 12px;
+        background: #fff;
+        color: #263340;
+        padding: 10px 16px;
+        cursor: pointer;
+    }
+    button:hover {
+        background: #e1efec;
+    }
+    button.primary {
+        background: #167b75;
+        color: #fff;
+        border-color: #167b75;
+    }
+    h1 {
+        font-size: clamp(28px, 4vw, 46px);
+        letter-spacing: -0.05em;
+        margin: 4px 0 9px;
+    }
+    header p {
+        color: #53626d;
+        line-height: 1.6;
+        margin: 0;
+        max-width: 760px;
+    }
+    .eyebrow {
+        font-size: 12px;
+        letter-spacing: 0.12em;
+        color: #187b74 !important;
+        font-weight: 800;
+    }
+    #scene {
+        width: 100%;
+        height: clamp(290px, 48vh, 580px);
+        display: block;
+        touch-action: none;
+        border-radius: 24px;
+        background: #f8fafb;
+        border: 1px solid #d1dddf;
+    }
+    .results {
+        display: flex;
+        gap: 12px;
+        flex-wrap: wrap;
+    }
+    .results > div {
+        flex: 1;
+        min-width: 220px;
+        background: #ffffffc9;
+        border: 1px solid #d1dddf;
+        border-radius: 16px;
+        padding: 16px;
+    }
+    .results span {
+        display: block;
+        font-size: 13px;
+        color: #53626d;
+        margin-bottom: 6px;
+    }
+    .results strong {
+        font-size: 20px;
+        line-height: 1.5;
+        color: #176f69;
+    }
+    .controls {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+        flex-wrap: wrap;
+    }
+    .hint {
+        font-size: 13px;
+        color: #53626d;
+        margin: 0;
+        line-height: 1.5;
+    }
+    #menu-backdrop {
+        position: fixed;
+        inset: 0;
+        z-index: 4;
+        background: #25343e66;
+    }
+    #settings {
+        position: fixed;
+        z-index: 5;
+        left: 16px;
+        top: 78px;
+        bottom: 20px;
+        width: min(340px, calc(100vw - 32px));
+        overflow: auto;
+        background: #fffffff7;
+        padding: 24px;
+        border: 1px solid #c5d5d4;
+        border-radius: 20px;
+        box-shadow: 0 14px 60px #26334022;
+    }
+    #settings h2 {
+        margin: 0 0 20px;
+    }
+    #settings label {
+        display: block;
+        margin: 18px 0 8px;
+        font-size: 14px;
+        line-height: 1.5;
+    }
+    #settings input[type='range'] {
+        width: 100%;
+        min-height: 40px;
+        accent-color: #147c73;
+    }
+    #settings input[type='checkbox'] {
+        width: 20px;
+        height: 20px;
+        vertical-align: middle;
+        accent-color: #147c73;
+    }
+    #settings select {
+        width: 100%;
+    }
+    #settings output {
+        font-weight: bold;
+        float: right;
+        color: #176f69;
+    }
+    #close-menu {
+        float: right;
+        padding: 8px 14px;
+    }
+    dialog {
+        border: 1px solid #cedcda;
+        border-radius: 22px;
+        max-width: 700px;
+        width: calc(100vw - 32px);
+        padding: 28px;
+        color: #263340;
+        max-height: 85svh;
+    }
+    dialog::backdrop {
+        background: #25343e66;
+        backdrop-filter: blur(4px);
+    }
+    dialog h2 {
+        font-size: 28px;
+        margin: 0 0 24px;
+    }
+    dialog h3 {
+        font-size: 17px;
+        color: #126d65;
+        margin: 24px 0 8px;
+    }
+    dialog p {
+        line-height: 1.75;
+        color: #475862;
+    }
+    dialog a {
+        color: #086c64;
+        display: block;
+        margin: 12px 0;
+        overflow-wrap: anywhere;
+    }
+    #close-explanation {
+        float: right;
+    }
+    footer {
+        margin-top: auto;
+    }
+    #log {
+        font-size: 13px;
+        min-height: 22px;
+        color: #53626d;
+        line-height: 1.5;
+    }
+    @media (max-width: 600px) {
+        main {
+            padding: 16px;
+            gap: 14px;
+        }
+        nav a {
+            font-size: 16px;
+        }
+        h1 {
+            font-size: 30px;
+        }
+        .results > div {
+            min-width: 0;
+            flex-basis: 100%;
+            padding: 12px 16px;
+        }
+        .results strong {
+            font-size: 17px;
+        }
+        #scene {
+            height: 320px;
+            border-radius: 16px;
+        }
+        .controls button {
+            flex: 1;
+            white-space: nowrap;
+            padding: 9px 12px;
+        }
+        .hint {
+            font-size: 12px;
+        }
+        dialog {
+            padding: 20px;
+        }
+    }
+</style>

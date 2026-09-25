@@ -1,0 +1,8 @@
+{
+    "id": "destruction-state",
+    "title": "벽은 사라졌는데 길은 막혔다",
+    "description": "타격 위치와 상태 전환 방식을 바꾸며 화면·충돌·AI 통로의 차이를 확인합니다.",
+    "tags": ["애니메이션·효과", "상태 동기화", "부분 파괴"],
+    "thumbnail": "/images/destruction-state.svg",
+    "href": "/experiments/destruction-state/"
+}

@@ -1,0 +1,748 @@
+---
+import Page from '../../layouts/Page.astro';
+---
+
+<Page
+    title="25% 추첨에도 긴 실패가 생긴다 | 게임 실험실"
+    description="독립 추첨·천장·셔플백·누적 확률과 정보 공개 시점을 비교합니다."
+>
+    <div class="lab">
+        <header>
+            <button
+                id="menu"
+                class="menu"
+                aria-label="설정 열기 및 닫기"
+                aria-controls="settings"
+                aria-expanded="true"
+            >
+                ☰
+            </button>
+            <h1>25% 추첨에도 긴 실패가 생긴다</h1>
+            <a href="/">목록으로</a>
+        </header>
+        <div id="menu-backdrop" class="menu-backdrop" aria-hidden="true" hidden></div>
+        <main>
+            <div class="settings" id="settings" role="complementary" aria-label="실험 설정">
+                <div class="settings-heading">
+                    <h2>추첨 조건</h2>
+                    <button id="close-menu" aria-label="설정 닫기" hidden>×</button>
+                </div>
+                <label for="p">
+                    독립 성공률 / 가방 비율<output id="p-out">0.25</output>
+                </label>
+                <input id="p" type="range" min="0.05" max="1" value="0.25" step="0.05" />
+                <label for="ceiling">
+                    K번째까지 성공 보장<output id="ceiling-out">8</output>
+                </label>
+                <input id="ceiling" type="range" min="1" max="20" value="8" step="1" />
+                <label class="check">
+                    <input id="calibrate" type="checkbox" checked />
+                    누적 상수를 목표 성공률로 보정
+                </label>
+                <label for="constant">
+                    보정 해제 시 누적 상수 C<output id="constant-out">0.25</output>
+                </label>
+                <input id="constant" type="range" min="0.05" max="1" value="0.25" step="0.05" />
+                <label for="hist-rule">대기 횟수 히스토그램</label>
+                <select id="hist-rule">
+                    <option value="independent">독립 추첨</option>
+                    <option value="ceiling">천장</option>
+                    <option value="bag">20개 셔플백</option>
+                    <option value="cumulative">실패 누적</option>
+                </select>
+                <label for="reveal">동전 정보 공개</label>
+                <select id="reveal">
+                    <option value="after">행동 후 공개</option>
+                    <option value="before">행동 전에 공개</option>
+                </select>
+                <p>
+                    확률·천장·누적 설정 변경 시 모든 추첨 상태를 같은 시드 12345로 초기화합니다. 가방은 20개
+                    중 p×20개가 성공입니다.
+                </p>
+                <div class="actions">
+                    <button id="explain">원인과 해결</button>
+                    <button id="reset">초기화</button>
+                </div>
+            </div>
+            <section class="stage" aria-label="실험 장면">
+                <p class="intro">
+                    0&lt;p&lt;1인 독립 추첨에 실패 보장을 더하면 장기 성공률도 높아집니다. p=1이면 이미 매번
+                    성공합니다. 추첨을 누적하여 이론값과 관측값, 가장 긴 실패를 분리해 보세요.
+                </p>
+                <div class="metrics" aria-live="polite">
+                    <div class="metric">
+                        <small>규칙마다 진행한 횟수</small>
+                        <strong id="draws">—</strong>
+                    </div>
+                    <div class="metric">
+                        <small>독립 추첨 · 첫 10회 모두 실패</small>
+                        <strong id="tail">—</strong>
+                    </div>
+                    <div class="metric">
+                        <small>실패 누적 상수 C</small>
+                        <strong id="c-value">—</strong>
+                    </div>
+                </div>
+                <div class="actions">
+                    <button id="one" class="primary">
+                        각 규칙 1회
+                    </button>
+                    <button id="hundred">각 규칙 100회</button>
+                    <button id="thousand">각 규칙 1,000회</button>
+                </div>
+                <section class="surface">
+                    <h2>서로 다른 기억과 분포</h2>
+                    <div id="comparisons" class="split"></div>
+                </section>
+                <section class="surface">
+                    <h2>완료된 성공 간격의 분포</h2>
+                    <div id="histogram" class="histogram"></div>
+                    <p class="note" id="hist-note"></p>
+                </section>
+                <section class="surface">
+                    <h2>같은 동전, 행동 전후의 정보</h2>
+                    <div class="split">
+                        <div>
+                            <p class="big" id="coin"></p>
+                            <div class="actions">
+                                <button id="safe">안전 +1</button>
+                                <button id="risk">위험 +10 / −8</button>
+                                <button id="coin-batch">동일 동전 100회 정책 비교</button>
+                            </div>
+                            <p id="coin-log" class="note"></p>
+                        </div>
+                        <div>
+                            <p id="coin-policy" class="status">
+                                공개 전 안전/위험의 이론 기대값은 모두 +1입니다. 공개 후 앞이면 위험, 뒤이면
+                                안전을 고르면 +5.5입니다.
+                            </p>
+                        </div>
+                    </div>
+                </section>
+                <p id="summary" class="status" role="status">
+                    계산 중입니다.
+                </p>
+            </section>
+        </main>
+    </div>
+    <dialog id="explanation" aria-label="실험 설명">
+        <div class="dialog-heading">
+            <h2>평균과 최악, 정보 공개를 구분하기</h2>
+            <button id="close-dialog" aria-label="설명 닫기">
+                닫기
+            </button>
+        </div>
+        <h3>문제와 원인</h3>
+        <p>
+            독립 추첨의 평균 성공 간격은 1/p입니다. 0&lt;p&lt;1이면 성공 시점의 상한이 없지만 p=1이면 매번
+            성공합니다. p=0.25이면 첫 10회가 모두 실패할 확률은 0.75¹⁰≈5.63%입니다. 긴 플레이 전체에서 한 번이라도
+            10연패가 나올 확률과는 다릅니다.
+        </p>
+        <h3>해결 · 기억을 가진 규칙</h3>
+        <p>
+            천장은 K번째에 강제 성공하고 실패 횟수를 초기화합니다. 누적 규칙은 qₙ=min(nC,1)이며 성공마다 n=1로
+            돌아갑니다. C=.25를 그대로 쓰면 평균 간격 2.21875, 장기 성공률 약45.07%입니다. 보정 모드는 생존
+            확률 합으로 평균을 구하고 이분법으로 목표 성공률에 맞춥니다.
+        </p>
+        <p>
+            셔플백은 20개 중 정해진 성공 수를 섞어 소진 후 보충합니다. 가방 경계에서는 실패나 성공이 연속할 수
+            있습니다.{' '}
+            <a href="https://docs.godotengine.org/en/stable/tutorials/math/random_number_generation.html#better-randomness-using-shuffle-bags">
+                Godot 공식 예제
+            </a>
+            를 참고했습니다. 가방은 갱신 과정 사이 독립 간격을 가정하지 않습니다.
+        </p>
+        <h3>대가와 정보 공개</h3>
+        <p>
+            히스토그램은 완료한 성공 간격만 포함하고 아직 끝나지 않은 실패는 제외합니다. 이론 평균은 장기
+            평균이며 유한 표본과 다릅니다. 초기 상태와 가방 잔량도 저장 계약의 일부입니다.
+        </p>
+        <p>
+            동전은 앞/뒤 각½, 안전+1, 위험+10/−8입니다. 먼저 보고 행동을 고르면 같은 동전 분포도 다른 보상
+            분포가 됩니다. 정책 비교는 동일한 100개 동전으로 세 정책을 평가합니다. 실제 재미나 통제감의
+            우월성을 이 수치로 증명하지 않습니다.
+        </p>
+    </dialog>
+</Page>
+<script>
+    import '../../experiments/randomness-distributions/client';
+</script>
+<style>
+    .lab {
+        min-height: 100svh;
+        display: flex;
+        flex-direction: column;
+        color: #29434a;
+    }
+    header {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 14px 20px;
+        background: #f8fafa;
+        border-bottom: 1px solid #cad9d9;
+    }
+    h1 {
+        font-size: clamp(17px, 2vw, 23px);
+        margin: 0;
+        word-break: keep-all;
+    }
+    header a {
+        margin-left: auto;
+        color: #1d6564;
+        white-space: nowrap;
+        font-size: 13px;
+    }
+    button,
+    select,
+    input[type='number'] {
+        min-height: 42px;
+        border: 1px solid #b8ccce;
+        border-radius: 9px;
+        background: #fff;
+        color: #29434a;
+        padding: 8px 12px;
+        font: inherit;
+    }
+    button {
+        cursor: pointer;
+    }
+    button:hover {
+        background: #e4f1ed;
+    }
+    button:disabled {
+        opacity: 0.5;
+        cursor: default;
+    }
+    button.primary {
+        background: #187c72;
+        color: #fff;
+        border-color: #187c72;
+    }
+    .menu {
+        font-size: 20px;
+        min-width: 44px;
+        padding: 4px;
+    }
+    main {
+        display: flex;
+        flex: 1;
+        min-width: 0;
+    }
+    .settings {
+        flex: 0 0 260px;
+        max-height: calc(100svh - 72px);
+        overflow: auto;
+        border-right: 1px solid #cad9d9;
+        padding: 19px;
+        background: #f8fafa;
+    }
+    .settings-heading {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        margin-bottom: 20px;
+    }
+    .settings-heading h2 {
+        margin: 0;
+    }
+    #close-menu {
+        flex: 0 0 42px;
+        font-size: 22px;
+    }
+    .menu-backdrop {
+        position: fixed;
+        inset: 0;
+        z-index: 4;
+        background: #244f5966;
+    }
+    .settings h2 {
+        font-size: 14px;
+        margin: 0;
+    }
+    .settings label {
+        display: block;
+        font-size: 13px;
+        line-height: 1.6;
+        margin: 14px 0 4px;
+    }
+    .settings output {
+        float: right;
+        font-weight: 700;
+    }
+    input[type='range'] {
+        width: 100%;
+        min-height: 40px;
+        accent-color: #147b72;
+        margin: 0;
+    }
+    select,
+    input[type='number'] {
+        width: 100%;
+        font-size: 13px;
+    }
+    .settings .check {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        min-height: 42px;
+    }
+    .check input {
+        width: 18px;
+        height: 18px;
+        accent-color: #147b72;
+    }
+    .settings p,
+    .note {
+        font-size: 12px;
+        line-height: 1.7;
+        color: #537079;
+    }
+    .stage {
+        flex: 1;
+        min-width: 0;
+        padding: 22px;
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+    }
+    .intro {
+        font-size: 14px;
+        line-height: 1.7;
+        margin: 0;
+        color: #4a6670;
+    }
+    .metrics {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+    }
+    .metric {
+        background: white;
+        border: 1px solid #cbdcdd;
+        border-radius: 12px;
+        padding: 13px 16px;
+        flex: 1;
+        min-width: 125px;
+    }
+    .metric small {
+        font-size: 12px;
+        color: #56747b;
+        display: block;
+        margin-bottom: 8px;
+    }
+    .metric strong {
+        font-size: 22px;
+        color: #146f66;
+        font-variant-numeric: tabular-nums;
+    }
+    .surface {
+        background: #f9fcfb;
+        border: 1px solid #cbdcdd;
+        border-radius: 16px;
+        padding: 22px;
+        min-width: 0;
+    }
+    .surface h2 {
+        font-size: 16px;
+        margin: 0 0 16px;
+    }
+    .split {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 16px;
+    }
+    .actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 9px;
+    }
+    .actions button {
+        font-size: 13px;
+    }
+    .status {
+        background: #e1efea;
+        color: #25544e;
+        padding: 14px 17px;
+        border-radius: 10px;
+        font-size: 13px;
+        line-height: 1.7;
+        margin: 0;
+    }
+    .scroll {
+        overflow: auto;
+        max-width: 100%;
+    }
+    table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 13px;
+        text-align: left;
+    }
+    th {
+        font-size: 11px;
+        color: #527078;
+        white-space: nowrap;
+    }
+    td,
+    th {
+        padding: 12px 8px;
+        border-bottom: 1px solid #d5e3e0;
+    }
+    td small {
+        display: block;
+        font-size: 11px;
+        color: #58717a;
+        margin-top: 5px;
+    }
+    .good {
+        color: #107264;
+    }
+    .bad {
+        color: #ac4d36;
+    }
+    .pill {
+        display: inline-block;
+        padding: 5px 9px;
+        background: #d7ede6;
+        border-radius: 6px;
+        font-size: 12px;
+    }
+    .muted {
+        color: #597079;
+        font-size: 12px;
+    }
+    .bar {
+        height: 20px;
+        border-radius: 5px;
+        overflow: hidden;
+        background: #dbe6e3;
+        position: relative;
+        margin: 9px 0 16px;
+    }
+    .bar > i {
+        display: block;
+        height: 100%;
+        background: #19877a;
+        transition: width 0.15s;
+    }
+    .bar > em {
+        position: absolute;
+        top: 0;
+        height: 100%;
+        background: #e7ad61;
+    }
+    .log {
+        max-height: 225px;
+        overflow: auto;
+        font-size: 12px;
+        line-height: 1.8;
+        margin: 0;
+        padding-left: 20px;
+    }
+    .chart {
+        width: 100%;
+        height: auto;
+        display: block;
+    }
+    .token-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 5px;
+    }
+    .token {
+        width: 32px;
+        height: 36px;
+        display: grid;
+        place-content: center;
+        border-radius: 6px;
+        background: #e0e9e5;
+        font-size: 13px;
+    }
+    .token.hit {
+        background: #207f70;
+        color: white;
+    }
+    .token.miss {
+        background: #e8d4c7;
+        color: #743e25;
+    }
+    .big {
+        font-size: 38px;
+        font-weight: 750;
+        line-height: 1.3;
+        margin: 12px 0;
+        color: #17766c;
+    }
+    .rowlabel {
+        display: flex;
+        justify-content: space-between;
+        gap: 10px;
+        font-size: 13px;
+    }
+    .visual-card {
+        padding: 16px;
+        border: 1px solid #ccddda;
+        border-radius: 11px;
+        background: white;
+    }
+    .visual-card h3 {
+        font-size: 14px;
+        margin: 0 0 10px;
+    }
+    .outcomes {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 3px;
+        min-height: 24px;
+    }
+    .outcomes i {
+        width: 9px;
+        height: 15px;
+        background: #cbddd6;
+        border-radius: 2px;
+    }
+    .outcomes i.success {
+        background: #167e6e;
+    }
+    .histogram {
+        display: flex;
+        align-items: end;
+        gap: 5px;
+        height: 145px;
+    }
+    .histogram > div {
+        min-width: 0;
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: end;
+        height: 100%;
+        font-size: 10px;
+    }
+    .histogram i {
+        display: block;
+        width: 100%;
+        background: #269382;
+        min-height: 1px;
+    }
+    .histogram span {
+        margin-top: 5px;
+    }
+    dialog {
+        max-width: min(680px, calc(100vw - 28px));
+        max-height: 85svh;
+        border: 1px solid #bbd1cd;
+        border-radius: 16px;
+        background: #fbfdfc;
+        color: #29434a;
+        padding: 25px;
+    }
+    dialog::backdrop {
+        background: #244f5966;
+    }
+    dialog h2 {
+        font-size: 21px;
+        margin-top: 0;
+    }
+    dialog h3 {
+        font-size: 15px;
+        color: #137367;
+        margin-bottom: 5px;
+    }
+    dialog p {
+        font-size: 14px;
+        line-height: 1.8;
+    }
+    dialog a {
+        color: #14786c;
+    }
+    .dialog-heading {
+        display: flex;
+        align-items: flex-start;
+        gap: 12px;
+        margin-bottom: 18px;
+    }
+    .dialog-heading h2 {
+        flex: 1;
+        min-width: 0;
+        margin: 0;
+    }
+    .dialog-heading button {
+        flex-shrink: 0;
+    }
+    code {
+        font-size: 12px;
+        background: #e2ede8;
+        padding: 3px 5px;
+        border-radius: 4px;
+    }
+    @media (max-width: 780px) {
+        .histogram {
+            gap: 2px;
+        }
+        .histogram > div {
+            font-size: 8px;
+        }
+        header {
+            position: relative;
+            z-index: 6;
+            padding: 11px 12px;
+            gap: 9px;
+        }
+        header a {
+            font-size: 12px;
+        }
+        .settings {
+            position: fixed;
+            z-index: 5;
+            inset: 68px auto 0 0;
+            width: min(282px, calc(100vw - 25px));
+            max-height: calc(100svh - 68px);
+            box-shadow: 12px 0 30px #244e4b22;
+        }
+        .stage {
+            padding: 13px;
+            gap: 12px;
+        }
+        .split {
+            grid-template-columns: 1fr;
+        }
+        .surface {
+            padding: 15px;
+        }
+        .metric {
+            min-width: 105px;
+            padding: 11px;
+        }
+        .metric strong {
+            font-size: 19px;
+        }
+        .intro {
+            font-size: 13px;
+        }
+        .actions button {
+            flex: 1 0 100px;
+        }
+        td,
+        th {
+            padding: 10px 6px;
+        }
+        h1 {
+            max-width: 210px;
+        }
+    }
+
+    .surface :global(.visual-card) {
+        padding: 16px;
+        border: 1px solid #ccddda;
+        border-radius: 11px;
+        background: white;
+        min-width: 0;
+    }
+    .surface :global(.visual-card h3) {
+        font-size: 14px;
+        margin: 0 0 10px;
+    }
+    .surface :global(.note) {
+        font-size: 12px;
+        line-height: 1.7;
+        color: #537079;
+    }
+    .surface :global(.rowlabel) {
+        display: flex;
+        justify-content: space-between;
+        gap: 10px;
+        font-size: 13px;
+    }
+    .surface :global(.bar) {
+        height: 20px;
+        border-radius: 5px;
+        overflow: hidden;
+        background: #dbe6e3;
+        position: relative;
+        margin: 9px 0 16px;
+    }
+    .surface :global(.bar > i) {
+        display: block;
+        height: 100%;
+        background: #19877a;
+    }
+    .surface :global(.token) {
+        width: 32px;
+        height: 36px;
+        display: grid;
+        place-content: center;
+        border-radius: 6px;
+        background: #e0e9e5;
+        font-size: 13px;
+    }
+    .surface :global(.token.hit) {
+        background: #207f70;
+        color: white;
+    }
+    .surface :global(.token.miss) {
+        background: #e8d4c7;
+        color: #743e25;
+    }
+    .surface :global(td) {
+        padding: 12px 8px;
+        border-bottom: 1px solid #d5e3e0;
+    }
+    .surface :global(td small) {
+        display: block;
+        font-size: 11px;
+        color: #58717a;
+        margin-top: 5px;
+    }
+    .surface :global(.good) {
+        color: #107264;
+    }
+    .surface :global(.bad) {
+        color: #ac4d36;
+    }
+    .surface :global(.outcomes) {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 3px;
+        min-height: 24px;
+    }
+    .surface :global(.outcomes i) {
+        width: 9px;
+        height: 15px;
+        background: #cbddd6;
+        border-radius: 2px;
+    }
+    .surface :global(.outcomes i.success) {
+        background: #167e6e;
+    }
+    .surface :global(.histogram > div) {
+        min-width: 0;
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: end;
+        height: 100%;
+        font-size: 10px;
+    }
+    .surface :global(.histogram i) {
+        display: block;
+        width: 100%;
+        background: #269382;
+        min-height: 1px;
+    }
+    .surface :global(.histogram span) {
+        margin-top: 5px;
+    }
+    @media (max-width: 780px) {
+        .surface :global(.histogram > div) {
+            font-size: 8px;
+        }
+        .surface :global(td) {
+            padding: 10px 6px;
+        }
+    }
+</style>

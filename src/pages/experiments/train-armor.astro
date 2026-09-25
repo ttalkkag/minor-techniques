@@ -1,0 +1,390 @@
+---
+import Page from '../../layouts/Page.astro';
+---
+
+<Page
+    title="객차가 움직일까, 장비를 단 배우가 움직일까? | 게임 실험실"
+    description="객차 부착과 탑승 시점 고정을 풀어 이동의 소유자를 관찰하세요."
+>
+    <main class="lab" id="lab">
+        <header>
+            <button id="menu" aria-label="설정 열기" aria-controls="settings" aria-expanded="false">
+                ☰
+            </button>
+            <h1>
+                <small>게임 실험실 · 카메라와 레벨</small>객차가 움직일까, 장비를 단 배우가 움직일까?
+            </h1>
+            <a href="/">목록</a>
+            <button id="explain">원리</button>
+        </header>
+        <button id="menu-backdrop" aria-label="설정 닫기" tabindex="-1" hidden></button>
+        <div class="panel" id="settings" role="complementary" aria-labelledby="settings-title" hidden>
+            <button id="close-menu" class="menu-close">설정 닫기 ×</button>
+            <h2 id="settings-title">조건을 바꾸고 직접 관찰하세요</h2>
+            <label>
+                움직임의 소유자
+                <select id="owner">
+                    <option value="actor">캐릭터 + 팔 부착 장비</option>
+                    <option value="car">독립 객차</option>
+                </select>
+            </label>
+            <label>
+                관찰 시점
+                <select id="view">
+                    <option value="outside">외부에서 관찰</option>
+                    <option value="ride">탑승 카메라</option>
+                </select>
+            </label>
+            <label for="orbit">
+                외부 관찰 방위 (도) <output id="orbit-value">45</output>
+                <input id="orbit" type="range" min="0" max="360" value="45" step="5" />
+            </label>
+            <label for="progress">
+                경로 진행률 (%) <output id="progress-value">0</output>
+                <input id="progress" type="range" min="0" max="100" value="0" step="1" />
+            </label>
+            <label for="joint">
+                팔 부착점 회전 (도) <output id="joint-value">0</output>
+                <input id="joint" type="range" min="-30" max="30" value="0" step="1" />
+            </label>
+            <label class="check">
+                <input type="checkbox" id="attach" checked />
+                객차 부착 유지
+            </label>
+            <label class="check">
+                <input type="checkbox" id="cameraLock" checked />
+                탑승 카메라 이동 기준 고정
+            </label>
+            <label class="check">
+                <input type="checkbox" id="xray" checked />
+                캐릭터와 부착점 드러내기
+            </label>
+            <button id="play">운행 시작</button>
+            <button id="reset">초기화</button>
+        </div>
+        <section class="scene" aria-label="객차가 움직일까, 장비를 단 배우가 움직일까? 실험 장면">
+            <div id="webgl"></div>
+        </section>
+        <footer>
+            <p id="readout">실험을 준비하고 있습니다.</p>
+            <p id="hint">
+                외부 관찰 방향을 돌리거나 탑승 시점으로 바꾸세요. 주황 점은 팔 부착점, 청록 외형은 객차입니다.
+            </p>
+            <div class="touch"></div>
+        </footer>
+        <dialog id="info" aria-labelledby="info-title">
+            <h2 id="info-title" tabindex="-1">객차가 움직일까, 장비를 단 배우가 움직일까?</h2>
+            <h3>문제</h3>
+            <p>보이는 기차 외형과 실제 이동을 소유한 객체는 다를 수 있습니다.</p>
+            <h3>원인</h3>
+            <p>
+                GECK 조사에서 Fallout 3의 DLC03MetroCarArmor는 플레이어의 팔 장비였고, 카메라 패키지와
+                애니메이션이 연결됐습니다. NPC의 기차 모자라는 설명과 다릅니다.
+            </p>
+            <h3>해결을 관찰하기</h3>
+            <p>
+                이 자체 3D 모형은 캐릭터 세계 변환 × 팔 부착점 × 객차 오프셋으로 객차를 움직입니다. 탑승
+                카메라도 같은 이동 기준을 사용합니다. 독립 객차와 비교하고 부착을 풀어 차이를 확인합니다.
+            </p>
+            <h3>선택의 대가와 모형 범위</h3>
+            <p>
+                팔 회전이나 카메라 고정을 풀면 숨겨진 관계가 드러납니다. 이 장면은 자유 승하차·다중 승객·차량
+                충돌을 구현하지 않습니다. 원작 본 계층 재현이나 엔진의 차량 구현 불가능성·성능 향상 증명이
+                아닙니다.
+            </p>
+            <h3>근거</h3>
+            <a
+                href="https://www.pcgamer.com/heres-whats-happening-inside-fallout-3s-metro-train/"
+                target="_blank"
+                rel="noreferrer"
+            >
+                PC Gamer의 GECK 직접 조사 (2015) ↗
+            </a>
+            <button id="close-info">장면으로 돌아가기</button>
+        </dialog>
+    </main>
+    <script>
+        import '../../experiments/train-armor/client';
+    </script>
+</Page>
+<style>
+    :global(body) {
+        overflow: hidden;
+    }
+    .lab {
+        height: 100svh;
+        min-height: 440px;
+        background: #edf1f3;
+        color: #243744;
+    }
+    header {
+        height: 80px;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 12px 22px;
+        border-bottom: 1px solid #cfdbdf;
+        background: #f8faf9;
+        position: relative;
+        z-index: 5;
+    }
+    header a {
+        color: #336460;
+        font-size: 13px;
+        text-decoration: none;
+        white-space: nowrap;
+    }
+    h1 {
+        font-size: clamp(15px, 2vw, 23px);
+        line-height: 1.35;
+        margin: 0;
+        flex: 1;
+    }
+    h1 small {
+        display: block;
+        color: #52676d;
+        font-size: 11px;
+        font-weight: 500;
+        margin-bottom: 4px;
+    }
+    button,
+    select {
+        min-height: 42px;
+        border: 1px solid #b8cbcd;
+        border-radius: 9px;
+        padding: 8px 12px;
+        background: #fff;
+        color: #244247;
+        cursor: pointer;
+    }
+    button:hover {
+        background: #dcece7;
+    }
+    button:active {
+        background: #b7ded2;
+    }
+    button:disabled {
+        opacity: 0.5;
+        cursor: default;
+    }
+    #menu-backdrop {
+        position: absolute;
+        inset: 86px 0 0;
+        z-index: 3;
+        border: 0;
+        border-radius: 0;
+        background: #24374466;
+    }
+    .panel .menu-close {
+        display: none;
+    }
+    .panel {
+        position: absolute;
+        top: 80px;
+        bottom: 0;
+        left: 0;
+        width: 276px;
+        padding: 22px 18px;
+        background: #f8faf9ee;
+        border-right: 1px solid #cbd8da;
+        overflow: auto;
+        z-index: 4;
+    }
+    .panel h2 {
+        font-size: 13px;
+        color: #547476;
+        margin: 0 0 20px;
+    }
+    .panel label {
+        display: block;
+        font-size: 13px;
+        margin: 0 0 20px;
+        line-height: 1.4;
+    }
+    .panel input[type='range'] {
+        display: block;
+        width: 100%;
+        accent-color: #187d74;
+        margin: 10px 0 0;
+        min-height: 25px;
+    }
+    .panel select {
+        display: block;
+        width: 100%;
+        margin-top: 8px;
+        font-size: 13px;
+    }
+    .panel output {
+        float: right;
+        font-variant-numeric: tabular-nums;
+        color: #16786f;
+    }
+    .panel .check {
+        display: flex;
+        gap: 10px;
+        align-items: center;
+        min-height: 40px;
+        margin-bottom: 8px;
+    }
+    .panel input[type='checkbox'] {
+        width: 19px;
+        height: 19px;
+        accent-color: #187d74;
+    }
+    .panel button {
+        width: 100%;
+        margin-bottom: 10px;
+    }
+    .scene {
+        position: absolute;
+        top: 80px;
+        bottom: 146px;
+        left: 0;
+        right: 0;
+        min-height: 100px;
+    }
+    .lab.menu-open .scene,
+    .lab.menu-open footer {
+        left: 276px;
+    }
+    canvas,
+    #webgl {
+        display: block;
+        width: 100%;
+        height: 100%;
+        touch-action: none;
+    }
+    footer {
+        position: absolute;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        padding: 10px 20px 14px;
+        background: #f8faf9;
+        border-top: 1px solid #cbd8da;
+        height: 146px;
+        z-index: 2;
+    }
+    #readout {
+        font-size: 13px;
+        line-height: 1.6;
+        margin: 0 0 4px;
+        font-variant-numeric: tabular-nums;
+        min-height: 21px;
+    }
+    #hint {
+        font-size: 12px;
+        color: #52676d;
+        margin: 0 0 8px;
+    }
+    .touch {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+        flex-wrap: wrap;
+    }
+    .touch button {
+        min-width: 48px;
+        user-select: none;
+        touch-action: none;
+    }
+    .touch #choices {
+        display: flex;
+        gap: 6px;
+        flex-wrap: wrap;
+    }
+    .touch #choices button {
+        font-size: 12px;
+        min-height: 40px;
+    }
+    dialog {
+        max-width: 610px;
+        width: calc(100% - 28px);
+        max-height: 85svh;
+        border: 1px solid #c4d5d3;
+        border-radius: 17px;
+        padding: 28px;
+        color: #243744;
+        background: #f9fcfa;
+    }
+    dialog::backdrop {
+        background: #1f393e77;
+        backdrop-filter: blur(4px);
+    }
+    dialog h2 {
+        font-size: 21px;
+        margin-top: 0;
+    }
+    dialog h3 {
+        font-size: 14px;
+        color: #11756d;
+        margin: 20px 0 5px;
+    }
+    dialog p {
+        font-size: 14px;
+        line-height: 1.75;
+        margin: 0;
+    }
+    dialog a {
+        display: block;
+        font-size: 13px;
+        color: #146d6a;
+        margin: 8px 0;
+        overflow-wrap: anywhere;
+    }
+    dialog button {
+        margin-top: 20px;
+        width: 100%;
+    }
+    @media (max-width: 700px) {
+        .panel .menu-close {
+            display: block;
+        }
+        header {
+            height: 86px;
+            padding: 10px;
+            gap: 8px;
+        }
+        header a {
+            font-size: 11px;
+        }
+        h1 {
+            font-size: 15px;
+        }
+        header button {
+            padding: 8px 10px;
+        }
+        .panel {
+            top: 86px;
+            width: min(276px, 86vw);
+        }
+        .scene {
+            top: 86px;
+            bottom: 180px;
+        }
+        .lab.menu-open .scene,
+        .lab.menu-open footer {
+            left: 0;
+        }
+        footer {
+            height: 180px;
+            padding: 10px 12px;
+        }
+        #readout {
+            font-size: 12px;
+        }
+        #hint {
+            font-size: 11px;
+            line-height: 1.4;
+        }
+        .touch {
+            gap: 6px;
+        }
+        dialog {
+            padding: 22px;
+        }
+        .touch button {
+            min-width: 44px;
+        }
+    }
+</style>

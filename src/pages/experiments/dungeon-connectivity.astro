@@ -1,0 +1,402 @@
+---
+import Page from '../../layouts/Page.astro';
+---
+
+<Page
+    title="통로는 이어졌는데 출구에 갈 수 없다 · 게임 실험실"
+    description="열쇠의 위치와 문 규칙을 바꾸며 위치 탐색과 상태 탐색의 차이를 확인합니다."
+>
+    <main>
+        <nav aria-label="실험실 탐색">
+            <button id="menu" aria-label="설정 메뉴 열기" aria-controls="settings" aria-expanded="false">
+                ☰
+            </button>
+            <a href="/">게임 실험실</a>
+            <button id="explain">원리 보기</button>
+        </nav>
+        <header>
+            <p>진행 그래프 · 열쇠 · 이동 조건</p>
+            <h1>통로는 이어졌는데 출구에 갈 수 없다</h1>
+            <span>열쇠의 위치와 문 규칙을 바꾸며 위치 탐색과 상태 탐색의 차이를 확인합니다.</span>
+        </header>
+        <section class="stage" aria-label="통로는 이어졌는데 출구에 갈 수 없다 관찰 장면">
+            <canvas
+                id="scene"
+                aria-label="통로는 이어졌는데 출구에 갈 수 없다 수치 모델"
+                aria-describedby="summary"
+            ></canvas>
+        </section>
+        <div class="stats">
+            <div>
+                <span>왼쪽 검사</span>
+                <output id="metric-0"></output>
+            </div>
+            <div>
+                <span>상태 검사</span>
+                <output id="metric-1"></output>
+            </div>
+            <div>
+                <span>DFS 간선 / 정점</span>
+                <output id="metric-2"></output>
+            </div>
+        </div>
+        <p id="summary" class="summary" role="status"></p>
+        <div class="toolbar">
+            <button id="reset">초기화</button>
+        </div>
+        <div id="settings" aria-label="실험 설정" hidden>
+            <div class="panel-head">
+                <h2>설정</h2>
+                <button id="close-menu" aria-label="설정 메뉴 닫기">
+                    ×
+                </button>
+            </div>
+            <label for="key-room">
+                열쇠 방 입구
+                <select id="key-room">
+                    <option value="2">잠긴 문 뒤 B에서 연결</option>
+                    <option value="1">문 앞 분기 A에서 연결</option>
+                </select>
+            </label>
+            <label for="search">
+                왼쪽 검사
+                <select id="search">
+                    <option value="geometry">문·점프 무시</option>
+                    <option value="room">규칙 적용 · 방만 방문 표시</option>
+                    <option value="state">열쇠·문 상태까지 방문 표시</option>
+                </select>
+            </label>
+            <label class="check" for="consumable">
+                <input id="consumable" type="checkbox" />
+                열쇠를 문마다 소모
+            </label>
+            <label class="check" for="second-door">
+                <input id="second-door" type="checkbox" />
+                출구 앞에도 잠긴 문
+            </label>
+            <label for="key-count">
+                열쇠 방의 열쇠 수 <output id="key-count-value"></output>
+                <input id="key-count" type="range" min="1" max="2" value="1" step="1" />
+            </label>
+            <label class="check" for="platform">
+                <input id="platform" type="checkbox" />
+                열쇠 방까지 높이 3 점프
+            </label>
+            <label for="jump">
+                점프 능력 <output id="jump-value"></output>
+                <input id="jump" type="range" min="0" max="4" value="2" step="1" />
+            </label>
+            <label class="check" for="bypass">
+                <input id="bypass" type="checkbox" />
+                높은 방 U → 출구 지름길
+            </label>
+            <label for="seed">
+                방 내부 DFS 시드 <output id="seed-value"></output>
+                <input id="seed" type="range" min="1" max="30" value="7" step="1" />
+            </label>
+            <label class="check" for="extra">
+                <input id="extra" type="checkbox" />
+                미로에 추가 통로 1개
+            </label>
+            <button id="fix">진행 가능한 열쇠 배치</button>
+        </div>
+        <dialog id="info" aria-labelledby="info-title">
+            <div class="dialog-head">
+                <h2 id="info-title">원인과 해결</h2>
+                <button id="close-info" aria-label="설명 닫기">
+                    ×
+                </button>
+            </div>
+            <h3>문제와 원인</h3>
+            <p>
+                연결된 방 그림만으로 문을 열 수 있는지 알 수 없습니다. 문 뒤에 열쇠를 두면 문을 열기 위해 그
+                문을 먼저 지나야 합니다. 열쇠를 얻은 뒤 분기 A로 되돌아오는 경로도 ‘A는 이미 방문’이라며
+                버리면 놓칩니다.
+            </p>
+            <h3>해결 · 충분한 상태로 탐색</h3>
+            <p>
+                오른쪽은 (현재 방, 열쇠 수, 주웠는지, 열린 문 비트)를 탐색합니다. 열쇠는 최초 방문에만 얻고
+                소모형은 닫힌 문을 처음 열 때만 줄어듭니다. 열린 문은 왕복해도 다시 소모하지 않습니다. 높은
+                방으로 오를 때만 점프 조건이 적용됩니다.
+            </p>
+            <h3>상위 진행과 내부 미로</h3>
+            <p>
+                아래의 5×5 미로는 새 셀을 방문할 때만 통로를 추가하는 DFS입니다. 25개 셀의 트리는 간선
+                24개이며, 추가 통로를 넣으면 순환이 생깁니다. 이 성질이 열쇠를 포함한 상위 방 그래프의
+                진행까지 보장하지는 않습니다.
+            </p>
+            <h3>대가와 범위</h3>
+            <p>
+                방 위치가 고정된 독립 그래프와 한 종류의 열쇠 모델입니다. 상태를 많이 추가하면 탐색 공간도
+                커집니다. 수제 템플릿 적합성·WFC·전투 난이도·연속적인 점프 궤적은 계산하지 않습니다.
+            </p>
+            <p>
+                <a href="https://deepnight.net/tutorial/the-level-design-of-dead-cells-a-hybrid-approach/">
+                    Dead Cells 개발자의 혼합 생성 방식
+                </a>{' '}
+                · <a href="https://artint.info/html1e/ArtInt_206.html">상태 공간과 행동의 선행 조건</a>
+            </p>
+        </dialog>
+    </main>
+    <style>
+        main {
+            min-height: 100svh;
+            padding: 20px 28px 28px;
+            background: radial-gradient(circle at 60% 40%, #fff, #edf1f3 75%);
+        }
+        nav {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+        }
+        nav a {
+            color: #263340;
+            text-decoration: none;
+            font-weight: 750;
+            margin-right: auto;
+        }
+        button,
+        select,
+        input[type='number'] {
+            min-height: 44px;
+            border: 1px solid #bdccce;
+            border-radius: 12px;
+            padding: 9px 12px;
+            background: #fff;
+            color: #263340;
+        }
+        button {
+            cursor: pointer;
+        }
+        button:hover {
+            background: #e0efed;
+        }
+        header {
+            text-align: center;
+            margin: 24px auto 12px;
+        }
+        header > p {
+            font-size: 13px;
+            color: #0a736d;
+            letter-spacing: 0.05em;
+        }
+        h1 {
+            word-break: keep-all;
+            font-size: clamp(25px, 3vw, 42px);
+            margin: 10px 0;
+        }
+        header > span {
+            display: block;
+            color: #53666c;
+            font-size: 14px;
+            line-height: 1.7;
+            max-width: 860px;
+            margin: auto;
+        }
+        .stage {
+            height: clamp(420px, 58vh, 680px);
+            width: 100%;
+            max-width: 1350px;
+            margin: auto;
+        }
+        canvas {
+            width: 100%;
+            height: 100%;
+            display: block;
+            touch-action: manipulation;
+        }
+        .stats {
+            display: flex;
+            gap: 12px;
+            max-width: 1050px;
+            margin: 12px auto;
+        }
+        .stats > div {
+            flex: 1;
+            min-width: 0;
+            background: #ffffffe0;
+            border: 1px solid #d1dedf;
+            border-radius: 16px;
+            padding: 13px 16px;
+        }
+        .stats span {
+            color: #51676d;
+            font-size: 12px;
+            display: block;
+        }
+        .stats output {
+            font-size: 20px;
+            font-weight: 700;
+            display: block;
+            margin-top: 7px;
+            font-variant-numeric: tabular-nums;
+        }
+        .summary {
+            max-width: 1050px;
+            margin: 12px auto;
+            text-align: center;
+            font-size: 14px;
+            line-height: 1.8;
+            overflow-wrap: anywhere;
+        }
+        .toolbar {
+            text-align: right;
+            max-width: 1050px;
+            margin: auto;
+        }
+        #settings {
+            position: fixed;
+            top: 80px;
+            left: 24px;
+            width: 310px;
+            max-height: calc(100svh - 104px);
+            overflow: auto;
+            scroll-padding-top: 80px;
+            z-index: 5;
+            background: #fffffff7;
+            border: 1px solid #c7d5d6;
+            box-shadow: 0 18px 70px #263b3d30;
+            border-radius: 20px;
+            padding: 20px;
+        }
+        .panel-head,
+        .dialog-head {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+        }
+        h2 {
+            font-size: 18px;
+            margin: 0;
+        }
+        .panel-head {
+            position: sticky;
+            top: -20px;
+            z-index: 1;
+            background: #fff;
+            padding: 3px 0 9px;
+        }
+        .panel-head button,
+        .dialog-head button {
+            font-size: 23px;
+        }
+        label {
+            display: block;
+            font-size: 14px;
+            font-weight: 650;
+            margin: 18px 0;
+        }
+        label output {
+            float: right;
+            color: #0a746e;
+        }
+        input[type='range'] {
+            display: block;
+            width: 100%;
+            height: 40px;
+            accent-color: #117d77;
+        }
+        input[type='checkbox'] {
+            width: 22px;
+            height: 22px;
+            vertical-align: middle;
+            accent-color: #117d77;
+            margin-right: 8px;
+        }
+        select,
+        input[type='number'] {
+            display: block;
+            width: 100%;
+            margin-top: 8px;
+            font-size: 13px;
+        }
+        #settings > button {
+            width: 100%;
+            margin: 5px 0;
+        }
+        .check {
+            min-height: 44px;
+            display: flex;
+            align-items: center;
+        }
+        #settings p {
+            font-size: 12px;
+            line-height: 1.7;
+            color: #52686e;
+        }
+        dialog {
+            max-width: 690px;
+            width: calc(100% - 32px);
+            max-height: 86svh;
+            overflow: auto;
+            border: 1px solid #bdcdce;
+            border-radius: 22px;
+            padding: 26px;
+            color: #263340;
+        }
+        dialog::backdrop {
+            background: #162b3b77;
+        }
+        dialog h3 {
+            font-size: 15px;
+            margin-top: 24px;
+        }
+        dialog p {
+            font-size: 14px;
+            line-height: 1.8;
+        }
+        dialog a {
+            color: #0b716b;
+        }
+        code {
+            font-size: 12px;
+            overflow-wrap: anywhere;
+        }
+        @media (max-width: 600px) {
+            main {
+                padding: 14px 12px 24px;
+            }
+            nav {
+                gap: 8px;
+            }
+            nav button {
+                padding: 9px 11px;
+            }
+            header {
+                margin-top: 22px;
+            }
+            header > span {
+                padding: 0 8px;
+            }
+            .stage {
+                height: 620px;
+            }
+            .stats {
+                gap: 7px;
+                flex-wrap: wrap;
+            }
+            .stats > div {
+                min-width: 85px;
+                padding: 10px;
+            }
+            .stats output {
+                font-size: 17px;
+            }
+            .stats span {
+                font-size: 11px;
+            }
+            .summary {
+                font-size: 13px;
+            }
+            #settings {
+                left: 12px;
+                top: 74px;
+                width: min(310px, calc(100% - 24px));
+            }
+        }
+    </style>
+    <script>
+        import '../../experiments/dungeon-connectivity/client';
+    </script>
+</Page>

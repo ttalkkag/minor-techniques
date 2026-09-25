@@ -1,0 +1,8 @@
+{
+    "id": "interior-mapping",
+    "title": "창문 너머에 생기는 방",
+    "description": "시점과 방 깊이, 가구 평면을 바꿔 창문 픽셀의 시차를 관찰합니다.",
+    "tags": ["렌더링·재질", "시차", "광선 교차"],
+    "thumbnail": "/images/interior-mapping.svg",
+    "href": "/experiments/interior-mapping/"
+}

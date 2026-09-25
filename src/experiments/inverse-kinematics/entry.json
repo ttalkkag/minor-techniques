@@ -1,0 +1,8 @@
+{
+    "id": "inverse-kinematics",
+    "title": "목표에 닿는 두 개의 뼈",
+    "description": "뼈 길이와 발 목표, 반복 횟수를 바꿔 도달 오차를 비교합니다.",
+    "tags": ["이동과 충돌", "기하", "IK"],
+    "thumbnail": "/images/inverse-kinematics.svg",
+    "href": "/experiments/inverse-kinematics/"
+}

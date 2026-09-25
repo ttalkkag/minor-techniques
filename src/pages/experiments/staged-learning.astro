@@ -1,0 +1,385 @@
+---
+import Page from '../../layouts/Page.astro';
+---
+
+<Page
+    title="안전하게 배우고, 다음 틈에 도전한다 | 게임 실험실"
+    description="단계 배치와 제동·점프 버튼 유지 시간을 바꾸어 직접 플레이하세요."
+>
+    <main class="lab" id="lab">
+        <header>
+            <button id="menu" aria-label="설정 열기" aria-controls="settings" aria-expanded="false">
+                ☰
+            </button>
+            <h1>
+                <small>게임 실험실 · 카메라와 레벨</small>안전하게 배우고, 다음 틈에 도전한다
+            </h1>
+            <a href="/">목록</a>
+            <button id="explain">원리</button>
+        </header>
+        <button id="menu-backdrop" aria-label="설정 닫기" tabindex="-1" hidden></button>
+        <div class="panel" id="settings" role="complementary" aria-labelledby="settings-title" hidden>
+            <button id="close-menu" class="menu-close">설정 닫기 ×</button>
+            <h2 id="settings-title">조건을 바꾸고 직접 관찰하세요</h2>
+            <label>
+                학습 배치
+                <select id="layout">
+                    <option value="staged">안전한 연습 → 보상 → 위험</option>
+                    <option value="mixed">처음부터 위험과 보상을 조합</option>
+                </select>
+            </label>
+            <label for="brake">
+                제동 가속도 (m/s²) <output id="brake-value">16</output>
+                <input id="brake" type="range" min="4" max="30" value="16" step="2" />
+            </label>
+            <label for="release">
+                점프 해제 중력 배수 <output id="release-value">2</output>
+                <input id="release" type="range" min="1" max="4" value="2" step="0.25" />
+            </label>
+            <label for="fall">
+                낙하 중력 배수 <output id="fall-value">1.5</output>
+                <input id="fall" type="range" min="1" max="3" value="1.5" step="0.25" />
+            </label>
+            <button id="jump-test">같은 입력 비교: 짧은 점프</button>
+            <button id="reset">초기화</button>
+        </div>
+        <section class="scene" aria-label="안전하게 배우고, 다음 틈에 도전한다 실험 장면">
+            <canvas id="scene" aria-label="대화형 실험 장면"></canvas>
+        </section>
+        <footer>
+            <p id="readout">실험을 준비하고 있습니다.</p>
+            <p id="hint">A D / ← → 이동 · Space 길게 누르면 높은 점프 · 실패하면 근처에서 재시도합니다.</p>
+            <div class="touch">
+                <button data-key="ArrowLeft" aria-label="왼쪽 이동">
+                    ←
+                </button>
+                <button data-key="Space" aria-label="점프">
+                    점프
+                </button>
+                <button data-key="ArrowRight" aria-label="오른쪽 이동">
+                    →
+                </button>
+            </div>
+        </footer>
+        <dialog id="info" aria-labelledby="info-title">
+            <h2 id="info-title" tabindex="-1">안전하게 배우고, 다음 틈에 도전한다</h2>
+            <h3>문제</h3>
+            <p>낯선 적·보상·조작을 동시에 요구하면 무엇 때문에 실패했는지 분리하기 어렵습니다.</p>
+            <h3>원인</h3>
+            <p>
+                레벨은 시도할 공간과 실패 비용을 정하고 제어 규칙은 이동량을 정합니다. 바닥 있는 틈과
+                낭떠러지는 다른 실패 조건입니다.
+            </p>
+            <h3>해결을 관찰하기</h3>
+            <p>
+                안전한 구간의 이동, 반사되어 돌아오는 보상, 바닥 있는 틈, 낭떠러지를 순서대로 경험합니다. 같은
+                짧은 점프를 재생해 중력 설정별 최고점과 착지점을 비교합니다.
+            </p>
+            <h3>선택의 대가와 모형 범위</h3>
+            <p>
+                강한 제동은 멈추기 쉽지만 관성을 바꿉니다. 자체 2D 모형으로 원작 수치를 복원하지 않았습니다.
+                보상 접촉과 실패 횟수는 기록하지만 학습 성공률을 주장하지 않습니다.
+            </p>
+            <h3>근거</h3>
+            <a
+                href="https://www.nintendo.com/en-gb/Iwata-Asks/Iwata-Asks-New-Super-Mario-Bros-Wii/Volume-1/4-Letting-Everyone-Know-It-Was-A-Good-Mushroom/4-Letting-Everyone-Know-It-Was-A-Good-Mushroom-210863.html"
+                target="_blank"
+                rel="noreferrer"
+            >
+                Nintendo 개발자 인터뷰 ↗
+            </a>
+            <a
+                href="https://docs.godotengine.org/en/stable/tutorials/physics/using_character_body_2d.html"
+                target="_blank"
+                rel="noreferrer"
+            >
+                Godot CharacterBody2D ↗
+            </a>
+            <button id="close-info">장면으로 돌아가기</button>
+        </dialog>
+    </main>
+    <script>
+        import '../../experiments/staged-learning/client';
+    </script>
+</Page>
+<style>
+    :global(body) {
+        overflow: hidden;
+    }
+    .lab {
+        height: 100svh;
+        min-height: 440px;
+        background: #edf1f3;
+        color: #243744;
+    }
+    header {
+        height: 80px;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 12px 22px;
+        border-bottom: 1px solid #cfdbdf;
+        background: #f8faf9;
+        position: relative;
+        z-index: 5;
+    }
+    header a {
+        color: #336460;
+        font-size: 13px;
+        text-decoration: none;
+        white-space: nowrap;
+    }
+    h1 {
+        font-size: clamp(15px, 2vw, 23px);
+        line-height: 1.35;
+        margin: 0;
+        flex: 1;
+    }
+    h1 small {
+        display: block;
+        color: #52676d;
+        font-size: 11px;
+        font-weight: 500;
+        margin-bottom: 4px;
+    }
+    button,
+    select {
+        min-height: 42px;
+        border: 1px solid #b8cbcd;
+        border-radius: 9px;
+        padding: 8px 12px;
+        background: #fff;
+        color: #244247;
+        cursor: pointer;
+    }
+    button:hover {
+        background: #dcece7;
+    }
+    button:active {
+        background: #b7ded2;
+    }
+    button:disabled {
+        opacity: 0.5;
+        cursor: default;
+    }
+    #menu-backdrop {
+        position: absolute;
+        inset: 86px 0 0;
+        z-index: 3;
+        border: 0;
+        border-radius: 0;
+        background: #24374466;
+    }
+    .panel .menu-close {
+        display: none;
+    }
+    .panel {
+        position: absolute;
+        top: 80px;
+        bottom: 0;
+        left: 0;
+        width: 276px;
+        padding: 22px 18px;
+        background: #f8faf9ee;
+        border-right: 1px solid #cbd8da;
+        overflow: auto;
+        z-index: 4;
+    }
+    .panel h2 {
+        font-size: 13px;
+        color: #547476;
+        margin: 0 0 20px;
+    }
+    .panel label {
+        display: block;
+        font-size: 13px;
+        margin: 0 0 20px;
+        line-height: 1.4;
+    }
+    .panel input[type='range'] {
+        display: block;
+        width: 100%;
+        accent-color: #187d74;
+        margin: 10px 0 0;
+        min-height: 25px;
+    }
+    .panel select {
+        display: block;
+        width: 100%;
+        margin-top: 8px;
+        font-size: 13px;
+    }
+    .panel output {
+        float: right;
+        font-variant-numeric: tabular-nums;
+        color: #16786f;
+    }
+    .panel .check {
+        display: flex;
+        gap: 10px;
+        align-items: center;
+        min-height: 40px;
+        margin-bottom: 8px;
+    }
+    .panel input[type='checkbox'] {
+        width: 19px;
+        height: 19px;
+        accent-color: #187d74;
+    }
+    .panel button {
+        width: 100%;
+        margin-bottom: 10px;
+    }
+    .scene {
+        position: absolute;
+        top: 80px;
+        bottom: 146px;
+        left: 0;
+        right: 0;
+        min-height: 100px;
+    }
+    .lab.menu-open .scene,
+    .lab.menu-open footer {
+        left: 276px;
+    }
+    canvas,
+    #webgl {
+        display: block;
+        width: 100%;
+        height: 100%;
+        touch-action: none;
+    }
+    footer {
+        position: absolute;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        padding: 10px 20px 14px;
+        background: #f8faf9;
+        border-top: 1px solid #cbd8da;
+        height: 146px;
+        z-index: 2;
+    }
+    #readout {
+        font-size: 13px;
+        line-height: 1.6;
+        margin: 0 0 4px;
+        font-variant-numeric: tabular-nums;
+        min-height: 21px;
+    }
+    #hint {
+        font-size: 12px;
+        color: #52676d;
+        margin: 0 0 8px;
+    }
+    .touch {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+        flex-wrap: wrap;
+    }
+    .touch button {
+        min-width: 48px;
+        user-select: none;
+        touch-action: none;
+    }
+    .touch #choices {
+        display: flex;
+        gap: 6px;
+        flex-wrap: wrap;
+    }
+    .touch #choices button {
+        font-size: 12px;
+        min-height: 40px;
+    }
+    dialog {
+        max-width: 610px;
+        width: calc(100% - 28px);
+        max-height: 85svh;
+        border: 1px solid #c4d5d3;
+        border-radius: 17px;
+        padding: 28px;
+        color: #243744;
+        background: #f9fcfa;
+    }
+    dialog::backdrop {
+        background: #1f393e77;
+        backdrop-filter: blur(4px);
+    }
+    dialog h2 {
+        font-size: 21px;
+        margin-top: 0;
+    }
+    dialog h3 {
+        font-size: 14px;
+        color: #11756d;
+        margin: 20px 0 5px;
+    }
+    dialog p {
+        font-size: 14px;
+        line-height: 1.75;
+        margin: 0;
+    }
+    dialog a {
+        display: block;
+        font-size: 13px;
+        color: #146d6a;
+        margin: 8px 0;
+        overflow-wrap: anywhere;
+    }
+    dialog button {
+        margin-top: 20px;
+        width: 100%;
+    }
+    @media (max-width: 700px) {
+        .panel .menu-close {
+            display: block;
+        }
+        header {
+            height: 86px;
+            padding: 10px;
+            gap: 8px;
+        }
+        header a {
+            font-size: 11px;
+        }
+        h1 {
+            font-size: 15px;
+        }
+        header button {
+            padding: 8px 10px;
+        }
+        .panel {
+            top: 86px;
+            width: min(276px, 86vw);
+        }
+        .scene {
+            top: 86px;
+            bottom: 180px;
+        }
+        .lab.menu-open .scene,
+        .lab.menu-open footer {
+            left: 0;
+        }
+        footer {
+            height: 180px;
+            padding: 10px 12px;
+        }
+        #readout {
+            font-size: 12px;
+        }
+        #hint {
+            font-size: 11px;
+            line-height: 1.4;
+        }
+        .touch {
+            gap: 6px;
+        }
+        dialog {
+            padding: 22px;
+        }
+        .touch button {
+            min-width: 44px;
+        }
+    }
+</style>

@@ -1,0 +1,381 @@
+---
+import Page from '../../layouts/Page.astro';
+---
+
+<Page
+    title="같은 줄에 서면 사라지는 캐릭터 · 게임 실험실"
+    description="스캔라인의 후보 개수와 우선순위를 조절해 표시 누락과 깜박임을 비교합니다."
+>
+    <main id="scanline-lab">
+        <nav>
+            <button id="menu" aria-label="설정 메뉴 열기" aria-expanded="false" aria-controls="settings">
+                ☰
+            </button>
+            <a href="/">게임 실험실</a>
+            <button id="explain" aria-label="원인과 해결 설명 열기">
+                ?
+            </button>
+        </nav>
+        <header>
+            <span>줄별 표시 한도</span>
+            <h1>같은 줄에 서면 사라지는 캐릭터</h1>
+            <p>객체는 남아 있습니다. 이번 줄에서 그릴 후보만 골라집니다.</p>
+        </header>
+        <div id="backdrop" hidden></div>
+        <div id="settings" role="complementary" hidden aria-label="실험 설정">
+            <div class="panel-title">
+                <h2>설정</h2>
+                <button id="close-menu" aria-label="설정 메뉴 닫기">
+                    ×
+                </button>
+            </div>
+            <label>
+                캐릭터 수 <output id="count-value">9</output>
+                <input id="count" type="range" min="2" max="16" value="9" />
+            </label>
+            <label>
+                캐릭터당 조각{' '}
+                <select id="pieces">
+                    <option value="1">1개</option>
+                    <option value="2">가로 2개</option>
+                    <option value="4">2 × 2개</option>
+                </select>
+            </label>
+            <label>
+                줄별 표시 한도 <output id="limit-value">8</output>
+                <input id="limit" type="range" min="1" max="16" value="8" />
+            </label>
+            <label>
+                마지막 캐릭터 높이 이동 <output id="offset-value">0</output>
+                <input id="offset" type="range" min="0" max="24" value="0" />
+            </label>
+            <label>
+                관찰할 줄 y <output id="line-value">43</output>
+                <input id="line" type="range" min="24" max="88" value="43" />
+            </label>
+            <label>
+                선택 순서{' '}
+                <select id="mode">
+                    <option value="fixed">고정 우선순위</option>
+                    <option value="rotate">프레임마다 순환</option>
+                    <option value="unlimited">줄별 한도 해제</option>
+                </select>
+            </label>
+            <label class="check">
+                <input type="checkbox" id="protect" /> 1번 캐릭터 우선 보호
+            </label>
+            <label class="check">
+                <input type="checkbox" id="transparent" /> 마지막 캐릭터 투명하게
+            </label>
+            <button id="spread">마지막 캐릭터를 다른 줄로</button>
+        </div>
+        <section class="stage" aria-label="표시 선택 장면">
+            <canvas
+                id="canvas"
+                aria-label="캐릭터와 관찰 스캔라인. 점선 윤곽은 게임에 남아 있는 객체입니다."
+            ></canvas>
+            <p class="legend">채운 조각: 표시됨 · 점선 윤곽: 존재하는 객체 · 주황선: 관찰 줄</p>
+        </section>
+        <section class="readouts" aria-label="선택 결과">
+            <div>
+                <h2>관찰 줄의 후보</h2>
+                <p id="candidates"></p>
+            </div>
+            <div>
+                <h2>선택 / 누락</h2>
+                <p id="selected"></p>
+                <p id="missing"></p>
+            </div>
+            <div>
+                <h2>누적 표시</h2>
+                <p id="history"></p>
+            </div>
+        </section>
+        <div class="playbar">
+            <button id="reset">초기화</button>
+            <button id="play">관찰 재생</button>
+            <button id="step">다음 프레임</button>
+            <output id="frame">0 FRAME</output>
+        </div>
+    </main>
+    <dialog id="explanation" aria-labelledby="explanation-title">
+        <button id="close-explanation" aria-label="설명 닫기">
+            ×
+        </button>
+        <h2 id="explanation-title">많이 그린 것과 한 줄에 몰린 것은 다릅니다.</h2>
+        <h3>문제 · 전체 수는 적은데 사라집니다</h3>
+        <p>
+            높이 범위가 같은 줄을 가로지르는 조각들을 후보로 모으고, 앞에서부터 설정한 한도만 선택합니다. 기본
+            장면은 9개 후보와 8개 슬롯이어서 마지막 하나가 빠집니다.
+        </p>
+        <h3>원인 · 조각 단위로 세는 한도</h3>
+        <p>
+            한 캐릭터가 여러 조각이면 같은 줄을 가로지르는 조각마다 슬롯을 씁니다. 투명하게 바꿔도 높이 범위로
+            정한 후보에는 남습니다. 후보 탈락과 투명 픽셀은 다른 이유입니다.
+        </p>
+        <h3>해결 · 분산하거나 순환하기</h3>
+        <p>
+            ‘마지막 캐릭터를 다른 줄로’를 누르면 전체 개수는 그대로인 채 후보 집중이 풀립니다. ‘프레임마다
+            순환’은 누가 빠질지를 바꿉니다. 기본 배치에서 9프레임을 관찰하면 각 조각이 8번씩 표시되지만, 한
+            프레임에 9개를 함께 그리지는 않습니다.
+        </p>
+        <h3>대가 · 깜박임과 우선순위</h3>
+        <p>
+            순환은 지속 누락을 깜박임으로 바꿉니다. 플레이어를 보호하면 남은 슬롯을 다른 객체가 나눠 씁니다.
+            게임 객체의 위치나 충돌은 바꾸지 않고 표시 순서만 바꿉니다.
+        </p>
+        <p>
+            후보는 <code>top ≤ y &lt; top + height</code>로 정합니다. 누적 표시는 선택한 관찰 줄의 기록이며,
+            설정을 바꾸면 기록이 초기화됩니다.
+        </p>
+        <a
+            href="https://www.youtube.com/watch?v=keREBAhYErY&t=218s"
+            target="_blank"
+            rel="noopener noreferrer"
+        >
+            관련 영상 · 스캔라인 제한 ↗
+        </a>
+    </dialog>
+    <script>
+        import '../../experiments/scanline-limits/client';
+    </script>
+</Page>
+<style>
+    #scanline-lab {
+        --side: 0px;
+        min-height: 100svh;
+        padding: 100px 36px 32px calc(36px + var(--side));
+        transition: padding 0.15s;
+    }
+    #scanline-lab.open {
+        --side: 294px;
+    }
+    nav {
+        position: absolute;
+        inset: 22px 28px auto;
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        z-index: 4;
+    }
+    nav a {
+        color: #435e68;
+        text-decoration: none;
+        font-size: 13px;
+    }
+    nav #explain {
+        margin-left: auto;
+    }
+    button,
+    select {
+        cursor: pointer;
+        border: 1px solid #d3dfe2;
+        border-radius: 8px;
+        background: #fff;
+        color: #345961;
+        min-height: 42px;
+        padding: 9px 14px;
+    }
+    nav button {
+        width: 44px;
+        font-size: 18px;
+    }
+    header span {
+        font-size: 12px;
+        color: #53716d;
+    }
+    h1 {
+        font-size: clamp(26px, 3vw, 38px);
+        letter-spacing: -1.4px;
+        margin: 10px 0;
+    }
+    header p,
+    .legend {
+        font-size: 13px;
+        color: #526b77;
+        line-height: 1.7;
+    }
+    #settings {
+        position: absolute;
+        left: 24px;
+        top: 88px;
+        width: 270px;
+        background: #fff;
+        border-radius: 14px;
+        padding: 20px;
+        z-index: 3;
+        max-height: calc(100svh - 112px);
+        overflow: auto;
+    }
+    .panel-title {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+    }
+    .panel-title h2 {
+        font-size: 20px;
+    }
+    #settings label {
+        display: block;
+        margin: 20px 0;
+        font-size: 13px;
+        color: #38525e;
+    }
+    #settings output {
+        float: right;
+        font-variant-numeric: tabular-nums;
+    }
+    #settings input[type='range'] {
+        width: 100%;
+        display: block;
+        margin-top: 13px;
+        accent-color: #26776e;
+    }
+    #settings select {
+        width: 100%;
+        margin-top: 8px;
+    }
+    #settings .check {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+    }
+    input[type='checkbox'] {
+        accent-color: #26776e;
+    }
+    .stage {
+        margin: 28px 0 18px;
+        border: 1px solid #dbe4e6;
+        background: #f7faf9;
+        border-radius: 14px;
+        overflow: hidden;
+    }
+    canvas {
+        display: block;
+        width: 100%;
+        height: 340px;
+    }
+    .legend {
+        padding: 0 18px;
+        margin: 0 0 16px;
+        font-size: 11px;
+    }
+    .readouts {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 12px;
+    }
+    .readouts > div {
+        background: #fff;
+        padding: 18px;
+        border-radius: 10px;
+        min-width: 0;
+    }
+    .readouts h2 {
+        font-size: 13px;
+        margin: 0 0 10px;
+    }
+    .readouts p {
+        font-size: 12px;
+        line-height: 1.8;
+        color: #526b77;
+        overflow-wrap: anywhere;
+        white-space: pre-line;
+    }
+    .playbar {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-wrap: wrap;
+        gap: 10px;
+        margin-top: 24px;
+    }
+    .playbar output {
+        font-size: 12px;
+        color: #526b77;
+    }
+    #play {
+        background: #276f68;
+        color: white;
+    }
+    dialog {
+        max-width: 600px;
+        width: calc(100% - 32px);
+        max-height: calc(100svh - 40px);
+        padding: 28px;
+        border: 0;
+        border-radius: 16px;
+        color: #263f49;
+        background: #fbfcfc;
+    }
+    dialog::backdrop {
+        background: #203c4966;
+    }
+    dialog > button {
+        float: right;
+    }
+    dialog h2 {
+        font-size: 25px;
+        line-height: 1.5;
+        clear: both;
+    }
+    dialog h3 {
+        font-size: 15px;
+        margin-top: 25px;
+    }
+    dialog p {
+        font-size: 13px;
+        line-height: 1.9;
+        color: #526b77;
+    }
+    dialog a {
+        color: #206d64;
+        font-size: 13px;
+    }
+    #backdrop {
+        position: fixed;
+        inset: 0;
+        background: #203b4955;
+        z-index: 2;
+    }
+    @media (max-width: 800px) {
+        #scanline-lab,
+        #scanline-lab.open {
+            --side: 0px;
+            padding: 90px 16px 24px;
+            transition: none;
+        }
+        nav {
+            left: 16px;
+            right: 16px;
+            top: 16px;
+        }
+        #settings {
+            position: fixed;
+            left: 16px;
+            top: 74px;
+            max-height: calc(100svh - 90px);
+            width: min(304px, calc(100% - 32px));
+            z-index: 5;
+        }
+        .stage {
+            margin-top: 22px;
+        }
+        canvas {
+            height: 300px;
+        }
+        .readouts {
+            grid-template-columns: 1fr;
+        }
+        .readouts p {
+            margin-bottom: 0;
+        }
+        .legend {
+            font-size: 10px;
+        }
+        .playbar button {
+            padding-inline: 10px;
+            font-size: 12px;
+        }
+    }
+</style>

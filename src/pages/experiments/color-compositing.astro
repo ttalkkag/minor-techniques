@@ -1,0 +1,395 @@
+---
+import Page from '../../layouts/Page.astro';
+---
+
+<Page
+    title="투명 경계와 색 합성 · 게임 실험실"
+    description="알파의 저장 표현, 합성 인자, 색 공간을 직접 비교하는 실험"
+>
+    <main>
+        <nav>
+            <button id="menu" aria-label="설정 메뉴 열기" aria-controls="settings" aria-expanded="false">
+                ☰
+            </button>
+            <a href="/">게임 실험실</a>
+            <button id="explain">원리 보기</button>
+        </nav>
+        <header>
+            <p>RGB와 알파의 약속</p>
+            <h1>같은 색, 다른 가장자리</h1>
+            <span id="intro">이미 곱한 알파를 또 곱하면, 투명한 부분부터 어두워집니다.</span>
+        </header>
+        <section class="stage" aria-label="합성 결과 비교">
+            <canvas
+                id="scene"
+                aria-label="선택한 합성과 기준 합성의 색 비교"
+                aria-describedby="summary"
+            ></canvas>
+        </section>
+        <div class="numbers">
+            <div>
+                <span id="left-title">선택한 처리</span>
+                <output id="left-result"></output>
+            </div>
+            <div>
+                <span id="right-title">표현에 맞춘 처리</span>
+                <output id="right-result"></output>
+            </div>
+        </div>
+        <p id="summary" role="status"></p>
+        <div id="settings" role="complementary" hidden aria-label="색 합성 설정">
+            <div class="panel-head">
+                <h2>합성 조건</h2>
+                <button id="close-menu" aria-label="설정 메뉴 닫기">
+                    ×
+                </button>
+            </div>
+            <label for="mode">
+                합성 실험
+                <select id="mode">
+                    <option value="over">반투명 source-over</option>
+                    <option value="add">가산 · 밝은 배경의 대비</option>
+                    <option value="multiply">곱셈 · 배경을 어둡게</option>
+                </select>
+            </label>
+            <label for="source-color">
+                전경 색<input id="source-color" type="color" value="#ed7046" />
+            </label>
+            <label for="source-alpha">
+                전경 알파 / 효과 세기 <output id="source-alpha-value"></output>
+                <input id="source-alpha" type="range" min="0" max="1" step="0.01" value="0.45" />
+            </label>
+            <div id="over-controls">
+                <label for="background-color">
+                    배경 색<input id="background-color" type="color" value="#188b88" />
+                </label>
+                <label for="background-alpha">
+                    배경 알파 <output id="background-alpha-value"></output>
+                    <input id="background-alpha" type="range" min="0" max="1" step="0.01" value="0.65" />
+                </label>
+                <label for="storage">
+                    전경 RGB 저장
+                    <select id="storage">
+                        <option value="premult">Premultiplied · C×α 저장</option>
+                        <option value="straight">Straight · C 저장</option>
+                    </select>
+                </label>
+                <label for="factor">
+                    전경 RGB 합성 인자
+                    <select id="factor">
+                        <option value="alpha">SrcAlpha · 알파 곱하기</option>
+                        <option value="one">One · 그대로 쓰기</option>
+                    </select>
+                </label>
+                <label for="alpha-factor">
+                    출력 알파 합성
+                    <select id="alpha-factor">
+                        <option value="separate">별도 One · 올바른 α</option>
+                        <option value="same">RGB와 같은 인자</option>
+                    </select>
+                </label>
+                <button id="match">저장 표현에 인자 맞추기</button>
+                <button id="swap">전경과 배경 순서 바꾸기</button>
+                <button id="example">빨강 0.4 / 파랑 0.25 예제</button>
+            </div>
+            <div id="backdrop-controls" hidden>
+                <label for="brightness">
+                    오른쪽 배경 밝기 <output id="brightness-value"></output>
+                    <input id="brightness" type="range" min="0.05" max="1" step="0.01" value="0.95" />
+                </label>
+                <p>왼쪽은 sRGB 0.08의 어두운 배경, 오른쪽은 조절한 불투명 배경입니다.</p>
+            </div>
+            <label for="space">
+                계산 색 공간
+                <select id="space">
+                    <option value="srgb">sRGB 인코딩 값에서 혼합</option>
+                    <option value="linear">선형 광량으로 변환 후 혼합</option>
+                </select>
+            </label>
+            <button id="reset">초기화</button>
+        </div>
+        <dialog id="info" aria-labelledby="info-title">
+            <div class="dialog-head">
+                <h2 id="info-title">어두운 경계와 사라진 빛</h2>
+                <button id="close-info" aria-label="설명 닫기">
+                    ×
+                </button>
+            </div>
+            <h3>문제 · 두 현상은 원인이 다릅니다</h3>
+            <p>
+                반투명 경계가 어두워지면 알파 표현부터 확인합니다. 밝은 배경에서 가산 효과가 사라지면 합성
+                결과와 배경의 대비를 확인합니다.
+            </p>
+            <h3>원인 · 저장 값과 합성 인자의 불일치</h3>
+            <p>
+                Straight는 C를, premultiplied는 Cα를 저장합니다. 후자에 SrcAlpha를 곱하면 Cα²가 됩니다. 배경
+                버퍼도 Cbαb를 저장해야 하며 출력 알파는 αs+αb(1−αs)입니다. RGB와 같은 SrcAlpha를 알파에도 쓰면
+                αs²가 되어 잘못됩니다.
+            </p>
+            <h3>해결 · 같은 약속으로 연결하기</h3>
+            <p>
+                ‘저장 표현에 인자 맞추기’는 straight에 SrcAlpha, premultiplied에 One을 선택하고 알파에는 별도
+                One을 씁니다. 결과 co는 premultiplied 값으로 유지하고 필요할 때만 Co=co/αo로 복원합니다. 아래
+                숫자는 도형 중심의 겹친 픽셀입니다.
+            </p>
+            <h3>가산·곱셈과 색 공간</h3>
+            <p>
+                가산은 Cb+Csα, 곱셈은 Cb×(1−α+Csα)로 계산합니다. 이 두 모드는 불투명 배경 비교입니다. 선형
+                모드에서는 입력 sRGB를 광량으로 복원하고 계산 뒤 sRGB로 되돌립니다. 가산이 1을 넘는 채널은
+                화면에서 LDR로 잘립니다.
+            </p>
+            <h3>대가와 한계</h3>
+            <p>
+                각 픽셀의 수식을 CPU로 계산해 보여줍니다. 텍스처 압축·필터링의 테두리 오류, HDR 디스플레이·톤
+                매핑·실제 빛의 산란은 포함하지 않습니다. 투명 이미지의 저장 형식을 바꾸려면 출력 버퍼와 이후
+                패스도 함께 맞춰야 합니다.
+            </p>
+            <p>
+                <a
+                    href="https://www.w3.org/TR/compositing-1/#simplealphacompositing"
+                    target="_blank"
+                    rel="noreferrer"
+                >
+                    W3C source-over 식
+                </a>{' '}
+                ·{' '}
+                <a
+                    href="https://docs.unity3d.com/6000.0/Documentation/Manual/SL-Blend.html"
+                    target="_blank"
+                    rel="noreferrer"
+                >
+                    Unity RGB·알파 합성 인자
+                </a>
+            </p>
+        </dialog>
+    </main>
+    <style>
+        main {
+            min-height: 100svh;
+            padding: 20px 28px 24px;
+            background: radial-gradient(circle at 50% 35%, #fff, #edf1f3 75%);
+        }
+        nav {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+        }
+        nav a {
+            color: #263340;
+            text-decoration: none;
+            font-weight: 750;
+            margin-right: auto;
+        }
+        button,
+        select {
+            min-height: 44px;
+            border: 1px solid #bdccce;
+            border-radius: 12px;
+            padding: 9px 13px;
+            background: #fff;
+            color: #263340;
+            cursor: pointer;
+        }
+        button:hover {
+            background: #e0efed;
+        }
+        header {
+            text-align: center;
+            margin: 24px auto 8px;
+        }
+        header p {
+            color: #0c716c;
+            font-size: 13px;
+            letter-spacing: 0.08em;
+        }
+        h1 {
+            font-size: clamp(25px, 3vw, 44px);
+            margin: 10px 0;
+        }
+        header span {
+            font-size: 14px;
+            color: #52646b;
+        }
+        .stage {
+            height: clamp(300px, 48vh, 530px);
+            width: 100%;
+            max-width: 1300px;
+            margin: auto;
+        }
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+        }
+        .numbers {
+            display: flex;
+            gap: 16px;
+            max-width: 1100px;
+            margin: auto;
+        }
+        .numbers > div {
+            flex: 1;
+            min-width: 0;
+            background: #ffffffbf;
+            border: 1px solid #d0dcdd;
+            border-radius: 16px;
+            padding: 14px 18px;
+        }
+        .numbers span {
+            color: #416068;
+            font-size: 13px;
+        }
+        .numbers output {
+            display: block;
+            white-space: pre-line;
+            font-size: 13px;
+            line-height: 1.8;
+            font-variant-numeric: tabular-nums;
+            margin-top: 6px;
+        }
+        #summary {
+            text-align: center;
+            line-height: 1.7;
+            font-size: 14px;
+            max-width: 1000px;
+            margin: 14px auto;
+        }
+        #settings {
+            position: fixed;
+            left: 24px;
+            top: 80px;
+            width: 316px;
+            max-height: calc(100svh - 104px);
+            overflow: auto;
+            z-index: 5;
+            padding: 20px;
+            background: #fffffff5;
+            border: 1px solid #c7d5d6;
+            border-radius: 20px;
+            box-shadow: 0 18px 70px #263b3d30;
+        }
+        .panel-head,
+        .dialog-head {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+        }
+        h2 {
+            font-size: 18px;
+            margin: 0;
+        }
+        .panel-head button,
+        .dialog-head button {
+            font-size: 23px;
+        }
+        label {
+            display: block;
+            font-size: 14px;
+            font-weight: 650;
+            margin: 18px 0;
+        }
+        select {
+            display: block;
+            width: 100%;
+            margin-top: 9px;
+            font-size: 13px;
+        }
+        input[type='color'] {
+            width: 100%;
+            height: 44px;
+            display: block;
+            margin-top: 9px;
+            border: 1px solid #bacdcd;
+            border-radius: 9px;
+            background: #fff;
+            padding: 5px;
+        }
+        input[type='range'] {
+            display: block;
+            width: 100%;
+            height: 40px;
+            accent-color: #158079;
+        }
+        label output {
+            float: right;
+            color: #0b716b;
+        }
+        #settings button {
+            margin-bottom: 8px;
+        }
+        #settings > button,
+        #settings > div > button {
+            width: 100%;
+        }
+        .panel-head > button {
+            width: auto;
+            margin: 0;
+        }
+        #settings p {
+            font-size: 12px;
+            line-height: 1.7;
+        }
+        dialog {
+            max-width: 650px;
+            width: calc(100% - 32px);
+            max-height: 85svh;
+            overflow: auto;
+            border: 1px solid #bdcdce;
+            border-radius: 22px;
+            padding: 26px;
+            color: #263340;
+        }
+        dialog::backdrop {
+            background: #162b3b77;
+        }
+        dialog h3 {
+            font-size: 15px;
+            margin-top: 24px;
+        }
+        dialog p {
+            font-size: 14px;
+            line-height: 1.8;
+        }
+        dialog a {
+            color: #0b716b;
+        }
+        @media (max-width: 600px) {
+            main {
+                padding: 14px 12px;
+            }
+            header span {
+                display: block;
+                line-height: 1.7;
+                padding: 0 15px;
+            }
+            nav {
+                gap: 8px;
+            }
+            nav button {
+                padding: 9px 12px;
+            }
+            .stage {
+                height: 580px;
+            }
+            .numbers {
+                flex-direction: column;
+                gap: 10px;
+            }
+            .numbers > div {
+                padding: 12px 16px;
+            }
+            #settings {
+                left: 12px;
+                top: 74px;
+                width: min(316px, calc(100% - 24px));
+            }
+            #summary {
+                font-size: 13px;
+            }
+        }
+    </style>
+    <script>
+        import '../../experiments/color-compositing/client';
+    </script>
+</Page>

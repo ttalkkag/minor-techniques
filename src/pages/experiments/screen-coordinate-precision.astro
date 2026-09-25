@@ -1,0 +1,407 @@
+---
+import Page from '../../layouts/Page.astro';
+---
+
+<Page
+    title="부드러운 이동이 한 칸씩 뛸 때 · 게임 실험실"
+    description="투영된 정점의 소수 부분을 격자에 붙이고, 연속 위치와 윤곽의 차이를 확대해 관찰하세요."
+>
+    <main id="lab">
+        <nav aria-label="실험실 탐색">
+            <button id="menu" aria-label="설정 메뉴 열기" aria-expanded="false" aria-controls="settings">
+                ☰
+            </button>
+            <a href="/">게임 실험실</a>
+            <button id="explain" aria-label="원인과 해결 설명 열기">
+                ?
+            </button>
+        </nav>
+        <header>
+            <p class="eyebrow">화면 정점 · SUBPIXEL PRECISION</p>
+            <h1>부드러운 이동이 한 칸씩 뛸 때</h1>
+            <p>투영된 정점의 소수 부분을 격자에 붙이고, 연속 위치와 윤곽의 차이를 확대해 관찰하세요.</p>
+        </header>
+        <section class="stage" aria-label="수치 모델 관찰 장면">
+            <canvas
+                id="scene"
+                aria-label="부드러운 이동이 한 칸씩 뛸 때 비교 그림"
+                aria-describedby="summary"
+            ></canvas>
+        </section>
+        <div class="readouts">
+            <div class="metric">
+                <span>첫 정점 연속 위치 s</span>
+                <strong id="metric-0">계산 중</strong>
+            </div>
+            <div class="metric">
+                <span>첫 정점 양자화 Q(s)</span>
+                <strong id="metric-1">계산 중</strong>
+            </div>
+            <div class="metric">
+                <span>정점 좌표 오차</span>
+                <strong id="metric-2">계산 중</strong>
+            </div>
+        </div>
+        <p id="summary" class="summary" role="status"></p>
+        <div class="toolbar">
+            <button id="step" class="primary">
+                카메라 +0.005
+            </button>
+            <button id="play">느리게 재생</button>
+            <button id="reset">초기화</button>
+        </div>
+        <footer>설정을 열어 조건을 바꾸고 두 결과를 비교하세요.</footer>
+        <div id="settings" class="settings" role="complementary" aria-label="실험 설정" hidden>
+            <h2>
+                설정
+                <button id="close-menu" aria-label="설정 메뉴 닫기">
+                    ×
+                </button>
+            </h2>
+            <div class="control">
+                <label for="pan">
+                    카메라 가로 위치<output id="pan-value"></output>
+                </label>
+                <input id="pan" type="range" min="-0.5" max="0.5" step="0.005" value="0" />
+            </div>
+            <div class="control">
+                <label for="depth">
+                    삼각형 거리<output id="depth-value"></output>
+                </label>
+                <input id="depth" type="range" min="2" max="8" step="0.1" value="4" />
+            </div>
+            <div class="control">
+                <label for="grid">정점 격자 간격</label>
+                <select id="grid">
+                    <option value="1">1 논리 픽셀</option>
+                    <option value="2">2 논리 픽셀</option>
+                    <option value="4">4 논리 픽셀</option>
+                    <option value=".25">¼ 논리 픽셀</option>
+                    <option value=".125">⅛ 논리 픽셀</option>
+                </select>
+            </div>
+            <label class="check">
+                <input id="snap" type="checkbox" checked />
+                정점 양자화
+            </label>
+            <label class="check">
+                <input id="pattern" type="checkbox" />
+                삼각형 안의 줄무늬
+            </label>
+            <p class="note">
+                두 화면 모두 고정된 160 × 100 논리 픽셀을 확대합니다. 오른쪽은 Q(s) = g × floor(s/g)를 정점에
+                적용합니다. 브라우저 출력 해상도와 별개의 단계입니다.
+            </p>
+        </div>
+    </main>
+    <dialog id="explanation" aria-labelledby="explanation-title">
+        <h2 id="explanation-title">
+            원인과 해결
+            <button id="close-dialog" aria-label="설명 닫기">
+                ×
+            </button>
+        </h2>
+        <h3>문제와 원인</h3>
+        <p>
+            모델 위치 → 카메라 좌표 → 원근 투영 → 정점 양자화 → 픽셀 채우기의 순서입니다. 연속 위치가 변해도
+            같은 격자 칸에 있으면 출력 정점은 멈춰 있다가 한꺼번에 뜁니다. 단색 윤곽에서도 남으므로 텍스처 UV
+            보간과 다른 문제입니다.
+        </p>
+        <h3>해결</h3>
+        <p>
+            정점 양자화를 끄거나 격자를 더 촘촘하게 하세요. 점선은 연속 윤곽, 주황 선은 양자화된 윤곽입니다.
+            첫 정점을 확대해 두 위치와 그 사이 오차를 연결합니다. 카메라를 더 부드럽게 움직여도 마지막 단계가
+            같은 격자로 붙이면 멈춤과 점프가 남습니다.
+        </p>
+        <h3>비용과 범위</h3>
+        <p>
+            정점의 소수 부분을 보존해도 최종 화면은 유한한 픽셀로 채워집니다. UV 보정이나 면 분할은 버린 원래
+            정점 좌표를 되살리지 않습니다. 여기서는 고정 논리 해상도와 floor 규칙을 사용하며, 음수에서 0 방향
+            절삭과 다릅니다. Sony GTE의 모든 포화·반올림이나 실제 GPU의 픽셀 경계 규칙을 재현하지 않습니다.
+        </p>
+        <p>
+            <a href="https://psx.arthus.net/sdk/Psy-Q/DOCS/Devrefs/Inlinref.pdf#page=118">
+                Sony SXY0 형식, PDF 118쪽
+            </a>{' '}
+            ·{' '}
+            <a href="https://psx.arthus.net/sdk/Psy-Q/DOCS/Devrefs/Inlinref.pdf#page=134">
+                수 형식 정의, PDF 134쪽
+            </a>
+        </p>
+    </dialog>
+    <script>
+        import '../../experiments/screen-coordinate-precision/client';
+    </script>
+</Page>
+<style>
+    :global(body) {
+        background: #edf1f3;
+        color: #233744;
+    }
+    main {
+        min-height: 100svh;
+        padding: 80px 28px 26px;
+        display: flex;
+        flex-direction: column;
+        gap: 18px;
+    }
+    nav {
+        position: absolute;
+        inset: 0 0 auto;
+        height: 64px;
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        padding: 12px 24px;
+        border-bottom: 1px solid #cdd7db;
+        background: #f7f9fa;
+        z-index: 3;
+    }
+    nav a {
+        font-weight: 800;
+        color: inherit;
+        text-decoration: none;
+    }
+    nav button:last-child {
+        margin-left: auto;
+    }
+    button,
+    select {
+        min-height: 42px;
+        border: 1px solid #b6c6cb;
+        border-radius: 10px;
+        background: #f8fafb;
+        color: #233744;
+        padding: 8px 13px;
+        cursor: pointer;
+    }
+    button:hover {
+        background: #dce9e8;
+    }
+    header {
+        max-width: 780px;
+    }
+    header p {
+        margin: 0;
+        color: #4b6470;
+        line-height: 1.6;
+    }
+    h1 {
+        font-size: clamp(24px, 4vw, 40px);
+        letter-spacing: -0.045em;
+        margin: 4px 0 10px;
+    }
+    h2 {
+        font-size: 20px;
+    }
+    .eyebrow {
+        font-size: 12px;
+        font-weight: 800;
+        letter-spacing: 0.16em;
+        color: #147871;
+    }
+    .stage {
+        width: 100%;
+        flex: 1;
+        min-height: 410px;
+        border: 1px solid #c9d6da;
+        border-radius: 20px;
+        overflow: hidden;
+        background: #f6f8f8;
+        position: relative;
+    }
+    canvas {
+        display: block;
+        width: 100%;
+        height: 100%;
+        position: absolute;
+        inset: 0;
+    }
+    .readouts {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 12px;
+    }
+    .metric {
+        background: #f9fbfb;
+        border: 1px solid #ccd9dc;
+        border-radius: 13px;
+        padding: 14px;
+        min-width: 0;
+    }
+    .metric span {
+        display: block;
+        font-size: 13px;
+        color: #516771;
+    }
+    .metric strong {
+        display: block;
+        font-size: 20px;
+        font-variant-numeric: tabular-nums;
+        margin-top: 6px;
+        overflow-wrap: anywhere;
+    }
+    .summary {
+        line-height: 1.6;
+        margin: 0;
+        color: #3e5c68;
+        min-height: 26px;
+    }
+    .toolbar {
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+    }
+    .settings {
+        position: fixed;
+        z-index: 5;
+        top: 75px;
+        left: 16px;
+        bottom: 18px;
+        width: 300px;
+        max-width: calc(100vw - 32px);
+        overflow: auto;
+        padding: 20px;
+        background: #fbfdfd;
+        border: 1px solid #bcced1;
+        box-shadow: 0 15px 50px #20384426;
+        border-radius: 18px;
+    }
+    .settings h2 {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin: 0 0 18px;
+    }
+    .control {
+        display: block;
+        margin: 20px 0;
+    }
+    .control label {
+        display: flex;
+        justify-content: space-between;
+        gap: 8px;
+        font-size: 14px;
+        font-weight: 650;
+    }
+    .control output {
+        color: #126d69;
+        font-variant-numeric: tabular-nums;
+    }
+    .control input[type='range'] {
+        width: 100%;
+        height: 40px;
+        accent-color: #168980;
+    }
+    .control select {
+        width: 100%;
+        margin-top: 8px;
+    }
+    .check {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        min-height: 44px;
+        font-size: 14px;
+    }
+    .check input {
+        width: 18px;
+        height: 18px;
+        accent-color: #168980;
+    }
+    .note {
+        font-size: 13px;
+        line-height: 1.65;
+        color: #566e76;
+    }
+    .primary {
+        background: #126f6a;
+        color: white;
+        border-color: #126f6a;
+    }
+    dialog {
+        max-width: min(660px, calc(100vw - 32px));
+        max-height: 85svh;
+        overflow: auto;
+        border: 1px solid #bed0d1;
+        border-radius: 20px;
+        padding: 25px;
+        color: #263e48;
+        background: #f8fbfb;
+    }
+    dialog::backdrop {
+        background: #153a4c80;
+    }
+    dialog h2 {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 20px;
+    }
+    dialog p {
+        line-height: 1.8;
+    }
+    dialog a {
+        color: #116b67;
+    }
+    dialog code {
+        font-size: 0.9em;
+        overflow-wrap: anywhere;
+    }
+    footer {
+        font-size: 12px;
+        color: #526d75;
+    }
+    @media (min-width: 1100px) {
+        main.menu-open {
+            padding-left: 350px;
+        }
+    }
+    @media (max-width: 640px) {
+        main {
+            padding: 78px 14px 20px;
+            gap: 14px;
+        }
+        nav {
+            padding: 10px 14px;
+        }
+        header p {
+            font-size: 14px;
+        }
+        .stage {
+            min-height: 420px;
+        }
+        .readouts {
+            grid-template-columns: 1fr;
+        }
+        .metric {
+            padding: 11px 14px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 12px;
+        }
+        .metric strong {
+            font-size: 17px;
+            margin: 0;
+            text-align: right;
+        }
+        .settings {
+            top: 72px;
+        }
+        .toolbar button {
+            flex: 1 1 125px;
+            font-size: 13px;
+        }
+        .metric span {
+            flex: 0 0 38%;
+        }
+        .metric strong {
+            flex: 1;
+            min-width: 0;
+        }
+        footer {
+            line-height: 1.6;
+        }
+    }
+</style>

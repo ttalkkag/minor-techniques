@@ -1,0 +1,8 @@
+{
+    "id": "shape-clearance",
+    "title": "광선은 통과해도 몸은 걸린다",
+    "description": "출구 폭과 머리 공간을 바꾸며 표면 발견과 캡슐 배치 허가를 비교합니다.",
+    "tags": ["렌더링·가시성", "형상 검사", "충돌"],
+    "thumbnail": "/images/shape-clearance.svg",
+    "href": "/experiments/shape-clearance/"
+}

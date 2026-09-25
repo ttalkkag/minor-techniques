@@ -1,0 +1,8 @@
+{
+    "id": "voxel-meshing",
+    "title": "블록 수가 같아도 면 수는 다르다",
+    "description": "내부 면 제거와 재질 경계를 지키는 병합을 비교하고 표면 정점의 제약을 살펴봅니다.",
+    "tags": ["세계 생성", "복셀", "메시"],
+    "thumbnail": "/images/voxel-meshing.svg",
+    "href": "/experiments/voxel-meshing/"
+}

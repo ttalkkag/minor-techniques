@@ -1,0 +1,579 @@
+---
+import Page from '../../layouts/Page.astro';
+---
+
+<Page
+    title="전투는 지금, 음악은 다음 마디에 · 게임 실험실"
+    description="탐험과 전투를 오가며 이벤트·예약·실제 음악의 시각을 비교하세요."
+>
+    <main class="lab">
+        <nav aria-label="실험실 탐색">
+            <button id="menu" aria-label="설정 메뉴 열기" aria-controls="settings" aria-expanded="false">
+                ☰
+            </button>
+            <a href="/">게임 실험실</a>
+            <button id="help" aria-label="원인과 해결 설명 열기">
+                ?
+            </button>
+        </nav>
+        <header>
+            <p class="eyebrow">오디오 / 음악 전환</p>
+            <h1>전투는 지금, 음악은 다음 마디에</h1>
+            <p>탐험과 전투를 오가며 이벤트·예약·실제 음악의 시각을 비교하세요.</p>
+        </header>
+        <section class="stage" aria-label="실험 장면">
+            <canvas
+                id="scene"
+                aria-label="전투는 지금, 음악은 다음 마디에 관찰 그림"
+                aria-describedby="summary"
+            ></canvas>
+        </section>
+        <section class="readouts" aria-label="관찰값">
+            <div class="metric">
+                <span>게임의 목표</span>
+                <strong id="metric-0">—</strong>
+            </div>
+            <div class="metric">
+                <span>현재 음악</span>
+                <strong id="metric-1">—</strong>
+            </div>
+            <div class="metric">
+                <span>예약까지 남은 시간</span>
+                <strong id="metric-2">—</strong>
+            </div>
+        </section>
+        <div class="toolbar" role="group" aria-label="실험 조작">
+            <button id="play" class="primary">
+                소리 켜고 재생
+            </button>
+            <button id="calm">탐험</button>
+            <button id="combat">전투</button>
+            <button id="step">¼박 진행 (무음)</button>
+            <button id="reset">초기화</button>
+        </div>
+        <p id="summary" class="summary" role="status"></p>
+        <section class="extra" aria-label="이벤트 기록">
+            <div id="events" class="log" aria-live="polite"></div>
+        </section>
+        <div id="backdrop" class="backdrop" hidden></div>
+        <div id="settings" class="settings" role="dialog" aria-modal="true" aria-label="실험 설정" hidden>
+            <h2>
+                실험 설정
+                <button id="close-menu" aria-label="설정 메뉴 닫기">
+                    ×
+                </button>
+            </h2>
+            <div class="control">
+                <label for="structure">음악 구성</label>
+                <select id="structure">
+                    <option value="layer">같은 곡에 악기 층 추가</option>
+                    <option value="section">다른 구간을 첫 박부터 재생</option>
+                </select>
+            </div>
+            <div class="control">
+                <label for="timing">전환 시점</label>
+                <select id="timing">
+                    <option value="bar">예약 여유를 둔 다음 마디</option>
+                    <option value="instant">이벤트 직후 시작</option>
+                </select>
+            </div>
+            <div class="control">
+                <label for="bpm">
+                    템포<output id="bpm-value"></output>
+                </label>
+                <input id="bpm" type="range" min="60" max="180" value="120" step="5" />
+            </div>
+            <div class="control">
+                <label for="lead">
+                    예약 여유 (초)<output id="lead-value"></output>
+                </label>
+                <input id="lead" type="range" min="0.05" max="0.5" value="0.15" step="0.05" />
+            </div>
+            <div class="control">
+                <label for="visual">화면 갱신</label>
+                <select id="visual">
+                    <option value="60">초당 60회</option>
+                    <option value="4">초당 4회 · 화면만 늦게</option>
+                </select>
+            </div>
+            <label class="check">
+                <input id="cancel" type="checkbox" checked />
+                목표가 돌아오면 낡은 예약 취소
+            </label>
+            <label class="check">
+                <input id="stinger" type="checkbox" />
+                이벤트 즉시 짧은 반응음
+            </label>
+            <div class="control">
+                <label for="volume">
+                    청취 음량 (%)<output id="volume-value"></output>
+                </label>
+                <input id="volume" type="range" min="0" max="40" value="12" step="1" />
+            </div>
+            <p class="note">
+                템포·구성을 바꾸면 시계와 예약을 초기화합니다. 정지는 소리·예약·시계를 함께 초기화합니다.
+            </p>
+            <button id="near-bar" class="wide">
+                마디 0.10초 전으로 이동 (무음)
+            </button>
+        </div>
+        <noscript>실험을 조작하려면 JavaScript를 켜주세요.</noscript>
+    </main>
+    <dialog id="explanation" aria-labelledby="explanation-title">
+        <div class="dialog-top">
+            <span>원인과 해결</span>
+            <button id="close-help" aria-label="설명 닫기">
+                ×
+            </button>
+        </div>
+        <h2 id="explanation-title">전투는 지금, 음악은 다음 마디에</h2>
+        <p class="guide">
+            ‘마디 0.10초 전’ → ‘전투’를 누르세요. 준비 여유 0.15초 때문에 바로 앞 마디를 놓칩니다. 이어
+            ‘탐험’을 누르고 예약 취소 여부를 비교하세요.
+        </p>
+        <h3>문제와 원인</h3>
+        <p>
+            게임 이벤트의 시각과 음악의 허용 진입점은 다릅니다. 같은 순간 Play 명령을 보내는 것만으로 음악
+            구조가 연결되지는 않습니다. 화면 갱신과 오디오 시계도 분리됩니다.
+        </p>
+        <h3>해결 · 공통 시계와 예약</h3>
+        <p>
+            한 마디 T=4×60/BPM. 다음 마디는 ceil((현재 시각+예약 여유)/T)×T입니다. 120 BPM에서 3.90초+0.15초면
+            4초를 놓쳐 6초에 들어갑니다. 이 계산은 자체 스케줄 정책이며 Web Audio의 강제 규칙은 아닙니다.
+        </p>
+        <p>
+            레이어 방식은 공통 박자 위치에서 베이스·선율·리듬을 조합합니다. 구간 방식은 새 구간의 첫 박으로
+            바꿉니다. 즉시 구간 전환은 마디 중간에 리듬을 재시작하므로 연결이 달라집니다.
+        </p>
+        <h3>예약 취소와 대가</h3>
+        <p>
+            게임이 탐험으로 돌아왔는데 전투 예약을 남겨 두면 뒤늦게 전투 음악이 실행됩니다. 예약 ID를
+            취소하면서 미리 예약한 합성음도 중단합니다. 다음 마디를 기다리면 반응이 늦어져 짧은 반응음으로
+            보완할 수 있습니다.
+        </p>
+        <h3>구현 범위</h3>
+        <p>
+            자작 3개 합성 악기를 AudioContext.currentTime에 예약합니다. 화면 갱신 옵션은 UI만 늦춥니다. 메인
+            스레드를 실제로 막는 부하·장치 출력 지연·화성 연결 품질은 측정하지 않습니다. 무음 ¼박 진행은 같은
+            예약 상태를 계산합니다. 음파 위상의 일치를 뜻하지 않습니다.
+        </p>
+        <a
+            href="https://dev.epicgames.com/documentation/en-us/unreal-engine/overview-of-quartz-in-unreal-engine"
+            target="_blank"
+            rel="noopener noreferrer"
+        >
+            Epic · Quartz Overview ↗
+        </a>
+        <a
+            href="https://www.w3.org/TR/webaudio-1.0/#dom-baseaudiocontext-currenttime"
+            target="_blank"
+            rel="noopener noreferrer"
+        >
+            W3C · Web Audio 시각과 예약 ↗
+        </a>
+    </dialog>
+    <script>
+        import '../../experiments/adaptive-music/client';
+    </script>
+</Page>
+<style>
+    .lab {
+        min-height: 100svh;
+        padding: 18px 28px 28px;
+        background: radial-gradient(ellipse at 50% 30%, #fff, #edf2f3 75%);
+        color: #283f49;
+    }
+    nav {
+        display: flex;
+        gap: 14px;
+        align-items: center;
+        max-width: 1450px;
+        margin: auto;
+    }
+    nav a {
+        font-weight: 750;
+        color: inherit;
+        text-decoration: none;
+    }
+    button,
+    select {
+        min-height: 44px;
+        border: 1px solid #cbd8db;
+        border-radius: 12px;
+        padding: 9px 14px;
+        background: #fff;
+        color: #2c4650;
+        font: inherit;
+        cursor: pointer;
+    }
+    button:hover {
+        background: #e7f1ef;
+    }
+    nav button {
+        font-size: 21px;
+        width: 44px;
+        padding: 0;
+    }
+    nav button:last-child {
+        margin-left: auto;
+    }
+    header {
+        text-align: center;
+        margin: 28px 0 23px;
+    }
+    header h1 {
+        word-break: keep-all;
+        font-size: clamp(25px, 3.1vw, 40px);
+        letter-spacing: -0.055em;
+        margin: 8px 0 12px;
+    }
+    header p {
+        font-size: 13px;
+        color: #526b75;
+        margin: 0;
+        line-height: 1.7;
+    }
+    .eyebrow {
+        font-size: 11px !important;
+        color: #197d76 !important;
+        letter-spacing: 0.12em;
+    }
+    .stage {
+        max-width: 1240px;
+        margin: auto;
+        border: 1px solid #d0dce0;
+        border-radius: 22px;
+        overflow: hidden;
+        background: linear-gradient(#f3f7f7, #eaf0f2);
+    }
+    canvas {
+        display: block;
+        width: 100%;
+        height: 385px;
+    }
+    .readouts {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 16px;
+        max-width: 1150px;
+        margin: 18px auto;
+    }
+    .metric {
+        padding: 6px 12px;
+        min-width: 0;
+        border-left: 2px solid #bdd9d4;
+    }
+    .metric span {
+        display: block;
+        font-size: 11px;
+        color: #526b75;
+    }
+    .metric strong {
+        word-break: keep-all;
+        display: block;
+        font-size: clamp(16px, 2.2vw, 25px);
+        letter-spacing: -0.04em;
+        margin-top: 6px;
+        overflow-wrap: anywhere;
+    }
+    .metric small {
+        font-size: 12px;
+    }
+    .toolbar {
+        display: flex;
+        justify-content: center;
+        flex-wrap: wrap;
+        gap: 9px;
+        margin: 18px auto;
+    }
+    .primary {
+        background: #187e76;
+        color: white;
+        border-color: #187e76;
+    }
+    .primary:hover {
+        background: #146860;
+    }
+    .summary {
+        text-align: center;
+        max-width: 1040px;
+        font-size: 12px;
+        line-height: 1.8;
+        color: #526b75;
+        margin: 16px auto;
+    }
+    .extra {
+        max-width: 1150px;
+        margin: 14px auto;
+        border-top: 1px solid #d0dedf;
+        padding-top: 15px;
+    }
+    .extra p {
+        font-size: 12px;
+        line-height: 1.7;
+        margin: 6px 0;
+    }
+    .extra strong {
+        color: #157b74;
+    }
+    .log {
+        font-size: 11px;
+        line-height: 1.8;
+        color: #576e76;
+        min-height: 44px;
+        max-height: 100px;
+        overflow: auto;
+    }
+    .backdrop {
+        position: fixed;
+        inset: 0;
+        z-index: 3;
+        background: #263f4833;
+    }
+    .settings {
+        position: fixed;
+        top: 12px;
+        left: 12px;
+        bottom: 12px;
+        width: 312px;
+        max-width: calc(100vw - 24px);
+        overflow: auto;
+        padding: 21px;
+        z-index: 4;
+        background: #f9fbfc;
+        border: 1px solid #ccdbdd;
+        border-radius: 20px;
+        box-shadow: 0 20px 80px #283e4628;
+    }
+    .settings h2 {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        font-size: 18px;
+        margin: 0 0 20px;
+    }
+    .settings h2 button {
+        font-size: 23px;
+        width: 44px;
+        padding: 0;
+    }
+    .control {
+        margin-top: 19px;
+    }
+    .control label {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        font-size: 12px;
+        font-weight: 650;
+        margin-bottom: 9px;
+    }
+    .control input[type='range'] {
+        width: 100%;
+        height: 32px;
+        accent-color: #177c73;
+        margin: 0;
+    }
+    .control input[type='number'] {
+        width: 100%;
+        height: 42px;
+        border: 1px solid #c5d8db;
+        border-radius: 9px;
+        padding: 6px 10px;
+        background: #fff;
+    }
+    .control select {
+        width: 100%;
+        font-size: 12px;
+        padding: 10px;
+    }
+    .control output {
+        color: #187c74;
+    }
+    .check {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        font-size: 12px;
+        min-height: 44px;
+        margin-top: 8px;
+    }
+    .check input {
+        width: 18px;
+        height: 18px;
+        accent-color: #187f76;
+    }
+    .note {
+        font-size: 11px;
+        line-height: 1.75;
+        color: #536a74;
+    }
+    .settings .wide {
+        width: 100%;
+        margin-top: 12px;
+        font-size: 12px;
+    }
+    .settings hr {
+        border: 0;
+        border-top: 1px solid #d7e1e3;
+        margin: 22px 0;
+    }
+    .settings h3 {
+        font-size: 13px;
+        color: #197b75;
+    }
+    .settings :disabled {
+        opacity: 0.55;
+    }
+    .mini-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 8px;
+    }
+    .mini-grid .control {
+        margin-top: 8px;
+    }
+    .mini-grid input {
+        min-width: 0;
+    }
+    dialog {
+        width: min(670px, calc(100vw - 28px));
+        max-height: calc(100svh - 40px);
+        overflow: auto;
+        border: 1px solid #cddbdd;
+        border-radius: 22px;
+        padding: 25px 30px;
+        background: #fbfcfc;
+        color: #2b444c;
+    }
+    dialog::backdrop {
+        background: #263e4777;
+        backdrop-filter: blur(4px);
+    }
+    dialog h2 {
+        font-size: 26px;
+        letter-spacing: -0.045em;
+        margin: 20px 0;
+    }
+    dialog h3 {
+        font-size: 16px;
+        margin: 24px 0 8px;
+    }
+    dialog p {
+        font-size: 13px;
+        line-height: 1.85;
+        color: #5c717a;
+    }
+    dialog a {
+        font-size: 12px;
+        color: #137c75;
+        line-height: 1.9;
+        display: block;
+        margin-top: 10px;
+    }
+    .dialog-top {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        color: #1a7d75;
+        font-size: 12px;
+    }
+    .dialog-top button {
+        font-size: 22px;
+        width: 44px;
+        padding: 0;
+    }
+    dialog .guide {
+        color: #405b65;
+        padding: 14px;
+        background: #e2efec;
+        border-radius: 12px;
+    }
+    .tabular {
+        font-variant-numeric: tabular-nums;
+    }
+    .reward-table {
+        width: 100%;
+        font-size: 12px;
+        border-collapse: collapse;
+    }
+    .reward-table th,
+    .reward-table td {
+        text-align: left;
+        padding: 8px;
+        border-bottom: 1px solid #d9e4e4;
+    }
+    .route {
+        font-size: 12px;
+    }
+    .tag {
+        border-radius: 5px;
+        padding: 3px 6px;
+        background: #e0efec;
+    }
+    @media (max-width: 700px) {
+        .lab {
+            padding: 12px 14px 22px;
+        }
+        header {
+            margin: 24px 0 18px;
+        }
+        header h1 {
+            word-break: keep-all;
+            font-size: 27px;
+            line-height: 1.25;
+        }
+        header p {
+            font-size: 11px;
+        }
+        canvas {
+            height: 390px;
+        }
+        .stage {
+            border-radius: 16px;
+        }
+        .readouts {
+            gap: 6px;
+            margin: 15px 0;
+        }
+        .metric {
+            padding: 3px 8px;
+        }
+        .metric span {
+            font-size: 10px;
+        }
+        .metric strong {
+            font-size: 16px;
+            line-height: 1.4;
+        }
+        .toolbar {
+            gap: 7px;
+        }
+        .toolbar button {
+            font-size: 12px;
+            padding: 9px 12px;
+        }
+        .summary {
+            font-size: 11px;
+        }
+        .extra {
+            padding-top: 10px;
+        }
+        .reward-table {
+            font-size: 10px;
+        }
+        .reward-table th,
+        .reward-table td {
+            padding: 7px 4px;
+        }
+        dialog {
+            padding: 20px;
+        }
+        dialog h2 {
+            font-size: 23px;
+        }
+        .log {
+            font-size: 10px;
+        }
+    }
+</style>

@@ -1,0 +1,8 @@
+{
+    "id": "train-armor",
+    "title": "객차가 움직일까, 장비를 단 배우가 움직일까?",
+    "description": "객차 부착과 탑승 시점 고정을 풀어 이동의 소유자를 관찰하세요.",
+    "tags": ["카메라·레벨", "부착 변환", "3D"],
+    "thumbnail": "/images/train-armor.svg",
+    "href": "/experiments/train-armor/"
+}

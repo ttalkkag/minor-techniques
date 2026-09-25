@@ -1,0 +1,12 @@
+{
+    "id": "input-execution-boundary",
+    "title": "입력값이 명령으로 읽히는 순간",
+    "description": "숫자 쓰기와 실행 위치를 따로 바꾸며 세 가지 경계를 확인합니다.",
+    "tags": [
+        "실행 자원·데이터",
+        "입력",
+        "실행 경계"
+    ],
+    "thumbnail": "/images/input-execution-boundary.svg",
+    "href": "/experiments/input-execution-boundary/"
+}

@@ -1,0 +1,418 @@
+---
+import Page from '../../layouts/Page.astro';
+---
+
+<Page
+    title="멀리 갈수록 사라지는 작은 이동 · 게임 실험실"
+    description="큰 위치를 저장하는 시점과 카메라 좌표를 빼는 순서를 바꿔 작은 이동이 어디서 사라지는지 확인하세요."
+>
+    <main id="lab">
+        <nav aria-label="실험실 탐색">
+            <button id="menu" aria-label="설정 메뉴 열기" aria-expanded="false" aria-controls="settings">
+                ☰
+            </button>
+            <a href="/">게임 실험실</a>
+            <button id="explain" aria-label="원인과 해결 설명 열기">
+                ?
+            </button>
+        </nav>
+        <header>
+            <p class="eyebrow">월드 좌표 · FLOATING ORIGIN</p>
+            <h1>멀리 갈수록 사라지는 작은 이동</h1>
+            <p>
+                큰 위치를 저장하는 시점과 카메라 좌표를 빼는 순서를 바꿔 작은 이동이 어디서 사라지는지
+                확인하세요.
+            </p>
+        </header>
+        <section class="stage" aria-label="수치 모델 관찰 장면">
+            <canvas
+                id="scene"
+                aria-label="멀리 갈수록 사라지는 작은 이동 비교 그림"
+                aria-describedby="summary"
+            ></canvas>
+        </section>
+        <div class="readouts">
+            <div class="metric">
+                <span>요청 / 상태 이동량</span>
+                <strong id="metric-0">계산 중</strong>
+            </div>
+            <div class="metric">
+                <span>화면 상대 위치</span>
+                <strong id="metric-1">계산 중</strong>
+            </div>
+            <div class="metric">
+                <span>충돌체까지 실제 간격</span>
+                <strong id="metric-2">계산 중</strong>
+            </div>
+        </div>
+        <p id="summary" class="summary" role="status"></p>
+        <div class="toolbar">
+            <button id="step" class="primary">
+                + 한 스텝
+            </button>
+            <button id="steps">20 스텝</button>
+            <button id="rebase">원점을 카메라로 이동</button>
+            <button id="reset">초기화</button>
+        </div>
+        <footer>설정을 열어 조건을 바꾸고 두 결과를 비교하세요.</footer>
+        <div id="settings" class="settings" role="complementary" aria-label="실험 설정" hidden>
+            <h2>
+                설정
+                <button id="close-menu" aria-label="설정 메뉴 닫기">
+                    ×
+                </button>
+            </h2>
+            <div class="control">
+                <label for="exponent">
+                    월드 기준 위치 2ⁿ<output id="exponent-value"></output>
+                </label>
+                <input id="exponent" type="range" min="0" max="26" step="1" value="20" />
+            </div>
+            <div class="control">
+                <label for="delta">
+                    한 스텝 이동<output id="delta-value"></output>
+                </label>
+                <input id="delta" type="range" min="0.005" max="0.2" step="0.005" value="0.03" />
+            </div>
+            <div class="control">
+                <label for="storage">게임 상태 저장</label>
+                <select id="storage">
+                    <option value="float">단정밀도 (binary32)</option>
+                    <option value="double">고정밀도 (Number)</option>
+                </select>
+            </div>
+            <div class="control">
+                <label for="render">화면 전달 순서</label>
+                <select id="render">
+                    <option value="late">큰 좌표를 f32로 저장 → 빼기</option>
+                    <option value="early">차이를 먼저 계산 → f32로 저장</option>
+                </select>
+            </div>
+            <label class="check">
+                <input id="omit" type="checkbox" />
+                원점 이동에서 충돌체 보정 누락
+            </label>
+            <p class="note">
+                상태 저장과 화면 전달을 따로 비교합니다. 원점 이동은 현재 상태를 작은 로컬 좌표로 바꾸며, 이미
+                잃은 이동을 복원하지 않습니다.
+            </p>
+        </div>
+    </main>
+    <dialog id="explanation" aria-labelledby="explanation-title">
+        <h2 id="explanation-title">
+            원인과 해결
+            <button id="close-dialog" aria-label="설명 닫기">
+                ×
+            </button>
+        </h2>
+        <h3>문제와 원인</h3>
+        <p>
+            단정밀도는 원점에서 멀어질수록 표현 가능한 값 사이가 벌어집니다. 2²⁰에서는 바로 위 값까지
+            0.125m입니다. 저장된 상태에 매번 0.03m를 더하면 같은 값으로 반올림되어 계속 멈출 수 있습니다.
+        </p>
+        <h3>해결은 서로 다른 단계에 적용됩니다</h3>
+        <p>
+            카메라 상대 렌더링은 큰 값의 차이를 보존한 채 먼저 빼야 합니다. 게임 상태를 이미 단정밀도로
+            저장했다면 화면 처리만 바꿔도 잃은 이동은 돌아오지 않습니다. 고정밀도 상태와 이른 카메라 빼기를
+            조합하거나, 작은 로컬 상태에서 계산하도록 원점을 옮깁니다.
+        </p>
+        <p>
+            <code>W = O + L</code>에서 원점에 Δ를 더하고 모든 로컬 좌표에서 Δ를 빼면 전역 위치와 물체 사이
+            거리가 유지됩니다. 충돌체 보정을 의도적으로 누락해 좌표계가 섞이는 결과를 확인할 수 있습니다.
+        </p>
+        <h3>비용과 범위</h3>
+        <p>
+            원점 이동은 카메라·충돌체·이전 위치·네트워크의 기준을 일치시켜야 합니다. 고정밀도 상태도 GPU에 큰
+            단정밀도 좌표로 다시 넘기면 화면 정밀도를 잃습니다. 이 실험은 Math.fround로 명시한 저장 지점의
+            1차원 위치 모델이며 GPU 명령이나 물리 엔진 전체를 재현하지 않습니다.
+        </p>
+        <p>
+            <a href="https://docs.godotengine.org/en/stable/tutorials/physics/large_world_coordinates.html">
+                Godot 큰 월드 좌표
+            </a>{' '}
+            ·{' '}
+            <a href="https://docs.unity3d.com/Packages/com.unity.render-pipelines.high-definition@17.0/manual/Camera-Relative-Rendering.html">
+                Unity 카메라 상대 렌더링
+            </a>{' '}
+            ·{' '}
+            <a href="https://tc39.es/ecma262/multipage/numbers-and-dates.html#sec-math.fround">
+                ECMAScript fround
+            </a>
+        </p>
+    </dialog>
+    <script>
+        import '../../experiments/large-world-coordinates/client';
+    </script>
+</Page>
+<style>
+    :global(body) {
+        background: #edf1f3;
+        color: #233744;
+    }
+    main {
+        min-height: 100svh;
+        padding: 80px 28px 26px;
+        display: flex;
+        flex-direction: column;
+        gap: 18px;
+    }
+    nav {
+        position: absolute;
+        inset: 0 0 auto;
+        height: 64px;
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        padding: 12px 24px;
+        border-bottom: 1px solid #cdd7db;
+        background: #f7f9fa;
+        z-index: 3;
+    }
+    nav a {
+        font-weight: 800;
+        color: inherit;
+        text-decoration: none;
+    }
+    nav button:last-child {
+        margin-left: auto;
+    }
+    button,
+    select {
+        min-height: 42px;
+        border: 1px solid #b6c6cb;
+        border-radius: 10px;
+        background: #f8fafb;
+        color: #233744;
+        padding: 8px 13px;
+        cursor: pointer;
+    }
+    button:hover {
+        background: #dce9e8;
+    }
+    header {
+        max-width: 780px;
+    }
+    header p {
+        margin: 0;
+        color: #4b6470;
+        line-height: 1.6;
+    }
+    h1 {
+        font-size: clamp(24px, 4vw, 40px);
+        letter-spacing: -0.045em;
+        margin: 4px 0 10px;
+    }
+    h2 {
+        font-size: 20px;
+    }
+    .eyebrow {
+        font-size: 12px;
+        font-weight: 800;
+        letter-spacing: 0.16em;
+        color: #147871;
+    }
+    .stage {
+        width: 100%;
+        flex: 1;
+        min-height: 410px;
+        border: 1px solid #c9d6da;
+        border-radius: 20px;
+        overflow: hidden;
+        background: #f6f8f8;
+        position: relative;
+    }
+    canvas {
+        display: block;
+        width: 100%;
+        height: 100%;
+        position: absolute;
+        inset: 0;
+    }
+    .readouts {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 12px;
+    }
+    .metric {
+        background: #f9fbfb;
+        border: 1px solid #ccd9dc;
+        border-radius: 13px;
+        padding: 14px;
+        min-width: 0;
+    }
+    .metric span {
+        display: block;
+        font-size: 13px;
+        color: #516771;
+    }
+    .metric strong {
+        display: block;
+        font-size: 20px;
+        font-variant-numeric: tabular-nums;
+        margin-top: 6px;
+        overflow-wrap: anywhere;
+    }
+    .summary {
+        line-height: 1.6;
+        margin: 0;
+        color: #3e5c68;
+        min-height: 26px;
+    }
+    .toolbar {
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+    }
+    .settings {
+        position: fixed;
+        z-index: 5;
+        top: 75px;
+        left: 16px;
+        bottom: 18px;
+        width: 300px;
+        max-width: calc(100vw - 32px);
+        overflow: auto;
+        padding: 20px;
+        background: #fbfdfd;
+        border: 1px solid #bcced1;
+        box-shadow: 0 15px 50px #20384426;
+        border-radius: 18px;
+    }
+    .settings h2 {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin: 0 0 18px;
+    }
+    .control {
+        display: block;
+        margin: 20px 0;
+    }
+    .control label {
+        display: flex;
+        justify-content: space-between;
+        gap: 8px;
+        font-size: 14px;
+        font-weight: 650;
+    }
+    .control output {
+        color: #126d69;
+        font-variant-numeric: tabular-nums;
+    }
+    .control input[type='range'] {
+        width: 100%;
+        height: 40px;
+        accent-color: #168980;
+    }
+    .control select {
+        width: 100%;
+        margin-top: 8px;
+    }
+    .check {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        min-height: 44px;
+        font-size: 14px;
+    }
+    .check input {
+        width: 18px;
+        height: 18px;
+        accent-color: #168980;
+    }
+    .note {
+        font-size: 13px;
+        line-height: 1.65;
+        color: #566e76;
+    }
+    .primary {
+        background: #126f6a;
+        color: white;
+        border-color: #126f6a;
+    }
+    dialog {
+        max-width: min(660px, calc(100vw - 32px));
+        max-height: 85svh;
+        overflow: auto;
+        border: 1px solid #bed0d1;
+        border-radius: 20px;
+        padding: 25px;
+        color: #263e48;
+        background: #f8fbfb;
+    }
+    dialog::backdrop {
+        background: #153a4c80;
+    }
+    dialog h2 {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 20px;
+    }
+    dialog p {
+        line-height: 1.8;
+    }
+    dialog a {
+        color: #116b67;
+    }
+    dialog code {
+        font-size: 0.9em;
+        overflow-wrap: anywhere;
+    }
+    footer {
+        font-size: 12px;
+        color: #526d75;
+    }
+    @media (min-width: 1100px) {
+        main.menu-open {
+            padding-left: 350px;
+        }
+    }
+    @media (max-width: 640px) {
+        main {
+            padding: 78px 14px 20px;
+            gap: 14px;
+        }
+        nav {
+            padding: 10px 14px;
+        }
+        header p {
+            font-size: 14px;
+        }
+        .stage {
+            min-height: 420px;
+        }
+        .readouts {
+            grid-template-columns: 1fr;
+        }
+        .metric {
+            padding: 11px 14px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 12px;
+        }
+        .metric strong {
+            font-size: 17px;
+            margin: 0;
+            text-align: right;
+        }
+        .settings {
+            top: 72px;
+        }
+        .toolbar button {
+            flex: 1 1 125px;
+            font-size: 13px;
+        }
+        .metric span {
+            flex: 0 0 38%;
+        }
+        .metric strong {
+            flex: 1;
+            min-width: 0;
+        }
+        footer {
+            line-height: 1.6;
+        }
+    }
+</style>

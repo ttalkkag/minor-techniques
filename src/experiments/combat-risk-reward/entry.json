@@ -1,0 +1,8 @@
+{
+    "id": "combat-risk-reward",
+    "title": "반격으로 되찾는 체력에는 한도가 있다",
+    "description": "회복 창·대기 비용·경로 보상을 바꾸고 자원 수지를 비교합니다.",
+    "tags": ["게임 규칙", "자원", "위험 선택"],
+    "thumbnail": "/images/combat-risk-reward.svg",
+    "href": "/experiments/combat-risk-reward/"
+}

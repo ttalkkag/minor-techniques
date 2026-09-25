@@ -1,0 +1,449 @@
+---
+import Page from '../../layouts/Page.astro';
+---
+
+<Page
+    title="같은 곡선, 다른 속력 · 게임 실험실"
+    description="제어점과 거리 표의 해상도를 바꾸며 균일 매개변수와 균일 거리 이동을 비교합니다."
+>
+    <main class="lab">
+        <nav class="top" aria-label="실험실 탐색">
+            <button id="menu" aria-label="설정 메뉴 열기" aria-controls="settings" aria-expanded="false">
+                ☰
+            </button>
+            <a href="/">게임 실험실</a>
+            <button id="explain" aria-label="원인과 해결 설명 열기">
+                ?
+            </button>
+        </nav>
+        <header class="heading">
+            <p class="eyebrow">움직임의 조건을 바꾸다</p>
+            <h1>같은 곡선, 다른 속력</h1>
+            <p class="lead">
+                제어점과 거리 표의 해상도를 바꾸며 균일 매개변수와 균일 거리 이동을 비교합니다.
+            </p>
+        </header>
+        <div id="settings" class="settings" role="dialog" aria-modal="true" aria-labelledby="settings-title" hidden>
+            <header>
+                <h2 id="settings-title">실험 설정</h2>
+                <button id="close-menu" aria-label="설정 메뉴 닫기">
+                    ×
+                </button>
+            </header>
+            <label for="shape">경로 예시</label>
+            <select id="shape">
+                <option value="curve">굽은 경로</option>
+                <option value="cubic">직선도 느려지는 10u³</option>
+                <option value="point">모든 제어점이 같은 점</option>
+            </select>
+            <label for="bend">
+                제어점 높이 <output id="bend-out"></output>
+            </label>
+            <input id="bend" type="range" min="0" max="200" value="150" />
+            <label for="samples">
+                거리 표 분할 수 <output id="samples-out"></output>
+            </label>
+            <input id="samples" type="range" min="4" max="256" value="64" step="4" />
+            <label for="scale">
+                가로 확대 <output id="scale-out"></output>
+            </label>
+            <input id="scale" type="range" min="0.5" max="1.6" value="1" step="0.1" />
+            <label for="metric">거리 측정 좌표계</label>
+            <select id="metric">
+                <option value="world">확대 후 화면 좌표</option>
+                <option value="local">확대 전 로컬 좌표</option>
+            </select>
+            <label>
+                <input id="construction" type="checkbox" checked />
+                반복 선형 보간과 거리 표
+            </label>
+        </div>
+        <div class="scene">
+            <svg
+                id="scene"
+                viewBox="0 0 1000 430"
+                role="img"
+                aria-label="베지에 제어점과 두 이동 방식"
+                aria-describedby="summary"
+            ></svg>
+        </div>
+        <section class="results" aria-label="관찰 결과">
+            <article class="card">
+                <span class="orange">A · 균일 u</span>
+                <strong id="a-readout"></strong>
+            </article>
+            <article class="card">
+                <span class="teal">B · 거리 역조회</span>
+                <strong id="b-readout"></strong>
+            </article>
+            <article class="card">
+                <span>화면 길이 / 거리 표 오차</span>
+                <strong id="error-readout"></strong>
+            </article>
+        </section>
+        <p class="hint" id="summary" role="status"></p>
+        <div class="controls">
+            <button id="play" class="primary">
+                재생
+            </button>
+            <button id="reset">초기화</button>
+            <label for="progress">
+                진행 <input id="progress" type="range" min="0" max="1000" value="250" />
+            </label>
+        </div>
+        <dialog id="explanation" aria-labelledby="explanation-title">
+            <button class="close" id="close-explain" aria-label="설명 닫기">
+                ×
+            </button>
+            <h2 id="explanation-title">같은 곡선, 다른 속력</h2>
+            <h3>문제 · 제어점 간격은 이동 거리가 아닙니다</h3>
+            <p>
+                같은 u 간격도 곡선의 도함수 크기에 따라 서로 다른 거리를 만듭니다. 직선 예시 B(u)=10u³는 절반
+                시간에 1.25만 이동합니다.
+            </p>
+            <h3>해결 · 거리를 먼저 정하고 u를 찾습니다</h3>
+            <p>
+                선분 길이를 누적한 표에서 원하는 거리를 끼우는 두 항목을 찾아 u를 보간합니다. 가로 확대와
+                제어점이 바뀌면 표를 다시 만듭니다. 회색 점은 표의 샘플, 가는 선은 반복 보간입니다.
+            </p>
+            <h3>대가와 범위</h3>
+            <p>
+                표가 작으면 굴곡에서 속력 편차가 남습니다. 표시 오차는 4096분할 참조 길이에 대한 차이이며
+                정확한 해석 길이가 아닙니다. 로컬 거리로 만든 표를 비균일 확대하면 화면 속력이 변합니다. 길이
+                0은 그 자리에 머뭅니다. 이 장면은 2D 베지에와 선분 근사입니다.
+            </p>
+            <p>
+                <a href="https://www.w3.org/TR/SVG2/paths.html">W3C SVG 경로</a> ·{' '}
+                <a href="https://docs.godotengine.org/en/stable/classes/class_curve2d.html">
+                    Godot Curve2D 거리 캐시
+                </a>
+            </p>
+        </dialog>
+    </main>
+</Page>
+<script>
+    import '../../experiments/curve-motion/client';
+</script>
+<style>
+    :global(body) {
+        background: #edf1f3;
+        color: #203d43;
+        margin: 0;
+    }
+    .lab {
+        min-height: 100dvh;
+        overflow: hidden;
+    }
+    .top {
+        height: 66px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 0 24px;
+        border-bottom: 1px solid #d1dfe1;
+    }
+    .top a {
+        font-weight: 750;
+        color: #204b50;
+        text-decoration: none;
+    }
+    .top button {
+        width: 44px;
+        padding: 0;
+        font-size: 22px;
+    }
+    button,
+    select,
+    input {
+        font: inherit;
+    }
+    button,
+    select {
+        min-height: 42px;
+        border: 1px solid #b7ced0;
+        border-radius: 12px;
+        background: #fff;
+        color: #234b50;
+        padding: 8px 15px;
+        cursor: pointer;
+    }
+    button:hover {
+        background: #ddefec;
+    }
+    button:focus-visible,
+    select:focus-visible,
+    input:focus-visible,
+    a:focus-visible {
+        outline: 3px solid #e8954b;
+        outline-offset: 3px;
+    }
+    .heading {
+        padding: 26px 5vw 0;
+        max-width: 1100px;
+        margin: auto;
+    }
+    .eyebrow {
+        font-size: 12px;
+        letter-spacing: 0.12em;
+        color: #46666a;
+    }
+    h1 {
+        font-size: clamp(24px, 3.5vw, 42px);
+        margin: 8px 0;
+    }
+    h2 {
+        font-size: 20px;
+    }
+    p {
+        line-height: 1.65;
+    }
+    .lead {
+        color: #577176;
+        margin: 8px 0;
+    }
+    .scene {
+        width: min(1120px, 94vw);
+        margin: 14px auto 0;
+        position: relative;
+    }
+    .scene svg,
+    .scene canvas {
+        display: block;
+        width: 100%;
+        height: auto;
+        min-height: 250px;
+        max-height: 58vh;
+    }
+    .scene svg text {
+        font-family: inherit;
+        fill: #24474c;
+    }
+    .scene canvas {
+        height: 53vh;
+        max-height: 600px;
+        min-height: 320px;
+        border-radius: 20px;
+    }
+    .results {
+        display: flex;
+        gap: 12px;
+        flex-wrap: wrap;
+        max-width: 1080px;
+        margin: 10px auto;
+        padding: 0 20px;
+    }
+    .card {
+        background: #ffffffbd;
+        border: 1px solid #d4e0e2;
+        border-radius: 15px;
+        padding: 14px 18px;
+        flex: 1;
+        min-width: 180px;
+    }
+    .card strong {
+        display: block;
+        font-size: 18px;
+        margin: 4px 0;
+    }
+    .card span {
+        font-size: 13px;
+        color: #587177;
+    }
+    .controls {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 10px;
+        padding: 10px 20px 24px;
+    }
+    .primary {
+        background: #146f72;
+        color: white;
+        border-color: #146f72;
+    }
+    .controls label {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+    .controls input {
+        width: 160px;
+        min-height: 40px;
+        accent-color: #11797b;
+    }
+    .settings {
+        position: fixed;
+        left: 16px;
+        top: 78px;
+        bottom: 16px;
+        overflow: auto;
+        width: min(320px, calc(100vw - 32px));
+        box-sizing: border-box;
+        padding: 22px;
+        background: #fafdfd;
+        box-shadow: 0 12px 60px #31585b38;
+        border: 1px solid #bdced1;
+        border-radius: 20px;
+        z-index: 5;
+    }
+    .settings[hidden] {
+        display: none;
+    }
+    .settings header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+    .settings header h2 {
+        margin: 0;
+    }
+    .settings label {
+        display: block;
+        font-size: 14px;
+        margin: 19px 0 7px;
+    }
+    .settings input[type='range'] {
+        width: 100%;
+        accent-color: #14797b;
+        min-height: 40px;
+    }
+    .settings input[type='checkbox'] {
+        accent-color: #14797b;
+        width: 20px;
+        height: 20px;
+        vertical-align: middle;
+        margin-right: 8px;
+    }
+    .settings select {
+        width: 100%;
+    }
+    .settings output {
+        float: right;
+        font-variant-numeric: tabular-nums;
+    }
+    .settings .row {
+        display: flex;
+        gap: 6px;
+        flex-wrap: wrap;
+        margin-top: 16px;
+    }
+    .hint {
+        max-width: 1000px;
+        margin: 8px auto;
+        text-align: center;
+        color: #46666a;
+        font-size: 13px;
+        padding: 0 20px;
+    }
+    .teal {
+        color: #087d7a;
+    }
+    .orange {
+        color: #cb713c;
+    }
+    dialog {
+        border: 1px solid #b8ced0;
+        border-radius: 22px;
+        max-width: 650px;
+        width: calc(100vw - 56px);
+        max-height: 80dvh;
+        padding: 25px;
+        box-sizing: border-box;
+        color: #24474c;
+        background: #f9fcfc;
+    }
+    dialog::backdrop {
+        background: #24444777;
+    }
+    dialog h2 {
+        margin-top: 0;
+    }
+    dialog h3 {
+        font-size: 16px;
+        margin-bottom: 4px;
+    }
+    dialog p {
+        font-size: 14px;
+        margin-top: 6px;
+    }
+    dialog a {
+        color: #0b777a;
+    }
+    dialog .close {
+        float: right;
+        margin-left: 12px;
+    }
+    .log {
+        max-width: 1030px;
+        margin: 8px auto 30px;
+        max-height: 135px;
+        overflow: auto;
+        border-radius: 12px;
+        background: white;
+        padding: 14px 20px;
+        font-size: 13px;
+        line-height: 1.6;
+    }
+    .object-list {
+        display: flex;
+        justify-content: center;
+        gap: 6px;
+        flex-wrap: wrap;
+    }
+    .object-list button[aria-pressed='true'] {
+        background: #146f72;
+        color: #fff;
+    }
+    @media (max-width: 600px) {
+        .top {
+            padding: 0 14px;
+            height: 58px;
+        }
+        .heading {
+            padding-top: 16px;
+        }
+        .lead {
+            font-size: 14px;
+        }
+        .scene {
+            width: 100%;
+            margin-top: 8px;
+        }
+        .scene svg {
+            min-height: 235px;
+            max-height: 44vh;
+        }
+        .results {
+            gap: 7px;
+            padding: 0 12px;
+        }
+        .card {
+            padding: 10px 12px;
+            min-width: 120px;
+        }
+        .card strong {
+            font-size: 15px;
+        }
+        .card span {
+            font-size: 12px;
+        }
+        .controls {
+            padding: 10px 12px 18px;
+            gap: 7px;
+        }
+        .settings {
+            top: 66px;
+        }
+        .hint {
+            font-size: 12px;
+        }
+        .log {
+            margin: 8px 12px 20px;
+        }
+        .scene canvas {
+            height: 42vh;
+            min-height: 290px;
+        }
+    }
+</style>

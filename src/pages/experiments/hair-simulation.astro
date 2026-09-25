@@ -1,0 +1,461 @@
+---
+import Page from '../../layouts/Page.astro';
+---
+
+<Page
+    title="촘촘한 머리카락도 몸을 뚫는다 · 게임 실험실"
+    description="가이드·세그먼트·표현 가닥을 따로 조절하며 변형과 충돌을 관찰합니다."
+>
+    <main class="lab">
+        <nav class="top" aria-label="실험실 탐색">
+            <button id="menu" aria-label="설정 메뉴 열기" aria-controls="settings" aria-expanded="false">
+                ☰
+            </button>
+            <a href="/">게임 실험실</a>
+            <button id="explain" aria-label="원인과 해결 설명 열기">
+                ?
+            </button>
+        </nav>
+        <header class="heading">
+            <p class="eyebrow">움직임의 조건을 바꾸다</p>
+            <h1>촘촘한 머리카락도 몸을 뚫는다</h1>
+            <p class="lead">가이드·세그먼트·표현 가닥을 따로 조절하며 변형과 충돌을 관찰합니다.</p>
+        </header>
+        <div id="settings" class="settings" role="dialog" aria-modal="true" aria-labelledby="settings-title" hidden>
+            <header>
+                <h2 id="settings-title">실험 설정</h2>
+                <button id="close-menu" aria-label="설정 메뉴 닫기">
+                    ×
+                </button>
+            </header>
+            <label for="guides">
+                시뮬레이션 가이드 <output id="guides-out"></output>
+            </label>
+            <input id="guides" type="range" min="3" max="18" value="8" />
+            <label for="segments">
+                가이드 세그먼트 <output id="segments-out"></output>
+            </label>
+            <input id="segments" type="range" min="4" max="24" value="12" />
+            <label for="strands">
+                렌더 가닥 <output id="strands-out"></output>
+            </label>
+            <input id="strands" type="range" min="20" max="300" step="20" value="120" />
+            <label for="wind">
+                바람 <output id="wind-out"></output>
+            </label>
+            <input id="wind" type="range" min="-180" max="180" step="10" value="60" />
+            <label for="radius">
+                몸 충돌 여유 반지름 <output id="radius-out"></output>
+            </label>
+            <input id="radius" type="range" min="0" max="35" value="5" />
+            <label>
+                <input id="collision" type="checkbox" checked />
+                머리·어깨 충돌 제약
+            </label>
+            <label>
+                <input id="show-guides" type="checkbox" checked />
+                가이드와 충돌 근사 표시
+            </label>
+            <label for="representation">표현 방식</label>
+            <select id="representation">
+                <option value="strands">보간한 선 가닥</option>
+                <option value="cards">넓은 카드 띠</option>
+                <option value="mesh">원거리 실루엣</option>
+            </select>
+            <label for="teleport-mode">순간이동 정책</label>
+            <select id="teleport-mode">
+                <option value="reset">가이드 재정렬</option>
+                <option value="keep">이전 형태·속도 유지</option>
+            </select>
+        </div>
+        <div class="scene">
+            <canvas
+                id="scene"
+                aria-label="입자 가이드 체인과 보간한 머리카락"
+                aria-describedby="summary"
+            ></canvas>
+        </div>
+        <section class="results" aria-label="관찰 결과">
+            <article class="card">
+                <span>시뮬레이션 / 보간 표시</span>
+                <strong id="count-readout"></strong>
+            </article>
+            <article class="card">
+                <span>가이드의 몸 내부 입자</span>
+                <strong id="contact-readout"></strong>
+            </article>
+            <article class="card">
+                <span>체인 최대 길이 오차</span>
+                <strong id="error-readout"></strong>
+            </article>
+        </section>
+        <p class="hint" id="summary" role="status"></p>
+        <div class="controls">
+            <button id="play" class="primary">
+                일시정지
+            </button>
+            <button id="impulse">어깨 흔들기</button>
+            <button id="teleport">순간이동</button>
+            <button id="reset">초기화</button>
+        </div>
+        <dialog id="explanation" aria-labelledby="explanation-title">
+            <button class="close" id="close-explain" aria-label="설명 닫기">
+                ×
+            </button>
+            <h2 id="explanation-title">촘촘한 머리카락도 몸을 뚫는다</h2>
+            <h3>문제 · 보이는 수와 계산하는 수는 다릅니다</h3>
+            <p>
+                먼저 소수 가이드의 입자를 중력·바람으로 움직이고 길이·몸 충돌 제약을 풉니다. 이후 이웃
+                가이드를 보간해 많은 선을 표시합니다. 렌더 가닥을 늘려도 가이드 충돌은 개선되지 않습니다.
+            </p>
+            <h3>해결 · 변형과 충돌을 따로 조절합니다</h3>
+            <p>
+                충돌을 끄면 입자가 머리와 어깨를 통과합니다. 충돌 여유 반지름을 키우면 몸 바깥에 떠 보일 수
+                있습니다. 가이드 수는 움직임의 다양성, 세그먼트는 굽힘 해상도, 표현 가닥은 밀도를 바꿉니다.
+                순간이동 정책으로 이전 속도의 영향을 확인하세요.
+            </p>
+            <h3>대가와 범위</h3>
+            <p>
+                고정 1/120초 Verlet 체인, 12회 길이·원 충돌 투영을 쓰는 2D 모형입니다. 표시 관통 수는 몸
+                내부의 가이드 입자만 세며, 가이드 사이에 보간된 선과 선분 전체의 비관통을 보장하지 않습니다.
+                카드 띠와 실루엣은 같은 가이드에서 그린 2D 표현 예시이며 실제 헤어 텍스처·조명·자가 충돌·상용
+                Groom 성능은 포함하지 않습니다.
+            </p>
+            <p>
+                <a href="https://dev.epicgames.com/documentation/en-us/unreal-engine/groom-scalability-and-performance-with-unreal-engine">
+                    Epic Groom 파이프라인
+                </a>{' '}
+                ·{' '}
+                <a href="https://dev.epicgames.com/documentation/en-us/unreal-engine/enabling-physics-simulation-on-grooms-in-unreal-engine">
+                    충돌과 입자 설정
+                </a>
+            </p>
+        </dialog>
+    </main>
+</Page>
+<script>
+    import '../../experiments/hair-simulation/client';
+</script>
+<style>
+    :global(body) {
+        background: #edf1f3;
+        color: #203d43;
+        margin: 0;
+    }
+    .lab {
+        min-height: 100dvh;
+        overflow: hidden;
+    }
+    .top {
+        height: 66px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 0 24px;
+        border-bottom: 1px solid #d1dfe1;
+    }
+    .top a {
+        font-weight: 750;
+        color: #204b50;
+        text-decoration: none;
+    }
+    .top button {
+        width: 44px;
+        padding: 0;
+        font-size: 22px;
+    }
+    button,
+    select,
+    input {
+        font: inherit;
+    }
+    button,
+    select {
+        min-height: 42px;
+        border: 1px solid #b7ced0;
+        border-radius: 12px;
+        background: #fff;
+        color: #234b50;
+        padding: 8px 15px;
+        cursor: pointer;
+    }
+    button:hover {
+        background: #ddefec;
+    }
+    button:focus-visible,
+    select:focus-visible,
+    input:focus-visible,
+    a:focus-visible {
+        outline: 3px solid #e8954b;
+        outline-offset: 3px;
+    }
+    .heading {
+        padding: 26px 5vw 0;
+        max-width: 1100px;
+        margin: auto;
+    }
+    .eyebrow {
+        font-size: 12px;
+        letter-spacing: 0.12em;
+        color: #46666a;
+    }
+    h1 {
+        font-size: clamp(24px, 3.5vw, 42px);
+        margin: 8px 0;
+    }
+    h2 {
+        font-size: 20px;
+    }
+    p {
+        line-height: 1.65;
+    }
+    .lead {
+        color: #577176;
+        margin: 8px 0;
+    }
+    .scene {
+        width: min(1120px, 94vw);
+        margin: 14px auto 0;
+        position: relative;
+    }
+    .scene svg,
+    .scene canvas {
+        display: block;
+        width: 100%;
+        height: auto;
+        min-height: 250px;
+        max-height: 58vh;
+    }
+    .scene svg text {
+        font-family: inherit;
+        fill: #24474c;
+    }
+    .scene canvas {
+        height: 53vh;
+        max-height: 600px;
+        min-height: 320px;
+        border-radius: 20px;
+    }
+    .results {
+        display: flex;
+        gap: 12px;
+        flex-wrap: wrap;
+        max-width: 1080px;
+        margin: 10px auto;
+        padding: 0 20px;
+    }
+    .card {
+        background: #ffffffbd;
+        border: 1px solid #d4e0e2;
+        border-radius: 15px;
+        padding: 14px 18px;
+        flex: 1;
+        min-width: 180px;
+    }
+    .card strong {
+        display: block;
+        font-size: 18px;
+        margin: 4px 0;
+    }
+    .card span {
+        font-size: 13px;
+        color: #587177;
+    }
+    .controls {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 10px;
+        padding: 10px 20px 24px;
+    }
+    .primary {
+        background: #146f72;
+        color: white;
+        border-color: #146f72;
+    }
+    .controls label {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+    .controls input {
+        width: 160px;
+        min-height: 40px;
+        accent-color: #11797b;
+    }
+    .settings {
+        position: fixed;
+        left: 16px;
+        top: 78px;
+        bottom: 16px;
+        overflow: auto;
+        width: min(320px, calc(100vw - 32px));
+        box-sizing: border-box;
+        padding: 22px;
+        background: #fafdfd;
+        box-shadow: 0 12px 60px #31585b38;
+        border: 1px solid #bdced1;
+        border-radius: 20px;
+        z-index: 5;
+    }
+    .settings[hidden] {
+        display: none;
+    }
+    .settings header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+    .settings header h2 {
+        margin: 0;
+    }
+    .settings label {
+        display: block;
+        font-size: 14px;
+        margin: 19px 0 7px;
+    }
+    .settings input[type='range'] {
+        width: 100%;
+        accent-color: #14797b;
+        min-height: 40px;
+    }
+    .settings input[type='checkbox'] {
+        accent-color: #14797b;
+        width: 20px;
+        height: 20px;
+        vertical-align: middle;
+        margin-right: 8px;
+    }
+    .settings select {
+        width: 100%;
+    }
+    .settings output {
+        float: right;
+        font-variant-numeric: tabular-nums;
+    }
+    .settings .row {
+        display: flex;
+        gap: 6px;
+        flex-wrap: wrap;
+        margin-top: 16px;
+    }
+    .hint {
+        max-width: 1000px;
+        margin: 8px auto;
+        text-align: center;
+        color: #46666a;
+        font-size: 13px;
+        padding: 0 20px;
+    }
+    .teal {
+        color: #087d7a;
+    }
+    .orange {
+        color: #cb713c;
+    }
+    dialog {
+        border: 1px solid #b8ced0;
+        border-radius: 22px;
+        max-width: 650px;
+        width: calc(100vw - 56px);
+        max-height: 80dvh;
+        padding: 25px;
+        box-sizing: border-box;
+        color: #24474c;
+        background: #f9fcfc;
+    }
+    dialog::backdrop {
+        background: #24444777;
+    }
+    dialog h2 {
+        margin-top: 0;
+    }
+    dialog h3 {
+        font-size: 16px;
+        margin-bottom: 4px;
+    }
+    dialog p {
+        font-size: 14px;
+        margin-top: 6px;
+    }
+    dialog a {
+        color: #0b777a;
+    }
+    dialog .close {
+        float: right;
+        margin-left: 12px;
+    }
+    .log {
+        max-width: 1030px;
+        margin: 8px auto 30px;
+        max-height: 135px;
+        overflow: auto;
+        border-radius: 12px;
+        background: white;
+        padding: 14px 20px;
+        font-size: 13px;
+        line-height: 1.6;
+    }
+    .object-list {
+        display: flex;
+        justify-content: center;
+        gap: 6px;
+        flex-wrap: wrap;
+    }
+    .object-list button[aria-pressed='true'] {
+        background: #146f72;
+        color: #fff;
+    }
+    @media (max-width: 600px) {
+        .top {
+            padding: 0 14px;
+            height: 58px;
+        }
+        .heading {
+            padding-top: 16px;
+        }
+        .lead {
+            font-size: 14px;
+        }
+        .scene {
+            width: 100%;
+            margin-top: 8px;
+        }
+        .scene svg {
+            min-height: 235px;
+            max-height: 44vh;
+        }
+        .results {
+            gap: 7px;
+            padding: 0 12px;
+        }
+        .card {
+            padding: 10px 12px;
+            min-width: 120px;
+        }
+        .card strong {
+            font-size: 15px;
+        }
+        .card span {
+            font-size: 12px;
+        }
+        .controls {
+            padding: 10px 12px 18px;
+            gap: 7px;
+        }
+        .settings {
+            top: 66px;
+        }
+        .hint {
+            font-size: 12px;
+        }
+        .log {
+            margin: 8px 12px 20px;
+        }
+        .scene canvas {
+            height: 42vh;
+            min-height: 290px;
+        }
+    }
+</style>

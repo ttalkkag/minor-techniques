@@ -1,0 +1,472 @@
+---
+import Page from '../../layouts/Page.astro';
+---
+
+<Page
+    title="같은 불과 물, 다른 결과 · 게임 실험실"
+    description="접촉 사건을 큐에 모으고 처리 순서·전파·중복 알림의 차이를 확인합니다."
+>
+    <main class="lab">
+        <nav class="top" aria-label="실험실 탐색">
+            <button id="menu" aria-label="설정 메뉴 열기" aria-controls="settings" aria-expanded="false">
+                ☰
+            </button>
+            <a href="/">게임 실험실</a>
+            <button id="explain" aria-label="원인과 해결 설명 열기">
+                ?
+            </button>
+        </nav>
+        <header class="heading">
+            <p class="eyebrow">움직임의 조건을 바꾸다</p>
+            <h1>같은 불과 물, 다른 결과</h1>
+            <p class="lead">접촉 사건을 큐에 모으고 처리 순서·전파·중복 알림의 차이를 확인합니다.</p>
+        </header>
+        <div id="settings" class="settings" role="dialog" aria-modal="true" aria-labelledby="settings-title" hidden>
+            <header>
+                <h2 id="settings-title">실험 설정</h2>
+                <button id="close-menu" aria-label="설정 메뉴 닫기">
+                    ×
+                </button>
+            </header>
+            <label for="policy">동시 사건 처리</label>
+            <select id="policy">
+                <option value="water">물 우선 · 중복 전환 억제</option>
+                <option value="arrival">도착 순서 · 접촉마다 알림</option>
+            </select>
+            <label for="order">동시 입력의 도착 순서</label>
+            <select id="order">
+                <option value="wf">물 → 불</option>
+                <option value="fw">불 → 물</option>
+            </select>
+            <label for="dry">
+                건조까지 틱 <output id="dry-out"></output>
+            </label>
+            <input id="dry" type="range" min="1" max="8" value="4" />
+            <label for="budget">
+                한 틱 사건 상한 <output id="budget-out"></output>
+            </label>
+            <input id="budget" type="range" min="1" max="20" value="20" />
+            <label>
+                <input id="spread" type="checkbox" checked />
+                불붙은 이웃에 다음 틱 전파
+            </label>
+            <label for="material">선택 물체의 재질</label>
+            <select id="material">
+                <option value="wood">나무 · 가연성</option>
+                <option value="stone">돌 · 불연성</option>
+            </select>
+            <button id="ring">원형 배치로 초기화</button>
+            <p>물체를 눌러 대상을 고르세요. 상한 초과 사건은 다음 틱으로 미룹니다.</p>
+        </div>
+        <div class="scene">
+            <svg
+                id="scene"
+                viewBox="0 0 1000 410"
+                role="img"
+                aria-label="물체 상태와 인접 전파 관계"
+                aria-describedby="summary"
+            ></svg>
+        </div>
+        <section class="results" aria-label="관찰 결과">
+            <article class="card">
+                <span>틱 / 다음 입력 큐</span>
+                <strong id="queue-readout"></strong>
+            </article>
+            <article class="card">
+                <span>상태 전환 / 표시 알림 누적</span>
+                <strong id="event-readout"></strong>
+            </article>
+            <article class="card">
+                <span>선택한 물체</span>
+                <strong id="selected-readout"></strong>
+            </article>
+        </section>
+        <p class="hint" id="summary" role="status"></p>
+        <div id="object-list" class="object-list" role="group" aria-label="대상 물체 선택"></div>
+        <div class="controls">
+            <button id="fire">불 접촉 추가</button>
+            <button id="water">물 접촉 추가</button>
+            <button id="both">동시에 불·물 추가</button>
+            <button id="step" class="primary">
+                한 틱 실행
+            </button>
+            <button id="play">자동 실행</button>
+            <button id="remove">선택 물체 삭제</button>
+            <button id="reset">초기화</button>
+        </div>
+        <div class="log" id="log" role="log" aria-label="상태 반응 사건 기록"></div>
+        <dialog id="explanation" aria-labelledby="explanation-title">
+            <button class="close" id="close-explain" aria-label="설명 닫기">
+                ×
+            </button>
+            <h2 id="explanation-title">같은 불과 물, 다른 결과</h2>
+            <h3>문제 · 접촉과 상태 전환을 섞으면</h3>
+            <p>
+                같은 틱의 물과 불을 즉시 처리하면 최종 상태가 같더라도 불붙음·소화 효과가 불필요하게 연달아
+                나올 수 있습니다. 이미 타는 나무의 반복 접촉도 효과를 중복 만듭니다.
+            </p>
+            <h3>해결 · 후보를 모으고 규칙으로 평가합니다</h3>
+            <p>
+                물 우선 모드는 같은 대상·종류의 사건을 합치고 물을 먼저 적용합니다. 실제 상태 전환에서만
+                알림을 만듭니다. 이웃 전파는 다음 틱 큐로 보내며 원형 배치에서도 한 틱 안에 무한히 돌지
+                않습니다. 삭제된 대상의 참조는 큐에서 제거합니다.
+            </p>
+            <h3>정책과 대가</h3>
+            <p>
+                물은 젖음 상태를 만들고 불을 끕니다. 나무는 마른 상태에서만 타고 돌은 타지 않습니다. 건조는 틱
+                시작 때 처리합니다. 사건 상한 초과분은 다음 틱으로 미루므로 너무 낮은 상한은 같은 시각에 넣은
+                불·물을 서로 다른 틱에 처리해 결과를 바꿀 수 있습니다. 접촉 후보는 버튼과 고정 인접 관계로
+                생성하는 자체 2D 규칙 모형입니다. 분자 화학이나 Nintendo 내부 엔진을 재현하지 않습니다.
+            </p>
+            <p>
+                <a href="https://www.nintendo.com/us/whatsnew/ask-the-developer-vol-9-the-legend-of-zelda-tears-of-the-kingdom-part-4/">
+                    Nintendo 개발자 인터뷰 · 조합과 개별 조율
+                </a>
+            </p>
+        </dialog>
+    </main>
+</Page>
+<script>
+    import '../../experiments/state-reactions/client';
+</script>
+<style>
+    :global(body) {
+        background: #edf1f3;
+        color: #203d43;
+        margin: 0;
+    }
+    .lab {
+        min-height: 100dvh;
+        overflow: hidden;
+    }
+    .top {
+        height: 66px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 0 24px;
+        border-bottom: 1px solid #d1dfe1;
+    }
+    .top a {
+        font-weight: 750;
+        color: #204b50;
+        text-decoration: none;
+    }
+    .top button {
+        width: 44px;
+        padding: 0;
+        font-size: 22px;
+    }
+    button,
+    select,
+    input {
+        font: inherit;
+    }
+    button,
+    select {
+        min-height: 42px;
+        border: 1px solid #b7ced0;
+        border-radius: 12px;
+        background: #fff;
+        color: #234b50;
+        padding: 8px 15px;
+        cursor: pointer;
+    }
+    button:hover {
+        background: #ddefec;
+    }
+    button:focus-visible,
+    select:focus-visible,
+    input:focus-visible,
+    a:focus-visible {
+        outline: 3px solid #e8954b;
+        outline-offset: 3px;
+    }
+    .heading {
+        padding: 26px 5vw 0;
+        max-width: 1100px;
+        margin: auto;
+    }
+    .eyebrow {
+        font-size: 12px;
+        letter-spacing: 0.12em;
+        color: #46666a;
+    }
+    h1 {
+        font-size: clamp(24px, 3.5vw, 42px);
+        margin: 8px 0;
+    }
+    h2 {
+        font-size: 20px;
+    }
+    p {
+        line-height: 1.65;
+    }
+    .lead {
+        color: #577176;
+        margin: 8px 0;
+    }
+    .scene {
+        width: min(1120px, 94vw);
+        margin: 14px auto 0;
+        position: relative;
+    }
+    .scene svg,
+    .scene canvas {
+        display: block;
+        width: 100%;
+        height: auto;
+        min-height: 250px;
+        max-height: 58vh;
+    }
+    .scene svg text {
+        font-family: inherit;
+        fill: #24474c;
+    }
+    .scene canvas {
+        height: 53vh;
+        max-height: 600px;
+        min-height: 320px;
+        border-radius: 20px;
+    }
+    .results {
+        display: flex;
+        gap: 12px;
+        flex-wrap: wrap;
+        max-width: 1080px;
+        margin: 10px auto;
+        padding: 0 20px;
+    }
+    .card {
+        background: #ffffffbd;
+        border: 1px solid #d4e0e2;
+        border-radius: 15px;
+        padding: 14px 18px;
+        flex: 1;
+        min-width: 180px;
+    }
+    .card strong {
+        display: block;
+        font-size: 18px;
+        margin: 4px 0;
+    }
+    .card span {
+        font-size: 13px;
+        color: #587177;
+    }
+    .controls {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 10px;
+        padding: 10px 20px 24px;
+    }
+    .primary {
+        background: #146f72;
+        color: white;
+        border-color: #146f72;
+    }
+    .controls label {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+    .controls input {
+        width: 160px;
+        min-height: 40px;
+        accent-color: #11797b;
+    }
+    .settings {
+        position: fixed;
+        left: 16px;
+        top: 78px;
+        bottom: 16px;
+        overflow: auto;
+        width: min(320px, calc(100vw - 32px));
+        box-sizing: border-box;
+        padding: 22px;
+        background: #fafdfd;
+        box-shadow: 0 12px 60px #31585b38;
+        border: 1px solid #bdced1;
+        border-radius: 20px;
+        z-index: 5;
+    }
+    .settings[hidden] {
+        display: none;
+    }
+    .settings header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+    .settings header h2 {
+        margin: 0;
+    }
+    .settings label {
+        display: block;
+        font-size: 14px;
+        margin: 19px 0 7px;
+    }
+    .settings input[type='range'] {
+        width: 100%;
+        accent-color: #14797b;
+        min-height: 40px;
+    }
+    .settings input[type='checkbox'] {
+        accent-color: #14797b;
+        width: 20px;
+        height: 20px;
+        vertical-align: middle;
+        margin-right: 8px;
+    }
+    .settings select {
+        width: 100%;
+    }
+    .settings output {
+        float: right;
+        font-variant-numeric: tabular-nums;
+    }
+    .settings .row {
+        display: flex;
+        gap: 6px;
+        flex-wrap: wrap;
+        margin-top: 16px;
+    }
+    .hint {
+        max-width: 1000px;
+        margin: 8px auto;
+        text-align: center;
+        color: #46666a;
+        font-size: 13px;
+        padding: 0 20px;
+    }
+    .teal {
+        color: #087d7a;
+    }
+    .orange {
+        color: #cb713c;
+    }
+    dialog {
+        border: 1px solid #b8ced0;
+        border-radius: 22px;
+        max-width: 650px;
+        width: calc(100vw - 56px);
+        max-height: 80dvh;
+        padding: 25px;
+        box-sizing: border-box;
+        color: #24474c;
+        background: #f9fcfc;
+    }
+    dialog::backdrop {
+        background: #24444777;
+    }
+    dialog h2 {
+        margin-top: 0;
+    }
+    dialog h3 {
+        font-size: 16px;
+        margin-bottom: 4px;
+    }
+    dialog p {
+        font-size: 14px;
+        margin-top: 6px;
+    }
+    dialog a {
+        color: #0b777a;
+    }
+    dialog .close {
+        float: right;
+        margin-left: 12px;
+    }
+    .log {
+        max-width: 1030px;
+        margin: 8px auto 30px;
+        max-height: 135px;
+        overflow: auto;
+        border-radius: 12px;
+        background: white;
+        padding: 14px 20px;
+        font-size: 13px;
+        line-height: 1.6;
+    }
+    .object-list {
+        display: flex;
+        justify-content: center;
+        gap: 6px;
+        flex-wrap: wrap;
+    }
+    .object-list button[aria-pressed='true'] {
+        background: #146f72;
+        color: #fff;
+    }
+    @media (max-width: 600px) {
+        .top {
+            padding: 0 14px;
+            height: 58px;
+        }
+        .heading {
+            padding-top: 16px;
+        }
+        .lead {
+            font-size: 14px;
+        }
+        .scene {
+            width: 100%;
+            margin-top: 8px;
+        }
+        .scene svg {
+            min-height: 235px;
+            max-height: 44vh;
+        }
+        .results {
+            gap: 7px;
+            padding: 0 12px;
+        }
+        .card {
+            padding: 10px 12px;
+            min-width: 120px;
+        }
+        .card strong {
+            font-size: 15px;
+        }
+        .card span {
+            font-size: 12px;
+        }
+        .controls {
+            padding: 10px 12px 18px;
+            gap: 7px;
+        }
+        .settings {
+            top: 66px;
+        }
+        .hint {
+            font-size: 12px;
+        }
+        .log {
+            margin: 8px 12px 20px;
+        }
+        .scene canvas {
+            height: 42vh;
+            min-height: 290px;
+        }
+    }
+    .object-list :global(button) {
+        font: inherit;
+        min-height: 42px;
+        border: 1px solid #b7ced0;
+        border-radius: 12px;
+        background: #fff;
+        color: #234b50;
+        padding: 8px 15px;
+        cursor: pointer;
+    }
+    .object-list :global(button[aria-pressed='true']) {
+        background: #146f72;
+        color: white;
+    }
+    .object-list :global(button:focus-visible) {
+        outline: 3px solid #e8954b;
+        outline-offset: 3px;
+    }
+</style>

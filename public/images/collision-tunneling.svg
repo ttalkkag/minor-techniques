@@ -1,0 +1,29 @@
+<svg viewBox="0 0 480 340" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+        <pattern id="grid" width="24" height="24" patternUnits="userSpaceOnUse">
+            <path d="M24 0H0V24" stroke="#dce5e7" stroke-width=".7"/>
+        </pattern>
+    </defs>
+    <rect width="480" height="340" fill="#e8eef0"/>
+    <rect width="480" height="340" fill="url(#grid)"/>
+    <path d="M277 64L293 55V281L277 290V64Z" fill="#c5d1d7"/>
+    <path d="M263 55H293L277 64H247L263 55Z" fill="#e0e7ea"/>
+    <path d="M247 64H277V290H247V64Z" fill="#d3dde2"/>
+    <path d="M66 130H415M66 247H415" stroke="#c1d0d5" stroke-width="1.5"/>
+    <g font-family="-apple-system,BlinkMacSystemFont,Apple SD Gothic Neo,Malgun Gothic,sans-serif" font-size="13" font-weight="500">
+        <text x="57" y="94" fill="#85502f">위치 검사</text>
+        <text x="362" y="166" fill="#85502f">통과</text>
+        <text x="57" y="211" fill="#276e68">경로 검사</text>
+        <text x="304" y="253" fill="#276e68">충돌</text>
+    </g>
+    <circle cx="85" cy="130" r="13" stroke="#b86532" stroke-width="2" stroke-dasharray="4 4"/>
+    <path d="M110 130H356M345 123L357 130L345 137" stroke="#b86532" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="6 6"/>
+    <circle cx="388" cy="130" r="13" fill="#c67a4e"/>
+    <circle cx="384" cy="126" r="4" fill="#dda17a"/>
+    <circle cx="85" cy="247" r="13" stroke="#117b77" stroke-width="2" stroke-dasharray="4 4"/>
+    <path d="M110 247H219" stroke="#117b77" stroke-width="2" stroke-linecap="round"/>
+    <circle cx="234" cy="247" r="20" stroke="#117b77" stroke-opacity=".2" stroke-width="8"/>
+    <circle cx="234" cy="247" r="13" fill="#428e86"/>
+    <circle cx="230" cy="243" r="4" fill="#7cb4aa"/>
+    <path d="M248 226V268" stroke="#117b77" stroke-width="2"/>
+</svg>

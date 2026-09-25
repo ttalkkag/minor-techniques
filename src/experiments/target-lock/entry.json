@@ -1,0 +1,8 @@
+{
+    "id": "target-lock",
+    "title": "락온 대상이 바뀌면 이동 축도 바뀐다",
+    "description": "대상 유지·자동 재선정·가림 유예와 카메라 구도를 비교하세요.",
+    "tags": ["카메라·레벨", "락온", "상태"],
+    "thumbnail": "/images/target-lock.svg",
+    "href": "/experiments/target-lock/"
+}

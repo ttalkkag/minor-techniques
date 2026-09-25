@@ -1,0 +1,396 @@
+---
+import Page from '../../layouts/Page.astro';
+---
+
+<Page
+    title="떠났다가 돌아온 벽은 왜 살아날까? · 게임 실험실"
+    description="블록을 지우고 청크를 떠나 보세요. 저장된 수정과 다시 생성한 지형을 구분합니다."
+>
+    <main>
+        <nav aria-label="실험실 탐색">
+            <button id="menu" aria-label="설정 메뉴 열기" aria-controls="settings" aria-expanded="false">
+                ☰
+            </button>
+            <a href="/">게임 실험실</a>
+            <button id="explain">원리 보기</button>
+        </nav>
+        <header>
+            <p>생성 · 상주 · 변경 보존</p>
+            <h1>떠났다가 돌아온 벽은 왜 살아날까?</h1>
+            <span>블록을 지우고 청크를 떠나 보세요. 저장된 수정과 다시 생성한 지형을 구분합니다.</span>
+        </header>
+        <section class="stage" aria-label="떠났다가 돌아온 벽은 왜 살아날까? 관찰 장면">
+            <canvas
+                id="scene"
+                aria-label="떠났다가 돌아온 벽은 왜 살아날까? 수치 모델"
+                aria-describedby="summary"
+            ></canvas>
+        </section>
+        <div class="stats">
+            <div>
+                <span>수정 기록 수</span>
+                <output id="metric-0"></output>
+            </div>
+            <div>
+                <span>상주 청크 / dirty</span>
+                <output id="metric-1"></output>
+            </div>
+            <div>
+                <span>사용 생성기 / 저장 버전</span>
+                <output id="metric-2"></output>
+            </div>
+        </div>
+        <p id="summary" class="summary" role="status"></p>
+        <div class="toolbar">
+            <button id="reset">초기화</button>
+        </div>
+        <div id="settings" aria-label="실험 설정" hidden>
+            <div class="panel-head">
+                <h2>설정</h2>
+                <button id="close-menu" aria-label="설정 메뉴 닫기">
+                    ×
+                </button>
+            </div>
+            <label for="mode">
+                언로드 정책
+                <select id="mode">
+                    <option value="delta">수정분 저장 후 해제</option>
+                    <option value="discard">저장하지 않고 버리기</option>
+                </select>
+            </label>
+            <label for="version">
+                요청한 생성기
+                <select id="version">
+                    <option value="1">버전 1</option>
+                    <option value="2">버전 2</option>
+                </select>
+            </label>
+            <label for="compatibility">
+                기존 저장과 버전 충돌
+                <select id="compatibility">
+                    <option value="pin">저장된 생성 버전 유지</option>
+                    <option value="replace">새 바탕에 수정분 덮기</option>
+                </select>
+            </label>
+            <label for="cell-x">
+                선택 월드 x <output id="cell-x-value"></output>
+                <input id="cell-x" type="range" min="-16" max="23" value="-1" step="1" />
+            </label>
+            <label for="cell-y">
+                선택 높이 y <output id="cell-y-value"></output>
+                <input id="cell-y" type="range" min="0" max="7" value="1" step="1" />
+            </label>
+            <button id="remove">선택 블록을 빈칸으로</button>
+            <button id="place">선택 블록 쌓기</button>
+            <button id="travel">멀리 갔다 돌아오기</button>
+            <button id="save">지금 저장</button>
+            <button id="reload">메모리를 비우고 저장에서 읽기</button>
+            <label class="check" for="visible">
+                <input id="visible" type="checkbox" checked />
+                상주 청크 화면 표시
+            </label>
+            <p>
+                장면을 눌러 셀을 선택할 수 있습니다. 좌표 범위는 표시된 이웃 청크까지 넓어집니다. 저장은 이
+                브라우저의 localStorage에만 남습니다.
+            </p>
+        </div>
+        <dialog id="info" aria-labelledby="info-title">
+            <div class="dialog-head">
+                <h2 id="info-title">원인과 해결</h2>
+                <button id="close-info" aria-label="설명 닫기">
+                    ×
+                </button>
+            </div>
+            <h3>문제와 원인</h3>
+            <p>
+                표시를 끄는 것과 메모리를 해제하는 것, 저장을 지우는 것은 다릅니다. 기본 지형만 다시 생성하면
+                없앤 블록도 돌아옵니다. 빈칸 0도 ‘수정이 존재함’으로 저장해야 합니다.
+            </p>
+            <h3>해결 · 기본 지형 B와 수정 D</h3>
+            <p>
+                각 셀은 D에 키가 있으면 그 값, 없으면 B(seed, version, worldPosition)를 읽습니다. 좌표 -1은
+                크기 8 청크에서 chunk=-1, local=7입니다. floor를 사용하므로 음수 경계도 맞습니다. 수정 후
+                dirty 상태를 표시하고 저장이 성공한 뒤 해제합니다.
+            </p>
+            <h3>버전과 비용</h3>
+            <p>
+                버전 2는 기본 높이 함수를 바꿉니다. 이전 생성기를 유지하면 저장 월드를 보존할 수 있고, 새
+                바탕에 덮으면 수정되지 않은 주변이 바뀝니다. 전체 청크 스냅샷은 바탕도 저장하므로 더 많은
+                데이터가 필요합니다.
+            </p>
+            <h3>이 실험의 범위</h3>
+            <p>
+                8×8 논리 셀과 화면 메시를 재구성하는 동기식 데모입니다. 화면 표시, 상주, dirty, 저장 버전은
+                분리합니다. 실제 파일 원자성·비동기 생성·충돌체·서버 저장은 구현하지 않습니다. 초기화는 이
+                실험의 저장 키만 지웁니다.
+            </p>
+            <p>
+                <a href="https://www.minecraft.net/en-us/article/minecraft-java-edition-1-18-2">
+                    Minecraft 1.18.2 생성 설정 기록
+                </a>{' '}
+                · <a href="https://cs.nyu.edu/~perlin/noise/">좌표 기반 함수의 참조 구현</a>
+            </p>
+        </dialog>
+    </main>
+    <style>
+        main {
+            min-height: 100svh;
+            padding: 20px 28px 28px;
+            background: radial-gradient(circle at 60% 40%, #fff, #edf1f3 75%);
+        }
+        nav {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+        }
+        nav a {
+            color: #263340;
+            text-decoration: none;
+            font-weight: 750;
+            margin-right: auto;
+        }
+        button,
+        select,
+        input[type='number'] {
+            min-height: 44px;
+            border: 1px solid #bdccce;
+            border-radius: 12px;
+            padding: 9px 12px;
+            background: #fff;
+            color: #263340;
+        }
+        button {
+            cursor: pointer;
+        }
+        button:hover {
+            background: #e0efed;
+        }
+        header {
+            text-align: center;
+            margin: 24px auto 12px;
+        }
+        header > p {
+            font-size: 13px;
+            color: #0a736d;
+            letter-spacing: 0.05em;
+        }
+        h1 {
+            word-break: keep-all;
+            font-size: clamp(25px, 3vw, 42px);
+            margin: 10px 0;
+        }
+        header > span {
+            display: block;
+            color: #53666c;
+            font-size: 14px;
+            line-height: 1.7;
+            max-width: 860px;
+            margin: auto;
+        }
+        .stage {
+            height: clamp(420px, 58vh, 680px);
+            width: 100%;
+            max-width: 1350px;
+            margin: auto;
+        }
+        canvas {
+            width: 100%;
+            height: 100%;
+            display: block;
+            touch-action: manipulation;
+        }
+        .stats {
+            display: flex;
+            gap: 12px;
+            max-width: 1050px;
+            margin: 12px auto;
+        }
+        .stats > div {
+            flex: 1;
+            min-width: 0;
+            background: #ffffffe0;
+            border: 1px solid #d1dedf;
+            border-radius: 16px;
+            padding: 13px 16px;
+        }
+        .stats span {
+            color: #51676d;
+            font-size: 12px;
+            display: block;
+        }
+        .stats output {
+            font-size: 20px;
+            font-weight: 700;
+            display: block;
+            margin-top: 7px;
+            font-variant-numeric: tabular-nums;
+        }
+        .summary {
+            max-width: 1050px;
+            margin: 12px auto;
+            text-align: center;
+            font-size: 14px;
+            line-height: 1.8;
+            overflow-wrap: anywhere;
+        }
+        .toolbar {
+            text-align: right;
+            max-width: 1050px;
+            margin: auto;
+        }
+        #settings {
+            position: fixed;
+            top: 80px;
+            left: 24px;
+            width: 310px;
+            max-height: calc(100svh - 104px);
+            overflow: auto;
+            scroll-padding-top: 80px;
+            z-index: 5;
+            background: #fffffff7;
+            border: 1px solid #c7d5d6;
+            box-shadow: 0 18px 70px #263b3d30;
+            border-radius: 20px;
+            padding: 20px;
+        }
+        .panel-head,
+        .dialog-head {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+        }
+        h2 {
+            font-size: 18px;
+            margin: 0;
+        }
+        .panel-head {
+            position: sticky;
+            top: -20px;
+            z-index: 1;
+            background: #fff;
+            padding: 3px 0 9px;
+        }
+        .panel-head button,
+        .dialog-head button {
+            font-size: 23px;
+        }
+        label {
+            display: block;
+            font-size: 14px;
+            font-weight: 650;
+            margin: 18px 0;
+        }
+        label output {
+            float: right;
+            color: #0a746e;
+        }
+        input[type='range'] {
+            display: block;
+            width: 100%;
+            height: 40px;
+            accent-color: #117d77;
+        }
+        input[type='checkbox'] {
+            width: 22px;
+            height: 22px;
+            vertical-align: middle;
+            accent-color: #117d77;
+            margin-right: 8px;
+        }
+        select,
+        input[type='number'] {
+            display: block;
+            width: 100%;
+            margin-top: 8px;
+            font-size: 13px;
+        }
+        #settings > button {
+            width: 100%;
+            margin: 5px 0;
+        }
+        .check {
+            min-height: 44px;
+            display: flex;
+            align-items: center;
+        }
+        #settings p {
+            font-size: 12px;
+            line-height: 1.7;
+            color: #52686e;
+        }
+        dialog {
+            max-width: 690px;
+            width: calc(100% - 32px);
+            max-height: 86svh;
+            overflow: auto;
+            border: 1px solid #bdcdce;
+            border-radius: 22px;
+            padding: 26px;
+            color: #263340;
+        }
+        dialog::backdrop {
+            background: #162b3b77;
+        }
+        dialog h3 {
+            font-size: 15px;
+            margin-top: 24px;
+        }
+        dialog p {
+            font-size: 14px;
+            line-height: 1.8;
+        }
+        dialog a {
+            color: #0b716b;
+        }
+        code {
+            font-size: 12px;
+            overflow-wrap: anywhere;
+        }
+        @media (max-width: 600px) {
+            main {
+                padding: 14px 12px 24px;
+            }
+            nav {
+                gap: 8px;
+            }
+            nav button {
+                padding: 9px 11px;
+            }
+            header {
+                margin-top: 22px;
+            }
+            header > span {
+                padding: 0 8px;
+            }
+            .stage {
+                height: 620px;
+            }
+            .stats {
+                gap: 7px;
+                flex-wrap: wrap;
+            }
+            .stats > div {
+                min-width: 85px;
+                padding: 10px;
+            }
+            .stats output {
+                font-size: 17px;
+            }
+            .stats span {
+                font-size: 11px;
+            }
+            .summary {
+                font-size: 13px;
+            }
+            #settings {
+                left: 12px;
+                top: 74px;
+                width: min(310px, calc(100% - 24px));
+            }
+        }
+    </style>
+    <script>
+        import '../../experiments/chunk-persistence/client';
+    </script>
+</Page>

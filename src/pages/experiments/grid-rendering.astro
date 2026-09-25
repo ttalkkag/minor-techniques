@@ -1,0 +1,430 @@
+---
+import Page from '../../layouts/Page.astro';
+---
+
+<Page
+    title="평평한 벽이 휘어 보이는 이유 · 게임 실험실"
+    description="격자 광선의 거리와 전방 깊이를 비교하며 열마다 그리는 벽 높이를 바꿔 봅니다."
+>
+    <main class="grid-lab">
+        <nav aria-label="실험실 탐색">
+            <button
+                id="gr-menu"
+                aria-label="설정 메뉴 열기"
+                aria-controls="gr-settings"
+                aria-expanded="false"
+            >
+                ☰
+            </button>
+            <a href="/">게임 실험실</a>
+            <button id="gr-help" aria-label="원인과 해결 설명 열기">
+                ?
+            </button>
+        </nav>
+        <header>
+            <p>격자 광선으로 만드는 3D 화면</p>
+            <h1>평평한 벽이 휘어 보이는 이유</h1>
+            <span>같은 광선, 다른 거리 기준. 지도에서 카메라를 옮겨 보세요.</span>
+        </header>
+        <section class="scene-wrap" aria-label="격자 지도와 두 투영 결과">
+            <canvas
+                id="gr-scene"
+                aria-label="격자 지도와 광선 거리 투영, 전방 깊이 투영 비교"
+                aria-describedby="gr-summary"
+            ></canvas>
+            <div class="scene-hint">지도 클릭: 이동 · 방향과 시야각: 설정 ☰</div>
+        </section>
+        <footer aria-live="polite" aria-atomic="true">
+            <div>
+                <span>선택한 광선 거리 s</span>
+                <strong id="gr-distance">—</strong>
+            </div>
+            <div>
+                <span>전방 깊이 z</span>
+                <strong id="gr-depth">—</strong>
+            </div>
+            <div>
+                <span>보정 전 / 후 높이</span>
+                <strong id="gr-height">—</strong>
+            </div>
+            <div>
+                <span>DDA 방문 셀</span>
+                <strong id="gr-steps">—</strong>
+            </div>
+            <p id="gr-summary"></p>
+        </footer>
+        <div id="gr-backdrop" class="backdrop" hidden></div>
+        <div data-settings-panel role="complementary" id="gr-settings" aria-label="실험 설정" hidden>
+            <div class="settings-heading">
+                <h2>광선과 카메라</h2>
+                <button id="gr-close" aria-label="설정 메뉴 닫기">
+                    ×
+                </button>
+            </div>
+            <label for="gr-map">지도</label>
+            <select id="gr-map">
+                <option value="flat">정면의 평평한 벽</option>
+                <option value="rooms">문이 있는 방</option>
+            </select>
+            <label for="gr-bearing">
+                바라보는 방향 <output id="gr-bearing-value">0°</output>
+            </label>
+            <input id="gr-bearing" type="range" min="-180" max="180" step="1" value="0" />
+            <label for="gr-fov">
+                수평 시야각 <output id="gr-fov-value">90°</output>
+            </label>
+            <input id="gr-fov" type="range" min="40" max="120" step="1" value="90" />
+            <label for="gr-column">
+                살펴볼 화면 열 <output id="gr-column-value">90%</output>
+            </label>
+            <input id="gr-column" type="range" min="0" max="100" step="1" value="90" />
+            <label for="gr-resolution">
+                가로 열 수 <output id="gr-resolution-value">160열</output>
+            </label>
+            <input id="gr-resolution" type="range" min="32" max="240" step="16" value="160" />
+            <fieldset>
+                <legend>카메라 이동</legend>
+                <div class="moves">
+                    <button id="gr-forward">앞으로 ↑</button>
+                    <button id="gr-left">← 왼쪽</button>
+                    <button id="gr-right">오른쪽 →</button>
+                    <button id="gr-back">뒤로 ↓</button>
+                </div>
+            </fieldset>
+            <p class="note" id="gr-position">
+                카메라 위치
+            </p>
+            <button id="gr-reset" class="reset">
+                처음으로
+            </button>
+            <p class="note">
+                주황색 광선 하나를 따라 셀 경계와 투영 높이를 비교합니다. 벽 안으로는 이동할 수 없습니다.
+            </p>
+        </div>
+        <dialog id="gr-dialog" aria-labelledby="gr-dialog-title">
+            <div class="dialog-heading">
+                <h2 id="gr-dialog-title">왜 벽이 휘어 보일까요?</h2>
+                <button id="gr-dialog-close" aria-label="설명 닫기">
+                    ×
+                </button>
+            </div>
+            <h3>문제 · 화면 가장자리의 벽이 작아진다</h3>
+            <p>
+                정면의 벽은 평평해도, 가장자리로 향하는 광선은 더 멀리 갑니다. 광선 거리 s를 그대로 벽 높이의
+                분모에 넣으면 가장자리가 줄어듭니다.
+            </p>
+            <h3>원인 · 필요한 값은 카메라 전방 깊이</h3>
+            <p>
+                각 화면 열은 투영 평면 위의 위치에서 광선 방향을 정합니다. 광선과 전방의 각도가 θ라면 z = s ×
+                cos θ입니다. 벽 높이 H, 픽셀 초점거리 F에 대해 화면 높이는 F × H / z입니다.
+            </p>
+            <h3>해결 · 같은 광선에 두 거리 기준 적용</h3>
+            <p>
+                두 화면은 같은 격자 탐색 결과를 씁니다. A는 s, B는 z로 나눕니다. 벽 높이는 한 칸입니다. DDA는
+                다음 가로·세로 경계 중 가까운 것을 골라 이동합니다. 선택한 광선의 방문 셀을 지도에 표시합니다.
+            </p>
+            <h3>비용과 모델의 범위</h3>
+            <p>
+                열 수를 늘리면 계단 모양이 줄지만 광선 검사도 늘어납니다. 이 장면은 일정 높이의 불투명 벽과
+                수평 카메라만 다룹니다. 방향 성분이 0인 축은 건너뛰고, 모서리 동률은 옆 두 셀도 검사해 닫힌
+                틈으로 처리합니다. 높이 계산은 깊이를 0.05 이상으로 제한하고 화면 밖은 잘라냅니다.
+            </p>
+            <h3>Doom의 BSP와는 무엇이 다른가요?</h3>
+            <p>
+                Doom의 공개 <code>R_RenderBSPNode</code>는 앞쪽 BSP 자식을 먼저 순회하고, 뒤쪽은 경계 검사 후
+                방문합니다. 여기의 화면 열별 격자 셀 탐색과는 입력 자료구조와 순회 단위가 다릅니다.
+            </p>
+            <a
+                href="https://github.com/id-Software/DOOM/blob/master/linuxdoom-1.10/r_bsp.c"
+                target="_blank"
+                rel="noreferrer"
+            >
+                근거: id Software · Doom r_bsp.c ↗
+            </a>
+        </dialog>
+    </main>
+</Page>
+
+<script>
+    import '../../experiments/grid-rendering/client';
+</script>
+
+<style>
+    .grid-lab {
+        min-height: 100svh;
+        display: flex;
+        flex-direction: column;
+        background: #edf1f3;
+        color: #273841;
+    }
+    nav {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        padding: 16px 26px;
+    }
+    nav a {
+        font-size: 17px;
+        font-weight: 750;
+        color: inherit;
+        text-decoration: none;
+    }
+    nav button:last-child {
+        margin-left: auto;
+    }
+    button {
+        min-height: 44px;
+        min-width: 44px;
+        border: 1px solid #c9d5d9;
+        border-radius: 12px;
+        background: #fff;
+        color: #26464b;
+        cursor: pointer;
+    }
+    button:hover {
+        background: #dcebe9;
+    }
+    nav button {
+        font-size: 22px;
+    }
+    header {
+        padding: 8px 34px 16px;
+    }
+    header p {
+        font-size: 12px;
+        font-weight: 750;
+        color: #0d716b;
+        letter-spacing: 0.07em;
+        margin: 0 0 6px;
+    }
+    h1 {
+        font-size: clamp(24px, 3vw, 38px);
+        letter-spacing: -0.04em;
+        margin: 0 0 7px;
+    }
+    header span {
+        font-size: 14px;
+        color: #4d636b;
+    }
+    .scene-wrap {
+        position: relative;
+        flex: 1;
+        min-height: 420px;
+        margin: 0 24px;
+        background: #e2e9eb;
+        border: 1px solid #d1dde0;
+        border-radius: 22px;
+        overflow: hidden;
+    }
+    canvas {
+        display: block;
+        width: 100%;
+        height: 100%;
+        position: absolute;
+        inset: 0;
+        touch-action: manipulation;
+    }
+    .scene-hint {
+        position: absolute;
+        bottom: 14px;
+        left: 18px;
+        color: #5b6e74;
+        font-size: 12px;
+        pointer-events: none;
+    }
+    footer {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 10px 25px;
+        padding: 18px 34px 20px;
+    }
+    footer div {
+        min-width: 0;
+    }
+    footer span {
+        font-size: 12px;
+        color: #50656d;
+        display: block;
+        margin-bottom: 7px;
+    }
+    footer strong {
+        font-size: 21px;
+        font-variant-numeric: tabular-nums;
+        letter-spacing: -0.03em;
+    }
+    footer p {
+        grid-column: 1/-1;
+        font-size: 12px;
+        margin: 4px 0 0;
+        color: #4d6269;
+    }
+    .backdrop {
+        position: fixed;
+        inset: 0;
+        background: #20363e45;
+        z-index: 3;
+    }
+    [data-settings-panel] {
+        position: fixed;
+        top: 12px;
+        left: 12px;
+        bottom: 12px;
+        width: 310px;
+        max-width: calc(100vw - 24px);
+        z-index: 4;
+        background: #f8fbfc;
+        box-shadow: 0 12px 55px #29424b22;
+        border: 1px solid #d8e1e4;
+        border-radius: 20px;
+        padding: 20px;
+        overflow-y: auto;
+    }
+    .settings-heading,
+    .dialog-heading {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+        margin-bottom: 18px;
+    }
+    h2 {
+        font-size: 19px;
+        margin: 0;
+    }
+    .settings-heading button,
+    .dialog-heading button {
+        font-size: 25px;
+        flex-shrink: 0;
+    }
+    [data-settings-panel] label {
+        display: flex;
+        justify-content: space-between;
+        font-weight: 650;
+        font-size: 13px;
+        margin: 22px 0 7px;
+    }
+    output {
+        color: #078077;
+        font-variant-numeric: tabular-nums;
+    }
+    input[type='range'] {
+        width: 100%;
+        accent-color: #128b82;
+        min-height: 40px;
+        margin: 0;
+    }
+    select {
+        width: 100%;
+        min-height: 44px;
+        padding: 8px;
+        border: 1px solid #c6d4d9;
+        border-radius: 10px;
+        background: white;
+        color: inherit;
+    }
+    fieldset {
+        padding: 0;
+        border: 0;
+        margin: 20px 0 0;
+    }
+    legend {
+        font-size: 13px;
+        font-weight: 650;
+        margin-bottom: 12px;
+    }
+    .moves {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 8px;
+    }
+    .moves button:first-child,
+    .moves button:last-child {
+        grid-column: 1/-1;
+    }
+    .note {
+        font-size: 12px;
+        line-height: 1.7;
+        color: #61777f;
+    }
+    .reset {
+        width: 100%;
+        background: #127e77;
+        color: white;
+        border-color: #127e77;
+    }
+    .reset:hover {
+        background: #0f6762;
+    }
+    dialog {
+        width: min(650px, calc(100vw - 28px));
+        max-height: calc(100svh - 36px);
+        padding: 26px;
+        border: 1px solid #c9d7da;
+        border-radius: 20px;
+        color: #263d45;
+        background: #f8fbfc;
+        overflow: auto;
+    }
+    dialog::backdrop {
+        background: #19343e66;
+    }
+    dialog h3 {
+        font-size: 15px;
+        margin: 23px 0 7px;
+    }
+    dialog p {
+        font-size: 14px;
+        line-height: 1.85;
+        margin: 0;
+    }
+    dialog a {
+        color: #0c7871;
+        font-size: 13px;
+        display: inline-block;
+        margin-top: 20px;
+        line-height: 1.7;
+        overflow-wrap: anywhere;
+    }
+    code {
+        overflow-wrap: anywhere;
+    }
+    @media (min-width: 950px) {
+        .scene-wrap {
+            min-height: 450px;
+        }
+    }
+    @media (max-width: 650px) {
+        nav {
+            padding: 12px 16px;
+        }
+        header {
+            padding: 6px 18px 14px;
+        }
+        header span {
+            font-size: 12px;
+            line-height: 1.7;
+            display: block;
+        }
+        .scene-wrap {
+            margin: 0 10px;
+            min-height: 500px;
+            border-radius: 16px;
+        }
+        footer {
+            grid-template-columns: repeat(2, 1fr);
+            padding: 16px 18px;
+            gap: 17px 14px;
+        }
+        footer strong {
+            font-size: 19px;
+        }
+        .scene-hint {
+            left: 12px;
+            bottom: 10px;
+            font-size: 10px;
+        }
+        dialog {
+            padding: 20px;
+        }
+    }
+</style>

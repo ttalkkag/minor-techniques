@@ -1,0 +1,8 @@
+{
+    "id": "noise-fields",
+    "title": "부드러운 무늬는 난수의 합이 아니다",
+    "description": "기본 노이즈와 옥타브·좌표 변형·밀도 변환을 비교하고 한 지점의 계산을 읽습니다.",
+    "tags": ["세계 생성", "노이즈", "fBm"],
+    "thumbnail": "/images/noise-fields.svg",
+    "href": "/experiments/noise-fields/"
+}

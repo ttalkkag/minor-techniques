@@ -1,0 +1,11 @@
+{
+    "id": "scanline-limits",
+    "title": "같은 줄에 서면 사라지는 캐릭터",
+    "description": "줄별 표시 한도와 우선순위를 바꾸며 지속 누락과 깜박임을 비교합니다.",
+    "tags": [
+        "실행 자원·데이터",
+        "2D 관찰"
+    ],
+    "thumbnail": "/images/scanline-limits.svg",
+    "href": "/experiments/scanline-limits/"
+}

@@ -1,0 +1,408 @@
+---
+import Page from '../../layouts/Page.astro';
+---
+
+<Page
+    title="락온 대상이 바뀌면 이동 축도 바뀐다 | 게임 실험실"
+    description="대상 유지·자동 재선정·가림 유예와 카메라 구도를 비교하세요."
+>
+    <main class="lab" id="lab">
+        <header>
+            <button id="menu" aria-label="설정 열기" aria-controls="settings" aria-expanded="false">
+                ☰
+            </button>
+            <h1>
+                <small>게임 실험실 · 카메라와 레벨</small>락온 대상이 바뀌면 이동 축도 바뀐다
+            </h1>
+            <a href="/">목록</a>
+            <button id="explain">원리</button>
+        </header>
+        <button id="menu-backdrop" aria-label="설정 닫기" tabindex="-1" hidden></button>
+        <div class="panel" id="settings" role="complementary" aria-labelledby="settings-title" hidden>
+            <button id="close-menu" class="menu-close">설정 닫기 ×</button>
+            <h2 id="settings-title">조건을 바꾸고 직접 관찰하세요</h2>
+            <label>
+                대상 선택 규칙
+                <select id="mode">
+                    <option value="stable">획득한 대상 ID 유지</option>
+                    <option value="nearest">매 순간 가장 가까운 적</option>
+                </select>
+            </label>
+            <label for="orbit">
+                자유 카메라 방향 (도) <output id="orbit-value">0</output>
+                <input id="orbit" type="range" min="0" max="360" value="0" step="5" />
+            </label>
+            <label for="grace">
+                가림 유예 (초) <output id="grace-value">0.7</output>
+                <input id="grace" type="range" min="0" max="2" value="0.7" step="0.1" />
+            </label>
+            <label for="size">
+                적 B의 반지름 (m) <output id="size-value">1</output>
+                <input id="size" type="range" min="0.5" max="3" value="1" step="0.25" />
+            </label>
+            <label class="check">
+                <input type="checkbox" id="group" checked />
+                구도에 대상 크기 포함
+            </label>
+            <label class="check">
+                <input type="checkbox" id="fairy" checked />먼 적은 존재 표식만 표시
+            </label>
+            <button id="lock">락온 / 해제 (L)</button>
+            <button id="switch">다음 대상 (N)</button>
+            <label>
+                가림 지속 시간
+                <select id="hideTime">
+                    <option value="0.4">0.4초 잠깐</option>
+                    <option value="2">2초 길게</option>
+                </select>
+            </label>
+            <button id="hide-target">현재 대상 가림</button>
+            <button id="remove-target">현재 대상 삭제</button>
+            <button id="reset">초기화</button>
+        </div>
+        <section class="scene" aria-label="락온 대상이 바뀌면 이동 축도 바뀐다 실험 장면">
+            <canvas id="scene" aria-label="대화형 실험 장면"></canvas>
+        </section>
+        <footer>
+            <p id="readout">실험을 준비하고 있습니다.</p>
+            <p id="hint">
+                WASD / 방향키로 이동 · 자유: 카메라 기준 · 락온: 대상 방향/접선 기준. 점선 사각형은 구도
+                범위입니다.
+            </p>
+            <div class="touch">
+                <button data-key="ArrowLeft" aria-label="왼쪽">
+                    ←
+                </button>
+                <button data-key="ArrowUp" aria-label="앞으로">
+                    ↑
+                </button>
+                <button data-key="ArrowDown" aria-label="뒤로">
+                    ↓
+                </button>
+                <button data-key="ArrowRight" aria-label="오른쪽">
+                    →
+                </button>
+            </div>
+        </footer>
+        <dialog id="info" aria-labelledby="info-title">
+            <h2 id="info-title" tabindex="-1">락온 대상이 바뀌면 이동 축도 바뀐다</h2>
+            <h3>문제</h3>
+            <p>카메라 방향과 적 선택이 계속 바뀌면 같은 입력이 다른 세계 방향을 만들 수 있습니다.</p>
+            <h3>원인</h3>
+            <p>
+                매 프레임 최근접 대상 선정은 거리 순위가 바뀔 때 대상을 바꿉니다. 마커·카메라·이동이 다른 ID를
+                읽으면 표시도 어긋납니다.
+            </p>
+            <h3>해결을 관찰하기</h3>
+            <p>
+                락온 ID를 획득해 유지하고 명시적 전환·거리 초과·가림 유예 만료·삭제를 처리합니다. 전후는 대상
+                방향, 좌우는 직교 방향을 사용하며 대각선 입력의 길이를 제한해 최고 속도를 유지합니다.
+            </p>
+            <h3>선택의 대가와 모형 범위</h3>
+            <p>
+                한 적을 유지하면 다른 위협은 덜 보일 수 있습니다. 수평면 2D 상태 모형입니다. 먼 존재 표식과
+                현재 선택 마커는 다르며 원작 락온 알고리즘 재현이 아닙니다.
+            </p>
+            <h3>근거</h3>
+            <a
+                href="https://docs.unity3d.com/Packages/com.unity.cinemachine@3.1/manual/CinemachineTargetGroup.html"
+                target="_blank"
+                rel="noreferrer"
+            >
+                Unity Target Group ↗
+            </a>
+            <a
+                href="https://www.nintendo.com/en-gb/Iwata-Asks/Iwata-Asks-The-Legend-of-Zelda-Ocarina-of-Time-3D/Vol-2-Original-Development-Staff-Part-1/4-Where-the-Name-Navi-Came-From/4-Where-the-Name-Navi-Came-From-231748.html"
+                target="_blank"
+                rel="noreferrer"
+            >
+                Nintendo Navi 회고 ↗
+            </a>
+            <button id="close-info">장면으로 돌아가기</button>
+        </dialog>
+    </main>
+    <script>
+        import '../../experiments/target-lock/client';
+    </script>
+</Page>
+<style>
+    :global(body) {
+        overflow: hidden;
+    }
+    .lab {
+        height: 100svh;
+        min-height: 440px;
+        background: #edf1f3;
+        color: #243744;
+    }
+    header {
+        height: 80px;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 12px 22px;
+        border-bottom: 1px solid #cfdbdf;
+        background: #f8faf9;
+        position: relative;
+        z-index: 5;
+    }
+    header a {
+        color: #336460;
+        font-size: 13px;
+        text-decoration: none;
+        white-space: nowrap;
+    }
+    h1 {
+        font-size: clamp(15px, 2vw, 23px);
+        line-height: 1.35;
+        margin: 0;
+        flex: 1;
+    }
+    h1 small {
+        display: block;
+        color: #52676d;
+        font-size: 11px;
+        font-weight: 500;
+        margin-bottom: 4px;
+    }
+    button,
+    select {
+        min-height: 42px;
+        border: 1px solid #b8cbcd;
+        border-radius: 9px;
+        padding: 8px 12px;
+        background: #fff;
+        color: #244247;
+        cursor: pointer;
+    }
+    button:hover {
+        background: #dcece7;
+    }
+    button:active {
+        background: #b7ded2;
+    }
+    button:disabled {
+        opacity: 0.5;
+        cursor: default;
+    }
+    #menu-backdrop {
+        position: absolute;
+        inset: 86px 0 0;
+        z-index: 3;
+        border: 0;
+        border-radius: 0;
+        background: #24374466;
+    }
+    .panel .menu-close {
+        display: none;
+    }
+    .panel {
+        position: absolute;
+        top: 80px;
+        bottom: 0;
+        left: 0;
+        width: 276px;
+        padding: 22px 18px;
+        background: #f8faf9ee;
+        border-right: 1px solid #cbd8da;
+        overflow: auto;
+        z-index: 4;
+    }
+    .panel h2 {
+        font-size: 13px;
+        color: #547476;
+        margin: 0 0 20px;
+    }
+    .panel label {
+        display: block;
+        font-size: 13px;
+        margin: 0 0 20px;
+        line-height: 1.4;
+    }
+    .panel input[type='range'] {
+        display: block;
+        width: 100%;
+        accent-color: #187d74;
+        margin: 10px 0 0;
+        min-height: 25px;
+    }
+    .panel select {
+        display: block;
+        width: 100%;
+        margin-top: 8px;
+        font-size: 13px;
+    }
+    .panel output {
+        float: right;
+        font-variant-numeric: tabular-nums;
+        color: #16786f;
+    }
+    .panel .check {
+        display: flex;
+        gap: 10px;
+        align-items: center;
+        min-height: 40px;
+        margin-bottom: 8px;
+    }
+    .panel input[type='checkbox'] {
+        width: 19px;
+        height: 19px;
+        accent-color: #187d74;
+    }
+    .panel button {
+        width: 100%;
+        margin-bottom: 10px;
+    }
+    .scene {
+        position: absolute;
+        top: 80px;
+        bottom: 146px;
+        left: 0;
+        right: 0;
+        min-height: 100px;
+    }
+    .lab.menu-open .scene,
+    .lab.menu-open footer {
+        left: 276px;
+    }
+    canvas,
+    #webgl {
+        display: block;
+        width: 100%;
+        height: 100%;
+        touch-action: none;
+    }
+    footer {
+        position: absolute;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        padding: 10px 20px 14px;
+        background: #f8faf9;
+        border-top: 1px solid #cbd8da;
+        height: 146px;
+        z-index: 2;
+    }
+    #readout {
+        font-size: 13px;
+        line-height: 1.6;
+        margin: 0 0 4px;
+        font-variant-numeric: tabular-nums;
+        min-height: 21px;
+    }
+    #hint {
+        font-size: 12px;
+        color: #52676d;
+        margin: 0 0 8px;
+    }
+    .touch {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+        flex-wrap: wrap;
+    }
+    .touch button {
+        min-width: 48px;
+        user-select: none;
+        touch-action: none;
+    }
+    .touch #choices {
+        display: flex;
+        gap: 6px;
+        flex-wrap: wrap;
+    }
+    .touch #choices button {
+        font-size: 12px;
+        min-height: 40px;
+    }
+    dialog {
+        max-width: 610px;
+        width: calc(100% - 28px);
+        max-height: 85svh;
+        border: 1px solid #c4d5d3;
+        border-radius: 17px;
+        padding: 28px;
+        color: #243744;
+        background: #f9fcfa;
+    }
+    dialog::backdrop {
+        background: #1f393e77;
+        backdrop-filter: blur(4px);
+    }
+    dialog h2 {
+        font-size: 21px;
+        margin-top: 0;
+    }
+    dialog h3 {
+        font-size: 14px;
+        color: #11756d;
+        margin: 20px 0 5px;
+    }
+    dialog p {
+        font-size: 14px;
+        line-height: 1.75;
+        margin: 0;
+    }
+    dialog a {
+        display: block;
+        font-size: 13px;
+        color: #146d6a;
+        margin: 8px 0;
+        overflow-wrap: anywhere;
+    }
+    dialog button {
+        margin-top: 20px;
+        width: 100%;
+    }
+    @media (max-width: 700px) {
+        .panel .menu-close {
+            display: block;
+        }
+        header {
+            height: 86px;
+            padding: 10px;
+            gap: 8px;
+        }
+        header a {
+            font-size: 11px;
+        }
+        h1 {
+            font-size: 15px;
+        }
+        header button {
+            padding: 8px 10px;
+        }
+        .panel {
+            top: 86px;
+            width: min(276px, 86vw);
+        }
+        .scene {
+            top: 86px;
+            bottom: 180px;
+        }
+        .lab.menu-open .scene,
+        .lab.menu-open footer {
+            left: 0;
+        }
+        footer {
+            height: 180px;
+            padding: 10px 12px;
+        }
+        #readout {
+            font-size: 12px;
+        }
+        #hint {
+            font-size: 11px;
+            line-height: 1.4;
+        }
+        .touch {
+            gap: 6px;
+        }
+        dialog {
+            padding: 22px;
+        }
+        .touch button {
+            min-width: 44px;
+        }
+    }
+</style>

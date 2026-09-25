@@ -1,0 +1,368 @@
+---
+import Page from '../../layouts/Page.astro';
+---
+
+<Page
+    title="한 번 휘둘렀는데 여섯 번 맞았다 · 게임 실험실"
+    description="공격의 활성 틱과 여러 피격 영역을 분리하고, 피해를 확정하는 기준을 비교합니다."
+>
+    <main>
+        <nav aria-label="실험실 탐색">
+            <button id="menu" aria-label="설정 메뉴 열기" aria-controls="settings" aria-expanded="false">
+                ☰
+            </button>
+            <a href="/">게임 실험실</a>
+            <button id="explain" aria-label="원인과 해결 설명 열기">
+                ?
+            </button>
+        </nav>
+        <header>
+            <p class="eyebrow">공격 판정의 순간</p>
+            <h1>한 번 휘둘렀는데 여섯 번 맞았다</h1>
+            <p>공격의 활성 틱과 여러 피격 영역을 분리하고, 피해를 확정하는 기준을 비교합니다.</p>
+        </header>
+        <canvas
+            id="scene"
+            tabindex="0"
+            aria-label="한 번 휘둘렀는데 여섯 번 맞았다 실험 장면"
+            aria-describedby="summary hint"
+        ></canvas>
+        <section class="results" id="summary" aria-label="실험 결과">
+            <div>
+                <span>A · 겹친 영역마다 피해</span>
+                <strong id="naive-result">0 회 · 0 피해</strong>
+            </div>
+            <div>
+                <span>B · 공격 / 대상 / 회차로 확정</span>
+                <strong id="dedupe-result">0 회 · 0 피해</strong>
+            </div>
+        </section>
+        <div class="controls" role="group" aria-label="실험 조작">
+            <button id="attack" class="primary">
+                공격
+            </button>
+            <button id="play">일시 정지</button>
+            <button id="step">한 틱</button>
+            <button id="left" aria-label="왼쪽으로 이동">
+                ←
+            </button>
+            <button id="right" aria-label="오른쪽으로 이동">
+                →
+            </button>
+            <button id="reset">초기화</button>
+        </div>
+        <p id="log" role="status" aria-live="polite"></p>
+        <p class="hint" id="hint">
+            ← → / 화면 버튼으로 이동 · Space / 공격 버튼으로 새 공격 입력 · 한 틱은 히트스톱을 넘겨 다음 게임
+            틱을 실행
+        </p>
+        <div id="menu-backdrop" hidden></div>
+        <div id="settings" role="dialog" aria-modal="true" aria-label="실험 설정" hidden>
+            <button id="close-menu" aria-label="설정 메뉴 닫기">
+                ×
+            </button>
+            <h2>실험 설정</h2>
+            <label for="distance">
+                상대와 거리 <output id="distance-value">110 px</output>
+            </label>
+            <input id="distance" type="range" min="70" max="240" step="5" value="110" />
+            <label for="reach">
+                공격 영역 길이 <output id="reach-value">120 px</output>
+            </label>
+            <input id="reach" type="range" min="50" max="200" step="5" value="120" />
+            <label>
+                <input id="areas" type="checkbox" checked /> 머리·몸통 피격 영역 분리
+            </label>
+            <label>
+                <input id="invulnerable" type="checkbox" /> 첫 활성 틱은 무적
+            </label>
+            <label>
+                <input id="multi" type="checkbox" /> 명시적인 2회 타격
+            </label>
+            <label for="hitstop">
+                명중 시 정지 <output id="hitstop-value">150 ms</output>
+            </label>
+            <input id="hitstop" type="range" min="0" max="500" step="50" value="150" />
+            <label>
+                <input id="shapes" type="checkbox" checked /> 이동·공격·피격 영역 표시
+            </label>
+        </div>
+        <noscript>JavaScript를 켜면 실험을 조작할 수 있습니다.</noscript>
+    </main>
+    <dialog id="explanation" aria-labelledby="explanation-title">
+        <button id="close-explanation" aria-label="설명 닫기">
+            ×
+        </button>
+        <h2 id="explanation-title">한 번 휘둘렀는데 여섯 번 맞았다</h2>
+        <h3>문제 · 공간 겹침이 곧 한 번의 피해는 아닙니다</h3>
+        <p>
+            공격이 3틱 동안 상대의 머리와 몸통에 겹치면, 겹침마다 피해를 주는 방식은 6회 피해를 줍니다. 공격
+            도형이 큰 것과 중복 피해는 다른 문제입니다.
+        </p>
+        <h3>원인 · 도형, 시간, 대상의 역할이 다릅니다</h3>
+        <p>
+            회색 이동 충돌체는 지형 이동용, 주황 공격 상자는 타격 후보 수집용, 청록 피격 영역은 상대의 부위를
+            나타냅니다. 준비 0~4틱, 활성 [5,8), 회복을 구분합니다. 2회 타격을 켜면 [10,13)에 별도 회차가
+            추가됩니다.
+        </p>
+        <h3>해결 · 피해 확정 때만 기록합니다</h3>
+        <p>
+            B는 공격 ID, 상대 ID, 타격 회차를 키로 저장합니다. 머리와 몸통은 같은 상대이며 무적 때는 기록을
+            소비하지 않습니다. 히트스톱 동안 게임 틱은 멈추지만 화면 시계와 입력 수집은 계속됩니다. 그동안
+            누른 공격은 하나만 대기하며 회복 뒤 실행됩니다.
+        </p>
+        <h3>대가 · 다단 공격과 범위는 설계가 필요합니다</h3>
+        <p>
+            중복 방지 집합을 매 틱 비우면 다시 다단 피해가 됩니다. 넓은 공격 영역은 보이는 그림과 피해가
+            어긋날 수 있습니다. 여기서는 20Hz 축 정렬 사각형의 즉시 겹침을 직접 계산합니다. 회전 무기의 경로
+            검사, 엔진의 비동기 겹침 목록, 팀·사망·네트워크 롤백은 구현하지 않았습니다.
+        </p>
+        <a
+            href="https://docs.godotengine.org/en/stable/classes/class_area2d.html#class-area2d-method-get-overlapping-areas"
+            target="_blank"
+            rel="noopener noreferrer"
+        >
+            Godot · Area2D의 겹침 목록 갱신 시점
+        </a>
+    </dialog>
+    <script>
+        import '../../experiments/hitboxes/client';
+    </script>
+</Page>
+<style>
+    main {
+        min-height: 100svh;
+        display: flex;
+        flex-direction: column;
+        padding: 24px clamp(16px, 4vw, 64px);
+        gap: 16px;
+        background: radial-gradient(ellipse at 70% 40%, #f8faf9, #e9eef0);
+    }
+    nav {
+        position: relative;
+        z-index: 6;
+        display: flex;
+        align-items: center;
+        gap: 14px;
+    }
+    nav a {
+        font-size: 18px;
+        font-weight: 800;
+        color: inherit;
+        text-decoration: none;
+    }
+    nav button:last-child {
+        margin-left: auto;
+    }
+    button,
+    select {
+        min-height: 44px;
+        border: 1px solid #bbc9cd;
+        border-radius: 12px;
+        background: #fff;
+        color: #263340;
+        padding: 10px 16px;
+        cursor: pointer;
+    }
+    button:hover {
+        background: #e1efec;
+    }
+    button.primary {
+        background: #167b75;
+        color: #fff;
+        border-color: #167b75;
+    }
+    h1 {
+        font-size: clamp(28px, 4vw, 46px);
+        letter-spacing: -0.05em;
+        margin: 4px 0 9px;
+    }
+    header p {
+        color: #53626d;
+        line-height: 1.6;
+        margin: 0;
+        max-width: 760px;
+    }
+    .eyebrow {
+        font-size: 12px;
+        letter-spacing: 0.12em;
+        color: #187b74 !important;
+        font-weight: 800;
+    }
+    #scene {
+        width: 100%;
+        height: clamp(290px, 48vh, 580px);
+        display: block;
+        touch-action: none;
+        border-radius: 24px;
+        background: #f8fafb;
+        border: 1px solid #d1dddf;
+    }
+    .results {
+        display: flex;
+        gap: 12px;
+        flex-wrap: wrap;
+    }
+    .results > div {
+        flex: 1;
+        min-width: 220px;
+        background: #ffffffc9;
+        border: 1px solid #d1dddf;
+        border-radius: 16px;
+        padding: 16px;
+    }
+    .results span {
+        display: block;
+        font-size: 13px;
+        color: #53626d;
+        margin-bottom: 6px;
+    }
+    .results strong {
+        font-size: 20px;
+        line-height: 1.5;
+        color: #176f69;
+    }
+    .controls {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+        flex-wrap: wrap;
+    }
+    .hint {
+        font-size: 13px;
+        color: #53626d;
+        margin: 0;
+        line-height: 1.5;
+    }
+    #menu-backdrop {
+        position: fixed;
+        inset: 0;
+        z-index: 4;
+        background: #25343e66;
+    }
+    #settings {
+        position: fixed;
+        z-index: 5;
+        left: 16px;
+        top: 78px;
+        bottom: 20px;
+        width: min(340px, calc(100vw - 32px));
+        overflow: auto;
+        background: #fffffff7;
+        padding: 24px;
+        border: 1px solid #c5d5d4;
+        border-radius: 20px;
+        box-shadow: 0 14px 60px #26334022;
+    }
+    #settings h2 {
+        margin: 0 0 20px;
+    }
+    #settings label {
+        display: block;
+        margin: 18px 0 8px;
+        font-size: 14px;
+        line-height: 1.5;
+    }
+    #settings input[type='range'] {
+        width: 100%;
+        min-height: 40px;
+        accent-color: #147c73;
+    }
+    #settings input[type='checkbox'] {
+        width: 20px;
+        height: 20px;
+        vertical-align: middle;
+        accent-color: #147c73;
+    }
+    #settings select {
+        width: 100%;
+    }
+    #settings output {
+        font-weight: bold;
+        float: right;
+        color: #176f69;
+    }
+    #close-menu {
+        float: right;
+        padding: 8px 14px;
+    }
+    dialog {
+        border: 1px solid #cedcda;
+        border-radius: 22px;
+        max-width: 700px;
+        width: calc(100vw - 32px);
+        padding: 28px;
+        color: #263340;
+        max-height: 85svh;
+    }
+    dialog::backdrop {
+        background: #25343e66;
+        backdrop-filter: blur(4px);
+    }
+    dialog h2 {
+        font-size: 28px;
+        margin: 0 0 24px;
+    }
+    dialog h3 {
+        font-size: 17px;
+        color: #126d65;
+        margin: 24px 0 8px;
+    }
+    dialog p {
+        line-height: 1.75;
+        color: #475862;
+    }
+    dialog a {
+        color: #086c64;
+        display: block;
+        margin: 12px 0;
+        overflow-wrap: anywhere;
+    }
+    #close-explanation {
+        float: right;
+    }
+    footer {
+        margin-top: auto;
+    }
+    #log {
+        font-size: 13px;
+        min-height: 22px;
+        color: #53626d;
+        line-height: 1.5;
+    }
+    @media (max-width: 600px) {
+        main {
+            padding: 16px;
+            gap: 14px;
+        }
+        nav a {
+            font-size: 16px;
+        }
+        h1 {
+            font-size: 30px;
+        }
+        .results > div {
+            min-width: 0;
+            flex-basis: 100%;
+            padding: 12px 16px;
+        }
+        .results strong {
+            font-size: 17px;
+        }
+        #scene {
+            height: 320px;
+            border-radius: 16px;
+        }
+        .controls button {
+            flex: 1;
+            white-space: nowrap;
+            padding: 9px 12px;
+        }
+        .hint {
+            font-size: 12px;
+        }
+        dialog {
+            padding: 20px;
+        }
+    }
+</style>

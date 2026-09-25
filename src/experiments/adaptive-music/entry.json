@@ -1,0 +1,8 @@
+{
+    "id": "adaptive-music",
+    "title": "전투는 지금, 음악은 다음 마디에",
+    "description": "탐험과 전투를 오가며 이벤트·예약·실제 음악의 시각을 비교하세요.",
+    "tags": ["오디오", "상태 비교"],
+    "thumbnail": "/images/adaptive-music.svg",
+    "href": "/experiments/adaptive-music/"
+}

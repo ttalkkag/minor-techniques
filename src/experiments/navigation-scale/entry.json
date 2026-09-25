@@ -1,0 +1,8 @@
+{
+    "id": "navigation-scale",
+    "title": "같은 지도, 다른 발견의 순간",
+    "description": "분기·산의 가림·열쇠 위치를 바꿔 길과 진행 조건을 탐색하세요.",
+    "tags": ["카메라·레벨", "탐색", "상태"],
+    "thumbnail": "/images/navigation-scale.svg",
+    "href": "/experiments/navigation-scale/"
+}

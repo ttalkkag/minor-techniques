@@ -1,0 +1,8 @@
+{
+    "id": "pipeline-preparation",
+    "title": "요청했지만 아직 준비되지 않았다",
+    "description": "요청 시각과 작업 대기열을 바꾸며 첫 사용 지연과 대체 표시를 비교합니다.",
+    "tags": ["실행 자원·데이터", "파이프라인", "준비 지연"],
+    "thumbnail": "/images/pipeline-preparation.svg",
+    "href": "/experiments/pipeline-preparation/"
+}

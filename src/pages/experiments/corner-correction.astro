@@ -1,0 +1,378 @@
+---
+import Page from '../../layouts/Page.astro';
+---
+
+<Page
+    title="모서리에 걸린 점프 · 게임 실험실"
+    description="작은 위치 오차, 벽까지 거리, 멈춘 발판의 과거 속도를 서로 다른 규칙으로 비교합니다."
+>
+    <main>
+        <nav aria-label="실험실 탐색">
+            <button id="menu" aria-label="설정 메뉴 열기" aria-controls="settings" aria-expanded="false">
+                ☰
+            </button>
+            <a href="/">게임 실험실</a>
+            <button id="explain" aria-label="원인과 해결 설명 열기">
+                ?
+            </button>
+        </nav>
+        <header>
+            <p class="eyebrow">공간과 시간의 여유</p>
+            <h1>모서리에 걸린 점프</h1>
+            <p>작은 위치 오차, 벽까지 거리, 멈춘 발판의 과거 속도를 서로 다른 규칙으로 비교합니다.</p>
+        </header>
+        <canvas
+            id="scene"
+            tabindex="0"
+            aria-label="모서리에 걸린 점프 실험 장면"
+            aria-describedby="summary hint"
+        ></canvas>
+        <section class="results" id="summary" aria-label="실험 결과">
+            <div>
+                <span>A · 보정 없음</span>
+                <strong id="raw-result">출발 대기</strong>
+            </div>
+            <div>
+                <span>B · 조건부 보정</span>
+                <strong id="fixed-result">출발 대기</strong>
+            </div>
+        </section>
+        <div class="controls" role="group" aria-label="실험 조작">
+            <button id="play" class="primary">
+                실험 재생
+            </button>
+            <button id="step">한 틱</button>
+            <button id="left" aria-label="왼쪽으로 이동">
+                ←
+            </button>
+            <button id="right" aria-label="오른쪽으로 이동">
+                →
+            </button>
+            <button id="reset">초기화</button>
+        </div>
+        <p id="log" role="status" aria-live="polite"></p>
+        <p class="hint" id="hint">
+            ← → / 화면 버튼으로 위치 이동 · Space로 재생/정지 · 조건 변경 시 재시작 · 공간 단위 px, 물리 간격
+            50ms
+        </p>
+        <div id="menu-backdrop" hidden></div>
+        <div id="settings" role="dialog" aria-modal="true" aria-label="실험 설정" hidden>
+            <button id="close-menu" aria-label="설정 메뉴 닫기">
+                ×
+            </button>
+            <h2>실험 설정</h2>
+            <label for="mode">비교할 규칙</label>
+            <select id="mode">
+                <option value="rise">상승 중 천장 모서리</option>
+                <option value="dash">옆 대시 중 위쪽 보정</option>
+                <option value="wall">벽 점프의 거리 여유</option>
+                <option value="lift">발판 정지 뒤 속도 보존</option>
+            </select>
+            <label for="overlap">
+                모서리 겹침 / 벽 거리 <output id="overlap-value">3 px</output>
+            </label>
+            <input id="overlap" type="range" min="1" max="16" value="3" />
+            <label for="limit">
+                공간 보정 한도 <output id="limit-value">6 px</output>
+            </label>
+            <input id="limit" type="range" min="0" max="18" value="6" />
+            <label>
+                <input id="blocker" type="checkbox" /> 보정 경로에 얇은 장애물
+            </label>
+            <label for="delay">
+                발판 정지 후 점프 <output id="delay-value">30 ms</output>
+            </label>
+            <input id="delay" type="range" min="0" max="160" step="10" value="30" />
+            <label for="grace">
+                과거 속도 유효 시간 <output id="grace-value">50 ms</output>
+            </label>
+            <input id="grace" type="range" min="0" max="160" step="10" value="50" />
+            <label>
+                <input id="same-platform" type="checkbox" checked /> 같은 발판에서 점프
+            </label>
+        </div>
+        <noscript>JavaScript를 켜면 실험을 조작할 수 있습니다.</noscript>
+    </main>
+    <dialog id="explanation" aria-labelledby="explanation-title">
+        <button id="close-explanation" aria-label="설명 닫기">
+            ×
+        </button>
+        <h2 id="explanation-title">모서리에 걸린 점프</h2>
+        <h3>문제 · 작은 어긋남이 이동 전체를 막습니다</h3>
+        <p>
+            상승 중 머리가 조금 걸리거나, 벽 점프를 벽에서 조금 떨어져 누르면 이동이 취소됩니다. 이동 발판의
+            현재 속도만 사용하면 발판이 멈추자마자 점프 보너스도 사라집니다.
+        </p>
+        <h3>원인 · 공간과 시간은 다른 상태입니다</h3>
+        <p>
+            천장 보정은 좌우의 빈 공간, 대시 보정은 위아래의 빈 공간을 찾습니다. 벽 점프는 벽까지 거리를
+            판단합니다. 속도 보존은 이전 발판 속도와 기록 시각을 조회합니다.
+        </p>
+        <h3>해결 · 필요한 조건에만 여유를 줍니다</h3>
+        <p>
+            가까운 후보부터 1px씩 검사하며 보정 경로와 이후 이동 경로가 모두 비어 있어야 합니다. 한 틱에 한
+            번만 보정합니다. 벽 점프는 거리 한도 안에서만 허용하며, 발판 속도는 같은 발판의 유효한 기록을 한
+            번 더합니다. 점선은 보정 후보입니다.
+        </p>
+        <h3>대가 · 큰 허용 폭은 의도를 바꿀 수 있습니다</h3>
+        <p>
+            너무 큰 보정은 예상하지 못한 위치 이동과 점프를 만듭니다. 이 실험은 축 정렬 직사각형, 20Hz 물리,
+            1px 후보 검색을 사용한 자체 2D 모델입니다. 일방향 발판·회전 장애물·원작의 검색 순서는 구현하지
+            않았습니다. ‘얇은 장애물’은 목적지가 비어도 경로가 막히는 조건을 만듭니다.
+        </p>
+        <a
+            href="https://maddymakesgames.com/articles/celeste_and_forgiveness/index.html"
+            target="_blank"
+            rel="noopener noreferrer"
+        >
+            제작자 글 · Celeste &amp; Forgiveness
+        </a>
+        <a
+            href="https://docs.godotengine.org/en/stable/classes/class_characterbody2d.html#class-characterbody2d-property-safe-margin"
+            target="_blank"
+            rel="noopener noreferrer"
+        >
+            Godot · safe_margin과의 차이
+        </a>
+    </dialog>
+    <script>
+        import '../../experiments/corner-correction/client';
+    </script>
+</Page>
+<style>
+    main {
+        min-height: 100svh;
+        display: flex;
+        flex-direction: column;
+        padding: 24px clamp(16px, 4vw, 64px);
+        gap: 16px;
+        background: radial-gradient(ellipse at 70% 40%, #f8faf9, #e9eef0);
+    }
+    nav {
+        position: relative;
+        z-index: 6;
+        display: flex;
+        align-items: center;
+        gap: 14px;
+    }
+    nav a {
+        font-size: 18px;
+        font-weight: 800;
+        color: inherit;
+        text-decoration: none;
+    }
+    nav button:last-child {
+        margin-left: auto;
+    }
+    button,
+    select {
+        min-height: 44px;
+        border: 1px solid #bbc9cd;
+        border-radius: 12px;
+        background: #fff;
+        color: #263340;
+        padding: 10px 16px;
+        cursor: pointer;
+    }
+    button:hover {
+        background: #e1efec;
+    }
+    button.primary {
+        background: #167b75;
+        color: #fff;
+        border-color: #167b75;
+    }
+    h1 {
+        font-size: clamp(28px, 4vw, 46px);
+        letter-spacing: -0.05em;
+        margin: 4px 0 9px;
+    }
+    header p {
+        color: #53626d;
+        line-height: 1.6;
+        margin: 0;
+        max-width: 760px;
+    }
+    .eyebrow {
+        font-size: 12px;
+        letter-spacing: 0.12em;
+        color: #187b74 !important;
+        font-weight: 800;
+    }
+    #scene {
+        width: 100%;
+        height: clamp(290px, 48vh, 580px);
+        display: block;
+        touch-action: none;
+        border-radius: 24px;
+        background: #f8fafb;
+        border: 1px solid #d1dddf;
+    }
+    .results {
+        display: flex;
+        gap: 12px;
+        flex-wrap: wrap;
+    }
+    .results > div {
+        flex: 1;
+        min-width: 220px;
+        background: #ffffffc9;
+        border: 1px solid #d1dddf;
+        border-radius: 16px;
+        padding: 16px;
+    }
+    .results span {
+        display: block;
+        font-size: 13px;
+        color: #53626d;
+        margin-bottom: 6px;
+    }
+    .results strong {
+        font-size: 20px;
+        line-height: 1.5;
+        color: #176f69;
+    }
+    .controls {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+        flex-wrap: wrap;
+    }
+    .hint {
+        font-size: 13px;
+        color: #53626d;
+        margin: 0;
+        line-height: 1.5;
+    }
+    #menu-backdrop {
+        position: fixed;
+        inset: 0;
+        z-index: 4;
+        background: #25343e66;
+    }
+    #settings {
+        position: fixed;
+        z-index: 5;
+        left: 16px;
+        top: 78px;
+        bottom: 20px;
+        width: min(340px, calc(100vw - 32px));
+        overflow: auto;
+        background: #fffffff7;
+        padding: 24px;
+        border: 1px solid #c5d5d4;
+        border-radius: 20px;
+        box-shadow: 0 14px 60px #26334022;
+    }
+    #settings h2 {
+        margin: 0 0 20px;
+    }
+    #settings label {
+        display: block;
+        margin: 18px 0 8px;
+        font-size: 14px;
+        line-height: 1.5;
+    }
+    #settings input[type='range'] {
+        width: 100%;
+        min-height: 40px;
+        accent-color: #147c73;
+    }
+    #settings input[type='checkbox'] {
+        width: 20px;
+        height: 20px;
+        vertical-align: middle;
+        accent-color: #147c73;
+    }
+    #settings select {
+        width: 100%;
+    }
+    #settings output {
+        font-weight: bold;
+        float: right;
+        color: #176f69;
+    }
+    #close-menu {
+        float: right;
+        padding: 8px 14px;
+    }
+    dialog {
+        border: 1px solid #cedcda;
+        border-radius: 22px;
+        max-width: 700px;
+        width: calc(100vw - 32px);
+        padding: 28px;
+        color: #263340;
+        max-height: 85svh;
+    }
+    dialog::backdrop {
+        background: #25343e66;
+        backdrop-filter: blur(4px);
+    }
+    dialog h2 {
+        font-size: 28px;
+        margin: 0 0 24px;
+    }
+    dialog h3 {
+        font-size: 17px;
+        color: #126d65;
+        margin: 24px 0 8px;
+    }
+    dialog p {
+        line-height: 1.75;
+        color: #475862;
+    }
+    dialog a {
+        color: #086c64;
+        display: block;
+        margin: 12px 0;
+        overflow-wrap: anywhere;
+    }
+    #close-explanation {
+        float: right;
+    }
+    footer {
+        margin-top: auto;
+    }
+    #log {
+        font-size: 13px;
+        min-height: 22px;
+        color: #53626d;
+        line-height: 1.5;
+    }
+    @media (max-width: 600px) {
+        main {
+            padding: 16px;
+            gap: 14px;
+        }
+        nav a {
+            font-size: 16px;
+        }
+        h1 {
+            font-size: 30px;
+        }
+        .results > div {
+            min-width: 0;
+            flex-basis: 100%;
+            padding: 12px 16px;
+        }
+        .results strong {
+            font-size: 17px;
+        }
+        #scene {
+            height: 320px;
+            border-radius: 16px;
+        }
+        .controls button {
+            flex: 1;
+            white-space: nowrap;
+            padding: 9px 12px;
+        }
+        .hint {
+            font-size: 12px;
+        }
+        dialog {
+            padding: 20px;
+        }
+    }
+</style>

@@ -1,0 +1,8 @@
+{
+    "id": "world-streaming",
+    "title": "플레이어보다 늦게 도착한 월드",
+    "description": "이동 속도, 예측 거리와 메모리 예산을 바꾸고 유턴 시 재로딩을 관찰합니다.",
+    "tags": ["실행 자원·데이터", "스트리밍", "메모리"],
+    "thumbnail": "/images/world-streaming.svg",
+    "href": "/experiments/world-streaming/"
+}

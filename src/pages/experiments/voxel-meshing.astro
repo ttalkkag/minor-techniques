@@ -1,0 +1,419 @@
+---
+import Page from '../../layouts/Page.astro';
+---
+
+<Page
+    title="블록 수가 같아도 면 수는 다르다 · 게임 실험실"
+    description="내부 면 제거와 재질 경계를 지키는 병합을 비교하고 표면 정점의 제약을 살펴봅니다."
+>
+    <main>
+        <nav aria-label="실험실 탐색">
+            <button id="menu" aria-label="설정 메뉴 열기" aria-controls="settings" aria-expanded="false">
+                ☰
+            </button>
+            <a href="/">게임 실험실</a>
+            <button id="explain">원리 보기</button>
+        </nav>
+        <header>
+            <p>복셀 데이터 · 노출 면 · Greedy</p>
+            <h1>블록 수가 같아도 면 수는 다르다</h1>
+            <span>내부 면 제거와 재질 경계를 지키는 병합을 비교하고 표면 정점의 제약을 살펴봅니다.</span>
+        </header>
+        <section class="stage" aria-label="블록 수가 같아도 면 수는 다르다 관찰 장면">
+            <canvas
+                id="scene"
+                aria-label="블록 수가 같아도 면 수는 다르다 수치 모델"
+                aria-describedby="summary"
+            ></canvas>
+        </section>
+        <div class="stats">
+            <div>
+                <span>논리 셀 / 접평면</span>
+                <output id="metric-0"></output>
+            </div>
+            <div>
+                <span>생성 사각형 / 오차</span>
+                <output id="metric-1"></output>
+            </div>
+            <div>
+                <span>삼각형 / 행렬식</span>
+                <output id="metric-2"></output>
+            </div>
+        </div>
+        <p id="summary" class="summary" role="status"></p>
+        <div class="toolbar">
+            <button id="reset">초기화</button>
+        </div>
+        <div id="settings" aria-label="실험 설정" hidden>
+            <div class="panel-head">
+                <h2>설정</h2>
+                <button id="close-menu" aria-label="설정 메뉴 닫기">
+                    ×
+                </button>
+            </div>
+            <label for="scene-mode">
+                관찰 문제
+                <select id="scene-mode">
+                    <option value="blocks">불투명 블록 표면</option>
+                    <option value="qef">접평면으로 정점 찾기 · 2D</option>
+                </select>
+            </label>
+            <label for="method">
+                표면 생성
+                <select id="method">
+                    <option value="cubes">셀마다 6면 큐브</option>
+                    <option value="exposed">노출 면만 생성</option>
+                    <option value="greedy">같은 재질의 면 병합</option>
+                </select>
+            </label>
+            <label for="size">
+                한 변 셀 수 n <output id="size-value"></output>
+                <input id="size" type="range" min="2" max="8" value="5" step="1" />
+            </label>
+            <label for="pattern">
+                셀 배치
+                <select id="pattern">
+                    <option value="solid">꽉 찬 덩어리</option>
+                    <option value="hollow">속이 빈 껍질</option>
+                    <option value="checker">체커보드</option>
+                    <option value="terrain">높이 지형</option>
+                </select>
+            </label>
+            <label class="check" for="materials">
+                <input id="materials" type="checkbox" />
+                재질을 번갈아 배치
+            </label>
+            <label class="check" for="carve">
+                <input id="carve" type="checkbox" />
+                +x 청크 경계 블록 지우기
+            </label>
+            <label for="neighbor">
+                +x 이웃 청크 데이터
+                <select id="neighbor">
+                    <option value="empty">확인됨 · 빈 공간</option>
+                    <option value="solid">확인됨 · 꽉 참</option>
+                    <option value="temporary">미확인 · 임시 면 생성</option>
+                    <option value="hold">미확인 · 경계 면 보류</option>
+                </select>
+            </label>
+            <label for="yaw">
+                관찰 회전 <output id="yaw-value"></output>
+                <input id="yaw" type="range" min="-150" max="150" value="35" step="1" />
+            </label>
+            <label for="pitch">
+                관찰 고도 <output id="pitch-value"></output>
+                <input id="pitch" type="range" min="10" max="75" value="30" step="1" />
+            </label>
+            <label for="plane-angle">
+                두 법선 사이 각도 <output id="plane-angle-value"></output>
+                <input id="plane-angle" type="range" min="2" max="90" value="40" step="1" />
+            </label>
+            <label class="check" for="regularize">
+                <input id="regularize" type="checkbox" />
+                정점을 셀 중심으로 약하게 제약
+            </label>
+        </div>
+        <dialog id="info" aria-labelledby="info-title">
+            <div class="dialog-head">
+                <h2 id="info-title">원인과 해결</h2>
+                <button id="close-info" aria-label="설명 닫기">
+                    ×
+                </button>
+            </div>
+            <h3>문제와 원인</h3>
+            <p>
+                꽉 찬 n³ 셀을 각각 큐브로 그리면 6n³면, 내부 면을 빼면 6n²면입니다. 같은 평면·방향·재질인 면을
+                병합하면 덩어리의 외피는 사각형 6개가 됩니다. 재질 경계를 무시하면 텍스처와 조명 정보가
+                깨집니다.
+            </p>
+            <h3>경계와 갱신</h3>
+            <p>
+                이웃이 꽉 찼으면 +x 면은 숨겨집니다. 미확인 이웃은 빈 공간과 다른 상태입니다. 임시 면 또는
+                보류 정책을 선택하고 데이터 도착 때 다시 생성해야 합니다. 이 화면은 조건 변경 때 현재 청크의
+                메시 전체를 다시 만듭니다.
+            </p>
+            <h3>부드러운 표면의 다른 입력</h3>
+            <p>
+                2D 보기에서는 교차점 p와 단위 법선 n이 정하는 접선의 제곱 거리 Σ[n·(v−p)]²를 최소화합니다.
+                거의 평행한 제약은 셀 밖 정점을 만들 수 있습니다. 중심 제약은 안정성을 얻는 대신 오차를
+                더합니다.
+            </p>
+            <h3>대가와 범위</h3>
+            <p>
+                각진 블록은 실제 3D 사각형 목록을 만들고 투영합니다. QEF 보기는 국소적인 2D 최소제곱 설명이며
+                간선 주위 셀을 연결한 전체 Dual Contouring 메시가 아닙니다. 밀도는 거리장과 같지 않고 면 수
+                감소가 충돌 비용·FPS 개선을 보장하지 않습니다.
+            </p>
+            <p>
+                <a href="https://0fps.net/2012/06/30/meshing-in-a-minecraft-game/">
+                    노출 면과 greedy 직접 구현
+                </a>{' '}
+                ·{' '}
+                <a href="https://people.eecs.berkeley.edu/~jrs/meshpapers/JuLosassoSchaeferWarren.pdf">
+                    Dual Contouring의 Hermite 입력과 QEF
+                </a>
+            </p>
+        </dialog>
+    </main>
+    <style>
+        main {
+            min-height: 100svh;
+            padding: 20px 28px 28px;
+            background: radial-gradient(circle at 60% 40%, #fff, #edf1f3 75%);
+        }
+        nav {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+        }
+        nav a {
+            color: #263340;
+            text-decoration: none;
+            font-weight: 750;
+            margin-right: auto;
+        }
+        button,
+        select,
+        input[type='number'] {
+            min-height: 44px;
+            border: 1px solid #bdccce;
+            border-radius: 12px;
+            padding: 9px 12px;
+            background: #fff;
+            color: #263340;
+        }
+        button {
+            cursor: pointer;
+        }
+        button:hover {
+            background: #e0efed;
+        }
+        header {
+            text-align: center;
+            margin: 24px auto 12px;
+        }
+        header > p {
+            font-size: 13px;
+            color: #0a736d;
+            letter-spacing: 0.05em;
+        }
+        h1 {
+            word-break: keep-all;
+            font-size: clamp(25px, 3vw, 42px);
+            margin: 10px 0;
+        }
+        header > span {
+            display: block;
+            color: #53666c;
+            font-size: 14px;
+            line-height: 1.7;
+            max-width: 860px;
+            margin: auto;
+        }
+        .stage {
+            height: clamp(420px, 58vh, 680px);
+            width: 100%;
+            max-width: 1350px;
+            margin: auto;
+        }
+        canvas {
+            width: 100%;
+            height: 100%;
+            display: block;
+            touch-action: manipulation;
+        }
+        .stats {
+            display: flex;
+            gap: 12px;
+            max-width: 1050px;
+            margin: 12px auto;
+        }
+        .stats > div {
+            flex: 1;
+            min-width: 0;
+            background: #ffffffe0;
+            border: 1px solid #d1dedf;
+            border-radius: 16px;
+            padding: 13px 16px;
+        }
+        .stats span {
+            color: #51676d;
+            font-size: 12px;
+            display: block;
+        }
+        .stats output {
+            font-size: 20px;
+            font-weight: 700;
+            display: block;
+            margin-top: 7px;
+            font-variant-numeric: tabular-nums;
+        }
+        .summary {
+            max-width: 1050px;
+            margin: 12px auto;
+            text-align: center;
+            font-size: 14px;
+            line-height: 1.8;
+            overflow-wrap: anywhere;
+        }
+        .toolbar {
+            text-align: right;
+            max-width: 1050px;
+            margin: auto;
+        }
+        #settings {
+            position: fixed;
+            top: 80px;
+            left: 24px;
+            width: 310px;
+            max-height: calc(100svh - 104px);
+            overflow: auto;
+            scroll-padding-top: 80px;
+            z-index: 5;
+            background: #fffffff7;
+            border: 1px solid #c7d5d6;
+            box-shadow: 0 18px 70px #263b3d30;
+            border-radius: 20px;
+            padding: 20px;
+        }
+        .panel-head,
+        .dialog-head {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+        }
+        h2 {
+            font-size: 18px;
+            margin: 0;
+        }
+        .panel-head {
+            position: sticky;
+            top: -20px;
+            z-index: 1;
+            background: #fff;
+            padding: 3px 0 9px;
+        }
+        .panel-head button,
+        .dialog-head button {
+            font-size: 23px;
+        }
+        label {
+            display: block;
+            font-size: 14px;
+            font-weight: 650;
+            margin: 18px 0;
+        }
+        label output {
+            float: right;
+            color: #0a746e;
+        }
+        input[type='range'] {
+            display: block;
+            width: 100%;
+            height: 40px;
+            accent-color: #117d77;
+        }
+        input[type='checkbox'] {
+            width: 22px;
+            height: 22px;
+            vertical-align: middle;
+            accent-color: #117d77;
+            margin-right: 8px;
+        }
+        select,
+        input[type='number'] {
+            display: block;
+            width: 100%;
+            margin-top: 8px;
+            font-size: 13px;
+        }
+        #settings > button {
+            width: 100%;
+            margin: 5px 0;
+        }
+        .check {
+            min-height: 44px;
+            display: flex;
+            align-items: center;
+        }
+        #settings p {
+            font-size: 12px;
+            line-height: 1.7;
+            color: #52686e;
+        }
+        dialog {
+            max-width: 690px;
+            width: calc(100% - 32px);
+            max-height: 86svh;
+            overflow: auto;
+            border: 1px solid #bdcdce;
+            border-radius: 22px;
+            padding: 26px;
+            color: #263340;
+        }
+        dialog::backdrop {
+            background: #162b3b77;
+        }
+        dialog h3 {
+            font-size: 15px;
+            margin-top: 24px;
+        }
+        dialog p {
+            font-size: 14px;
+            line-height: 1.8;
+        }
+        dialog a {
+            color: #0b716b;
+        }
+        code {
+            font-size: 12px;
+            overflow-wrap: anywhere;
+        }
+        @media (max-width: 600px) {
+            main {
+                padding: 14px 12px 24px;
+            }
+            nav {
+                gap: 8px;
+            }
+            nav button {
+                padding: 9px 11px;
+            }
+            header {
+                margin-top: 22px;
+            }
+            header > span {
+                padding: 0 8px;
+            }
+            .stage {
+                height: 620px;
+            }
+            .stats {
+                gap: 7px;
+                flex-wrap: wrap;
+            }
+            .stats > div {
+                min-width: 85px;
+                padding: 10px;
+            }
+            .stats output {
+                font-size: 17px;
+            }
+            .stats span {
+                font-size: 11px;
+            }
+            .summary {
+                font-size: 13px;
+            }
+            #settings {
+                left: 12px;
+                top: 74px;
+                width: min(310px, calc(100% - 24px));
+            }
+        }
+    </style>
+    <script>
+        import '../../experiments/voxel-meshing/client';
+    </script>
+</Page>

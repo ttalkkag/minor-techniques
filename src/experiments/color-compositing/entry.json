@@ -1,0 +1,12 @@
+{
+    "id": "color-compositing",
+    "title": "투명한 가장자리가 검어지는 이유",
+    "description": "RGB 저장 방식과 합성 인자를 맞추고 밝은 배경에서 가산 효과를 비교합니다.",
+    "tags": [
+        "렌더링·재질",
+        "알파",
+        "색 합성"
+    ],
+    "thumbnail": "/images/color-compositing.svg",
+    "href": "/experiments/color-compositing/"
+}

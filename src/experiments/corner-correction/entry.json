@@ -1,0 +1,8 @@
+{
+    "id": "corner-correction",
+    "title": "모서리에 걸린 점프",
+    "description": "보정 거리와 발판 속도 유예를 바꾸며 이동이 이어지는 조건을 찾습니다.",
+    "tags": ["이동과 충돌", "공간 보정", "이동 발판"],
+    "thumbnail": "/images/corner-correction.svg",
+    "href": "/experiments/corner-correction/"
+}

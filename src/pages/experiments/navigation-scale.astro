@@ -1,0 +1,411 @@
+---
+import Page from '../../layouts/Page.astro';
+---
+
+<Page
+    title="같은 지도, 다른 발견의 순간 | 게임 실험실"
+    description="분기·산의 가림·열쇠 위치를 바꿔 길과 진행 조건을 탐색하세요."
+>
+    <main class="lab" id="lab">
+        <header>
+            <button id="menu" aria-label="설정 열기" aria-controls="settings" aria-expanded="false">
+                ☰
+            </button>
+            <h1>
+                <small>게임 실험실 · 카메라와 레벨</small>같은 지도, 다른 발견의 순간
+            </h1>
+            <a href="/">목록</a>
+            <button id="explain">원리</button>
+        </header>
+        <button id="menu-backdrop" aria-label="설정 닫기" tabindex="-1" hidden></button>
+        <div class="panel" id="settings" role="complementary" aria-labelledby="settings-title" hidden>
+            <button id="close-menu" class="menu-close">설정 닫기 ×</button>
+            <h2 id="settings-title">조건을 바꾸고 직접 관찰하세요</h2>
+            <label>
+                산 우회 경로
+                <select id="route">
+                    <option value="short">짧은 경로</option>
+                    <option value="long">긴 우회</option>
+                </select>
+            </label>
+            <label>
+                열쇠 배치
+                <select id="keyRule">
+                    <option value="both">양쪽 분기</option>
+                    <option value="a">A 분기에만</option>
+                </select>
+            </label>
+            <label class="check">
+                <input type="checkbox" id="occlusion" checked />
+                산이 랜드마크를 가림
+            </label>
+            <label class="check">
+                <input type="checkbox" id="guidance" checked />
+                방향 표지와 목적지 이름
+            </label>
+            <label class="check">
+                <input type="checkbox" id="map" checked />
+                전체 지도 보기
+            </label>
+            <label for="speed">
+                이동 속도 (m/s) <output id="speed-value">5</output>
+                <input id="speed" type="range" min="2" max="10" value="5" step="0.5" />
+            </label>
+            <button id="return">시작점으로 돌아가기</button>
+            <button id="reset">초기화</button>
+        </div>
+        <section class="scene" aria-label="같은 지도, 다른 발견의 순간 실험 장면">
+            <canvas id="scene" aria-label="대화형 실험 장면"></canvas>
+        </section>
+        <footer>
+            <p id="readout">실험을 준비하고 있습니다.</p>
+            <p id="hint">
+                갈림길 버튼으로 다음 지점을 선택하세요. 이동 중에는 실제 경로를 따라갑니다. 위: 경로 기록 /
+                아래: 진행 방향 투영.
+            </p>
+            <div class="touch">
+                <div id="choices"></div>
+            </div>
+        </footer>
+        <dialog id="info" aria-labelledby="info-title">
+            <h2 id="info-title" tabindex="-1">같은 지도, 다른 발견의 순간</h2>
+            <h3>문제</h3>
+            <p>
+                연결된 길이 있어도 필요한 열쇠가 없으면 진행할 수 없습니다. 길이 보이는 것과 찾을 수 있는 것도
+                다릅니다.
+            </p>
+            <h3>원인</h3>
+            <p>
+                합류점의 조건은 위치뿐 아니라 소지 상태에 달립니다. 산은 지도 면적을 바꾸지 않고 경로 길이와
+                랜드마크 노출 시점을 바꿉니다.
+            </p>
+            <h3>해결을 관찰하기</h3>
+            <p>
+                A·B 분기를 선택해 문까지 이동하고 열쇠 배치를 비교합니다. 같은 100×100m 지도에서 이동거리,
+                이동시간, 목표 탑이 하단 화면에 처음 나타난 이동거리를 기록합니다. 산의 가림이 없고 탑의
+                일부가 화면 안에 들어와야 노출로 셉니다.
+            </p>
+            <h3>선택의 대가와 모형 범위</h3>
+            <p>
+                우회는 시간을 늘리지만 더 웅장하게 느껴진다는 결론은 아닙니다. 2D 경로 그래프와 원형 산의 평면
+                가림을 사용한 투영입니다. 기록은 화면 노출 시점이며 사람이 실제로 인지한 시점은 아닙니다. 체감
+                규모·초심자 길찾기 성공은 별도 관찰이 필요합니다.
+            </p>
+            <h3>근거</h3>
+            <a
+                href="https://dev.epicgames.com/documentation/fortnite/level-design-best-practices-in-fortnite-creative"
+                target="_blank"
+                rel="noreferrer"
+            >
+                Epic 레벨 설계 ↗
+            </a>
+            <a
+                href="https://learn.microsoft.com/en-us/xbox/accessibility/xbox-accessibility-guidelines/103"
+                target="_blank"
+                rel="noreferrer"
+            >
+                Microsoft XAG 103 ↗
+            </a>
+            <button id="close-info">장면으로 돌아가기</button>
+        </dialog>
+    </main>
+    <script>
+        import '../../experiments/navigation-scale/client';
+    </script>
+</Page>
+<style>
+    :global(body) {
+        overflow: hidden;
+    }
+    .lab {
+        height: 100svh;
+        min-height: 440px;
+        background: #edf1f3;
+        color: #243744;
+    }
+    header {
+        height: 80px;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 12px 22px;
+        border-bottom: 1px solid #cfdbdf;
+        background: #f8faf9;
+        position: relative;
+        z-index: 5;
+    }
+    header a {
+        color: #336460;
+        font-size: 13px;
+        text-decoration: none;
+        white-space: nowrap;
+    }
+    h1 {
+        font-size: clamp(15px, 2vw, 23px);
+        line-height: 1.35;
+        margin: 0;
+        flex: 1;
+    }
+    h1 small {
+        display: block;
+        color: #52676d;
+        font-size: 11px;
+        font-weight: 500;
+        margin-bottom: 4px;
+    }
+    button,
+    select {
+        min-height: 42px;
+        border: 1px solid #b8cbcd;
+        border-radius: 9px;
+        padding: 8px 12px;
+        background: #fff;
+        color: #244247;
+        cursor: pointer;
+    }
+    button:hover {
+        background: #dcece7;
+    }
+    button:active {
+        background: #b7ded2;
+    }
+    button:disabled {
+        opacity: 0.5;
+        cursor: default;
+    }
+    #menu-backdrop {
+        position: absolute;
+        inset: 86px 0 0;
+        z-index: 3;
+        border: 0;
+        border-radius: 0;
+        background: #24374466;
+    }
+    .panel .menu-close {
+        display: none;
+    }
+    .panel {
+        position: absolute;
+        top: 80px;
+        bottom: 0;
+        left: 0;
+        width: 276px;
+        padding: 22px 18px;
+        background: #f8faf9ee;
+        border-right: 1px solid #cbd8da;
+        overflow: auto;
+        z-index: 4;
+    }
+    .panel h2 {
+        font-size: 13px;
+        color: #547476;
+        margin: 0 0 20px;
+    }
+    .panel label {
+        display: block;
+        font-size: 13px;
+        margin: 0 0 20px;
+        line-height: 1.4;
+    }
+    .panel input[type='range'] {
+        display: block;
+        width: 100%;
+        accent-color: #187d74;
+        margin: 10px 0 0;
+        min-height: 25px;
+    }
+    .panel select {
+        display: block;
+        width: 100%;
+        margin-top: 8px;
+        font-size: 13px;
+    }
+    .panel output {
+        float: right;
+        font-variant-numeric: tabular-nums;
+        color: #16786f;
+    }
+    .panel .check {
+        display: flex;
+        gap: 10px;
+        align-items: center;
+        min-height: 40px;
+        margin-bottom: 8px;
+    }
+    .panel input[type='checkbox'] {
+        width: 19px;
+        height: 19px;
+        accent-color: #187d74;
+    }
+    .panel button {
+        width: 100%;
+        margin-bottom: 10px;
+    }
+    .scene {
+        position: absolute;
+        top: 80px;
+        bottom: 146px;
+        left: 0;
+        right: 0;
+        min-height: 100px;
+    }
+    .lab.menu-open .scene,
+    .lab.menu-open footer {
+        left: 276px;
+    }
+    canvas,
+    #webgl {
+        display: block;
+        width: 100%;
+        height: 100%;
+        touch-action: none;
+    }
+    footer {
+        position: absolute;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        padding: 10px 20px 14px;
+        background: #f8faf9;
+        border-top: 1px solid #cbd8da;
+        height: 146px;
+        z-index: 2;
+    }
+    #readout {
+        font-size: 13px;
+        line-height: 1.6;
+        margin: 0 0 4px;
+        font-variant-numeric: tabular-nums;
+        min-height: 21px;
+    }
+    #hint {
+        font-size: 12px;
+        color: #52676d;
+        margin: 0 0 8px;
+    }
+    .touch {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+        flex-wrap: wrap;
+    }
+    .touch button {
+        min-width: 48px;
+        user-select: none;
+        touch-action: none;
+    }
+    .touch #choices {
+        display: flex;
+        gap: 6px;
+        flex-wrap: wrap;
+    }
+    .touch #choices button {
+        font-size: 12px;
+        min-height: 40px;
+    }
+    dialog {
+        max-width: 610px;
+        width: calc(100% - 28px);
+        max-height: 85svh;
+        border: 1px solid #c4d5d3;
+        border-radius: 17px;
+        padding: 28px;
+        color: #243744;
+        background: #f9fcfa;
+    }
+    dialog::backdrop {
+        background: #1f393e77;
+        backdrop-filter: blur(4px);
+    }
+    dialog h2 {
+        font-size: 21px;
+        margin-top: 0;
+    }
+    dialog h3 {
+        font-size: 14px;
+        color: #11756d;
+        margin: 20px 0 5px;
+    }
+    dialog p {
+        font-size: 14px;
+        line-height: 1.75;
+        margin: 0;
+    }
+    dialog a {
+        display: block;
+        font-size: 13px;
+        color: #146d6a;
+        margin: 8px 0;
+        overflow-wrap: anywhere;
+    }
+    dialog button {
+        margin-top: 20px;
+        width: 100%;
+    }
+    @media (max-width: 700px) {
+        .panel .menu-close {
+            display: block;
+        }
+        header {
+            height: 86px;
+            padding: 10px;
+            gap: 8px;
+        }
+        header a {
+            font-size: 11px;
+        }
+        h1 {
+            font-size: 15px;
+        }
+        header button {
+            padding: 8px 10px;
+        }
+        .panel {
+            top: 86px;
+            width: min(276px, 86vw);
+        }
+        .scene {
+            top: 86px;
+            bottom: 180px;
+        }
+        .lab.menu-open .scene,
+        .lab.menu-open footer {
+            left: 0;
+        }
+        footer {
+            height: 180px;
+            padding: 10px 12px;
+        }
+        #readout {
+            font-size: 12px;
+        }
+        #hint {
+            font-size: 11px;
+            line-height: 1.4;
+        }
+        .touch {
+            gap: 6px;
+        }
+        dialog {
+            padding: 22px;
+        }
+        .touch button {
+            min-width: 44px;
+        }
+    }
+    #choices :global(button) {
+        min-height: 42px;
+        min-width: 48px;
+        border: 1px solid #b8cbcd;
+        border-radius: 9px;
+        padding: 8px 12px;
+        background: #fff;
+        color: #244247;
+        font: inherit;
+        font-size: 12px;
+        cursor: pointer;
+    }
+    #choices :global(button:hover) {
+        background: #dcece7;
+    }
+</style>

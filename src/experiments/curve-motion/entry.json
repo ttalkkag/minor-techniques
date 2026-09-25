@@ -1,0 +1,8 @@
+{
+    "id": "curve-motion",
+    "title": "같은 곡선, 다른 속력",
+    "description": "제어점과 거리 표의 해상도를 바꾸며 균일 매개변수와 균일 거리 이동을 비교합니다.",
+    "tags": ["애니메이션·효과", "곡선", "거리 역조회"],
+    "thumbnail": "/images/curve-motion.svg",
+    "href": "/experiments/curve-motion/"
+}

@@ -1,0 +1,8 @@
+{
+    "id": "password-saves",
+    "title": "네 글자로 돌아오는 모험",
+    "description": "보존할 상태를 고르고, 코드를 고쳐 가며 오타 검사와 복원 범위를 확인하세요.",
+    "tags": ["네트워크와 저장", "패스워드 저장"],
+    "thumbnail": "/images/password-saves.svg",
+    "href": "/experiments/password-saves/"
+}

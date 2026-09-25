@@ -1,0 +1,8 @@
+{
+    "id": "rule-based-ai",
+    "title": "점수가 낮은 기술을 고르는 AI",
+    "description": "체력·상태·PP·상성을 바꾸고 규칙별 비용과 최종 후보를 확인합니다.",
+    "tags": ["게임 규칙", "규칙 AI", "행동 선택"],
+    "thumbnail": "/images/rule-based-ai.svg",
+    "href": "/experiments/rule-based-ai/"
+}

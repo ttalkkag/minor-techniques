@@ -1,0 +1,142 @@
+---
+import Page from '../../layouts/Page.astro';
+import '../../styles/collision-tunneling.css';
+---
+
+<Page
+  title="벽을 통과한 총알 · 게임 실험실"
+  description="속도, 벽 두께, 물리 검사 빈도를 조절하며 충돌이 누락되는 원인과 경로 검사의 차이를 비교합니다."
+>
+  <main class="lab">
+    <nav class="topbar" aria-label="실험실 탐색">
+      <button id="menu-toggle" class="menu-toggle" aria-label="설정 메뉴 열기" aria-controls="settings" aria-expanded="false">
+        <span aria-hidden="true"></span><span aria-hidden="true"></span><span aria-hidden="true"></span>
+      </button>
+      <a class="brand" href="/" aria-label="게임 실험실 목록으로">게임 실험실</a>
+      <button id="explain-quick" class="help-button" aria-label="충돌 누락의 원인과 해결 설명 열기" title="원인과 해결 설명">?</button>
+    </nav>
+
+    <div id="menu-backdrop" class="menu-backdrop" hidden></div>
+
+    <header class="header">
+      <p class="eyebrow">빠른 물체와 얇은 벽</p>
+      <h1>벽을 통과한 총알<span>?</span></h1>
+      <p class="intro">지나간 길을 보지 않으면, 충돌을 놓칠 수 있습니다.</p>
+    </header>
+
+    <div class="view-tools" role="group" aria-label="관찰 방식">
+      <button id="view-3d" class="view-button selected" aria-pressed="true">3D 관찰</button>
+      <button id="view-2d" class="view-button" aria-pressed="false">2D 단면</button>
+      <button id="camera-reset" class="icon-button" aria-label="시점 초기화" title="시점 초기화">↺</button>
+    </div>
+
+    <div id="stage" role="group" aria-label="위치 검사와 경로 검사를 비교하는 충돌 실험 장면">
+      <canvas id="scene" tabindex="0" aria-label="3D 충돌 실험. 드래그로 회전, 휠이나 핀치로 확대, 오른쪽 드래그나 두 손가락으로 이동할 수 있습니다." aria-describedby="scene-hint"></canvas>
+      <canvas id="section" tabindex="0" hidden aria-label="2D 충돌 단면. 이전 위치, 충돌이 없을 때의 예정 위치, 이동 경로와 실제 접촉점을 비교합니다." aria-describedby="scene-hint"></canvas>
+      <p id="render-error" class="render-error" role="status" hidden>3D 화면을 사용할 수 없어 2D 단면으로 전환했습니다. 조건 조절과 실험은 계속할 수 있습니다.</p>
+    </div>
+
+    <aside id="settings" class="settings panel" aria-label="실험 설정" hidden>
+      <div class="settings-heading">
+        <h2>설정</h2>
+        <button id="close-settings" class="icon-button" aria-label="설정 메뉴 닫기">×</button>
+      </div>
+      <div class="presets" role="group" aria-label="실험 예시">
+        <button id="preset-miss" class="preset selected" aria-pressed="true">벽 통과 예시</button>
+        <button id="preset-fix" class="preset" aria-pressed="false">촘촘한 검사</button>
+      </div>
+
+      <div class="control">
+        <label for="speed">탄환 속도 <output id="speed-value" for="speed">90 <small>m/s</small></output></label>
+        <input id="speed" type="range" min="5" max="150" step="5" value="90" />
+        <div class="range-labels" aria-hidden="true"><span>느리게</span><span>빠르게</span></div>
+      </div>
+      <div class="control">
+        <label for="thickness">벽 두께 <output id="thickness-value" for="thickness">0.30 <small>m</small></output></label>
+        <input id="thickness" type="range" min="0.1" max="3" step="0.05" value="0.3" />
+        <div class="range-labels" aria-hidden="true"><span>얇게</span><span>두껍게</span></div>
+      </div>
+      <div class="control">
+        <label for="hz">1초당 물리 검사 <output id="hz-value" for="hz">10 <small>회</small></output></label>
+        <input id="hz" type="range" min="5" max="240" step="5" value="10" />
+        <div class="range-labels" aria-hidden="true"><span>드물게</span><span>촘촘하게</span></div>
+      </div>
+      <div class="control">
+        <label for="radius">탄환 반지름 <output id="radius-value" for="radius">0.16 <small>m</small></output></label>
+        <input id="radius" type="range" min="0.05" max="0.6" step="0.01" value="0.16" />
+      </div>
+
+      <div class="distance-card">
+        <div><span>한 스텝의 이동 거리</span><strong id="distance-value">9.00 <small>m</small></strong></div>
+        <span id="distance-formula">90 m/s ÷ 10회/s</span>
+      </div>
+      <div class="display-settings">
+        <label class="checkbox-label"><input type="checkbox" id="show-path" checked /><span>이동 경로 · 검사 위치 표시</span></label>
+        <label class="playback-speed" for="playback-speed">관찰 속도
+          <select id="playback-speed">
+            <option value="0.1" selected>0.1× 느리게</option>
+            <option value="0.25">0.25×</option>
+            <option value="1">1× 실제 시간</option>
+          </select>
+        </label>
+      </div>
+      <p class="setting-note">조건을 바꾸면 처음으로 돌아갑니다.<br />관찰 속도는 물리 검사 간격을 바꾸지 않습니다.</p>
+      <button id="explain" class="explain-button"><span>왜 이런 일이 생길까요?</span><span aria-hidden="true">↗</span></button>
+    </aside>
+
+    <section class="results" aria-label="검사 결과" aria-live="polite" aria-atomic="true">
+      <article class="result-card discrete">
+        <div class="method-heading"><span class="method-id" aria-hidden="true">A</span><h2 aria-label="A 위치만 확인">위치만 확인</h2><span id="discrete-status" class="status pending">대기</span></div>
+        <p>스텝 끝의 위치가 벽과 겹치는지 검사</p>
+        <div class="result-detail" id="discrete-detail">중심 x = -5.00 m</div>
+      </article>
+      <article class="result-card continuous">
+        <div class="method-heading"><span class="method-id" aria-hidden="true">B</span><h2 aria-label="B 지나간 경로 확인">지나간 경로 확인</h2><span id="continuous-status" class="status pending">대기</span></div>
+        <p>이동 경로에서 처음 닿는 지점을 검사</p>
+        <div class="result-detail" id="continuous-detail">중심 x = -5.00 m</div>
+      </article>
+    </section>
+
+    <div class="playbar" role="group" aria-label="실험 시간 조작">
+      <button id="reset" class="icon-button" aria-label="실험 초기화" title="실험 초기화">↺</button>
+      <button id="play" class="play-button"><span id="play-icon" aria-hidden="true">▶</span><span id="play-label">실험 재생</span></button>
+      <button id="step" class="step-button">한 스텝 <span aria-hidden="true">→|</span></button>
+      <div class="time-display" role="group" aria-label="완료한 물리 스텝과 시간"><span id="tick-value">0 STEP</span><strong id="time-value">0.000 s</strong></div>
+    </div>
+    <p class="scene-hint" id="scene-hint">드래그로 회전 · 휠/핀치로 확대 · 두 손가락으로 이동</p>
+    <noscript><p class="no-script">실험을 조작하려면 JavaScript를 켜주세요.</p></noscript>
+  </main>
+
+  <dialog id="explanation" aria-labelledby="explanation-title">
+    <div class="dialog-top"><span>원인과 해결</span><button id="close-explanation" class="icon-button" aria-label="설명 닫기">×</button></div>
+    <h2 id="explanation-title">벽은 있는데,<br />충돌은 왜 사라질까요?</h2>
+    <p class="observation-guide"><b>먼저 이렇게 해보세요.</b> ‘벽 통과 예시’에서 ‘한 스텝’을 누르고, 2D 단면으로 바꿔 두 탄환의 정지 위치를 비교하세요.</p>
+
+    <div class="explanation-step"><span aria-hidden="true">01</span><div>
+      <h3>문제 · 두 위치 사이의 충돌</h3>
+      <p>게임은 일정한 시간 간격으로 물리를 계산합니다. 검사한 위치가 벽 앞에서 벽 뒤로 바뀌면, 두 위치 모두 벽과 겹치지 않을 수 있습니다. 경로 중간의 충돌을 놓치는 현상이 <b>터널링</b>입니다.</p>
+    </div></div>
+    <div class="explanation-step"><span aria-hidden="true">02</span><div>
+      <h3>원인 · 한 번에 얼마나 이동할까?</h3>
+      <p>한 스텝의 이동 거리는 <b>속도 ÷ 초당 물리 검사 횟수</b>입니다. 기본 조건에서는 9 m를 이동해 중심이 −5 m에서 4 m로 건너뜁니다. 벽 두께와 탄환 크기, 검사 위치가 함께 충돌 감지 여부를 결정합니다. 화면을 천천히 재생해도 검사 간격은 그대로입니다.</p>
+    </div></div>
+    <div class="explanation-step"><span aria-hidden="true">03</span><div>
+      <h3>해결 · 더 자주, 또는 경로까지</h3>
+      <p>‘촘촘한 검사’는 초당 120번 검사해 위치 사이 간격을 줄입니다. 이 조건에서 A는 충돌을 잡지만, 더 빠르거나 얇은 다른 조건까지 보장하지는 않습니다. B는 이동 경로의 <b>최초 접촉</b>을 계산하므로, 스텝 끝에 닿아 있지 않아도 충돌을 찾습니다.</p>
+      <p>2D의 점선 원은 충돌이 없을 때의 예정 위치입니다. 기본 조건에서 B의 중심은 −0.31 m, 벽 표면은 −0.15 m이며, 그 차이 0.16 m가 탄환 반지름입니다.</p>
+    </div></div>
+    <div class="explanation-step"><span aria-hidden="true">04</span><div>
+      <h3>대가 · 어디까지 계산할까?</h3>
+      <p>검사 빈도를 높이면 초당 물리 계산이 늘고, 경로 검사에는 접촉 시점을 찾는 계산이 필요합니다. 빠른 물체에 우선 적용할 수 있지만, 회전·가속·움직이는 상대와 충돌 뒤의 반응은 별도 처리가 필요합니다. 여기서는 정지한 벽을 향한 일정 속도의 직선 운동을 비교합니다.</p>
+    </div></div>
+    <div class="reading-results">
+      <h3>결과 읽기</h3>
+      <p>A의 시간은 스텝 끝에 충돌을 감지한 시각, B의 시간은 스텝 안에서 처음 닿은 시각입니다. 아래 재생 막대는 완료한 스텝의 시간을 표시합니다. ‘검사’는 각 판정 함수의 호출 횟수입니다.</p>
+    </div>
+    <a class="source-link" href="https://docs.unity3d.com/6000.0/Documentation/Manual/sweep-based-ccd.html" target="_blank" rel="noopener noreferrer">Unity 공식 문서 · Sweep-based CCD <span aria-hidden="true">↗</span></a>
+  </dialog>
+
+  <script>
+    import '../../experiments/collision-tunneling/client';
+  </script>
+</Page>

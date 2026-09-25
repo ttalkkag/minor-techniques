@@ -1,0 +1,8 @@
+{
+    "id": "jump-physics",
+    "title": "같은 점프가 다른 높이에 닿는 이유",
+    "description": "물리 틱과 표시 프레임, 가변 점프의 효과를 따로 비교합니다.",
+    "tags": ["이동과 충돌", "수치 적분", "조작감"],
+    "thumbnail": "/images/jump-physics.svg",
+    "href": "/experiments/jump-physics/"
+}

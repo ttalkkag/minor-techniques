@@ -1,0 +1,12 @@
+{
+    "id": "object-pooling",
+    "title": "같은 탄환, 새로운 수명",
+    "description": "발사율과 보관 한도, 오래된 타이머를 바꾸며 생성과 재사용을 구분합니다.",
+    "tags": [
+        "실행 자원·데이터",
+        "객체 수명",
+        "풀링"
+    ],
+    "thumbnail": "/images/object-pooling.svg",
+    "href": "/experiments/object-pooling/"
+}

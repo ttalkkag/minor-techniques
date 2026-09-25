@@ -1,0 +1,499 @@
+---
+import Page from '../../layouts/Page.astro';
+---
+
+<Page
+    title="광선은 통과해도 몸은 걸린다 · 게임 실험실"
+    description="표면 탐색, 경사, 캐릭터 부피와 이동 경로를 독립적으로 검사합니다."
+>
+    <main class="clearance-lab" id="clearance-lab">
+        <nav>
+            <button
+                id="sc-menu"
+                aria-label="설정 메뉴 열기"
+                aria-expanded="false"
+                aria-controls="sc-settings"
+            >
+                ☰
+            </button>
+            <a href="/">게임 실험실</a>
+            <button id="sc-help" aria-label="원인과 해결 설명 열기">
+                ?
+            </button>
+        </nav>
+        <header>
+            <p>공간 여유 · 형상 검사</p>
+            <h1>
+                광선은 통과해도
+                <br class="small" /> 몸은 걸린다
+            </h1>
+            <span>점 하나의 성공과 캐릭터 전체의 성공을 나눠 보세요.</span>
+        </header>
+        <div data-settings-panel role="complementary" id="sc-settings" hidden aria-label="실험 설정">
+            <div class="panel-title">
+                <h2>공간과 캐릭터</h2>
+                <button id="sc-close" aria-label="설정 메뉴 닫기">
+                    ×
+                </button>
+            </div>
+            <div class="presets">
+                <button data-preset="narrow">좁은 틈</button>
+                <button data-preset="low">낮은 방</button>
+                <button data-preset="clear">넉넉한 출구</button>
+            </div>
+            <label for="sc-width">
+                출구 폭 <output id="sc-width-value"></output>
+            </label>
+            <input id="sc-width" type="range" min="0.4" max="2.4" step="0.1" value="0.6" />
+            <label for="sc-ceiling">
+                방 높이 <output id="sc-ceiling-value"></output>
+            </label>
+            <input id="sc-ceiling" type="range" min="1" max="3" step="0.1" value="2.3" />
+            <label for="sc-radius">
+                캡슐 반지름 <output id="sc-radius-value"></output>
+            </label>
+            <input id="sc-radius" type="range" min="0.2" max="0.6" step="0.05" value="0.4" />
+            <label for="sc-height">
+                캐릭터 높이 <output id="sc-height-value"></output>
+            </label>
+            <input id="sc-height" type="range" min="1.2" max="2.2" step="0.1" value="1.8" />
+            <label for="sc-slope">
+                착지면 경사 <output id="sc-slope-value"></output>
+            </label>
+            <input id="sc-slope" type="range" min="0" max="45" step="1" value="0" />
+            <label for="sc-range">
+                탐색선 길이 <output id="sc-range-value"></output>
+            </label>
+            <input id="sc-range" type="range" min="1" max="5" step="0.1" value="4" />
+            <label for="sc-travel">경로 통과 정책</label>
+            <select id="sc-travel">
+                <option value="warp">워프: 중간 천장 통과 허용</option>
+                <option value="sweep">일반 이동: 경로 충돌 차단</option>
+            </select>
+            <label class="check">
+                <input id="sc-obstacle" type="checkbox" />
+                이동 직전 출구 장애물 추가
+            </label>
+            <button id="sc-reset" class="wide">
+                초기화
+            </button>
+        </div>
+        <section class="scene-area">
+            <div class="methods" role="group" aria-label="검사 방식">
+                <button id="sc-ray" aria-pressed="true">
+                    A · 탐색선만
+                </button>
+                <button id="sc-volume" aria-pressed="false">
+                    B · 전체 단계
+                </button>
+            </div>
+            <div class="canvas-wrap">
+                <canvas
+                    id="sc-canvas"
+                    aria-label="천장 아래 출발점과 좁은 출구의 캡슐 단면"
+                    aria-describedby="sc-summary"
+                ></canvas>
+                <p class="scene-label">수직 캡슐의 2D 단면 · 위쪽 면 높이는 별도로 알고 있는 조건</p>
+            </div>
+            <div class="stages" role="group" aria-label="독립 검사 결과">
+                <article>
+                    <span>01 표면 발견</span>
+                    <strong id="sc-surface"></strong>
+                </article>
+                <article>
+                    <span>02 경사 ≤ 30°</span>
+                    <strong id="sc-slope-status"></strong>
+                </article>
+                <article>
+                    <span>03 도착 공간</span>
+                    <strong id="sc-space"></strong>
+                </article>
+                <article>
+                    <span>04 경로 정책</span>
+                    <strong id="sc-path"></strong>
+                </article>
+            </div>
+            <div class="action-row">
+                <button id="sc-attempt">이동 시도</button>
+                <p id="sc-summary" role="status" aria-live="polite"></p>
+            </div>
+            <p id="sc-gaps" class="gaps"></p>
+        </section>
+    </main>
+    <dialog id="sc-dialog" aria-labelledby="sc-dialog-title">
+        <button id="sc-dialog-close" class="dialog-close" aria-label="설명 닫기">
+            ×
+        </button>
+        <p class="eyebrow">문제 · 원인 · 해결 · 대가</p>
+        <h2 id="sc-dialog-title">
+            표면을 찾았다는 건,
+            <br />
+            몸이 들어간다는 뜻일까요?
+        </h2>
+        <h3>문제와 원인</h3>
+        <p>
+            폭 0.6m의 출구에서도 중앙 광선은 천장에 닿습니다. 반지름 0.4m인 몸의 지름은 0.8m여서 옆벽에
+            겹칩니다. 평평한 바닥도 머리 위 여유를 보장하지 않습니다.
+        </p>
+        <h3>해결: 질문을 네 단계로 나누기</h3>
+        <p>
+            탐색선으로 후보를 찾고, 위쪽 면의 경사와 도착 캡슐의 공간을 검사합니다. 일반 이동은 이동 중간의
+            충돌도 막습니다. 천장 통과 워프는 중간 천장만 통과하도록 별도 정책을 둡니다. 장애물을 추가해 이동
+            직전 재검사도 확인하세요.
+        </p>
+        <h3>이 실험의 형상과 비용</h3>
+        <p>
+            높이 H와 반지름 r인 수직 캡슐의 구 중심은 발 위 r, H−r입니다. 여기서는 앞뒤로 충분히 긴 직선 벽과
+            수평 천장을 가정하고, 경사진 바닥에 아래 구가 접하도록 발 높이를 보정합니다. 벽과 접지면에 정확히
+            닿는 접촉은 허용합니다. 천장 밑면은 2.6m, 윗면 중앙은 3m로 각각 주어져 있습니다.
+        </p>
+        <p>
+            검사가 늘면 형상 질의 비용이 증가합니다. 이 단면 모델은 굽은 표면의 지지 면적, 복잡한 3D 경로,
+            엔진의 실제 콜라이더 질의를 계산하지 않습니다. Unity에서는 콜라이더 내부에서 시작한 광선이 해당
+            콜라이더를 찾지 못할 수 있습니다. Nintendo 게임의 실제 이동 규칙을 재현한 모델은 아닙니다.
+        </p>
+        <p class="sources">
+            공식 근거:{' '}
+            <a
+                href="https://docs.unity3d.com/6000.0/Documentation/ScriptReference/Physics.CheckCapsule.html"
+                target="_blank"
+                rel="noreferrer"
+            >
+                Unity CheckCapsule
+            </a>{' '}
+            ·{' '}
+            <a
+                href="https://docs.unity3d.com/6000.0/Documentation/ScriptReference/Physics.Raycast.html"
+                target="_blank"
+                rel="noreferrer"
+            >
+                Unity Raycast
+            </a>
+        </p>
+    </dialog>
+    <script>
+        import '../../experiments/shape-clearance/client';
+    </script>
+</Page>
+<style>
+    .clearance-lab {
+        min-height: 100svh;
+        padding: 18px 28px 24px;
+        color: #263b43;
+        position: relative;
+    }
+    nav {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+    }
+    nav a {
+        font-weight: 750;
+        color: inherit;
+        text-decoration: none;
+    }
+    nav button:last-child {
+        margin-left: auto;
+    }
+    button {
+        min-height: 42px;
+        border: 1px solid #cbd7d9;
+        border-radius: 10px;
+        padding: 8px 14px;
+        color: #30494f;
+        background: #fff;
+        cursor: pointer;
+    }
+    button:hover {
+        background: #e2efed;
+    }
+    nav button {
+        width: 44px;
+        padding: 0;
+        font-size: 23px;
+    }
+    header {
+        padding: 25px 0 20px;
+    }
+    header p,
+    .eyebrow {
+        font-size: 12px;
+        letter-spacing: 0.08em;
+        color: #0e6b67;
+        font-weight: 750;
+    }
+    h1 {
+        margin: 7px 0 10px;
+        font-size: clamp(26px, 3.5vw, 43px);
+        letter-spacing: -0.06em;
+    }
+    header span {
+        font-size: 14px;
+        color: #4e646a;
+    }
+    .small {
+        display: none;
+    }
+    .scene-area {
+        transition: margin 0.15s;
+    }
+    .open .scene-area {
+        margin-left: 300px;
+    }
+    [data-settings-panel] {
+        position: absolute;
+        z-index: 5;
+        top: 210px;
+        left: 28px;
+        width: 276px;
+        padding: 18px;
+        background: #f9fbfb;
+        border: 1px solid #d3dfe0;
+        border-radius: 18px;
+        box-shadow: 0 12px 40px #25434b0b;
+        max-height: calc(100svh - 230px);
+        overflow: auto;
+    }
+    .panel-title {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+    }
+    .panel-title h2 {
+        font-size: 16px;
+        margin: 0;
+    }
+    .panel-title button {
+        border: 0;
+        font-size: 23px;
+        padding: 0;
+        min-width: 40px;
+    }
+    .presets {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 5px;
+        margin: 12px 0;
+    }
+    .presets button {
+        font-size: 11px;
+        padding: 7px 9px;
+        flex: 1;
+    }
+    label {
+        display: flex;
+        justify-content: space-between;
+        font-size: 12px;
+        margin-top: 14px;
+        gap: 8px;
+    }
+    output {
+        font-variant-numeric: tabular-nums;
+        color: #167d78;
+    }
+    input[type='range'] {
+        width: 100%;
+        height: 40px;
+        accent-color: #14837c;
+        cursor: pointer;
+    }
+    select {
+        width: 100%;
+        min-height: 43px;
+        font-size: 12px;
+        border: 1px solid #c4d3d4;
+        border-radius: 8px;
+        background: white;
+        margin-top: 8px;
+        padding: 5px;
+    }
+    .check {
+        align-items: center;
+        justify-content: flex-start;
+        min-height: 42px;
+        line-height: 1.5;
+    }
+    .check input {
+        width: 18px;
+        height: 18px;
+        accent-color: #0e6b67;
+    }
+    .wide {
+        width: 100%;
+        margin-top: 13px;
+    }
+    .methods {
+        display: flex;
+        gap: 7px;
+        justify-content: center;
+    }
+    .methods button[aria-pressed='true'] {
+        background: #157f7a;
+        color: white;
+        border-color: #157f7a;
+    }
+    .canvas-wrap {
+        height: clamp(320px, 46vh, 510px);
+        position: relative;
+    }
+    canvas {
+        display: block;
+        width: 100%;
+        height: 100%;
+    }
+    .scene-label {
+        position: absolute;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        text-align: center;
+        font-size: 11px;
+        color: #50676b;
+        margin: 0;
+    }
+    .stages {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 8px;
+        margin: 18px auto 0;
+        max-width: 900px;
+    }
+    .stages article {
+        padding: 12px;
+        background: #f9fbfbbf;
+        border: 1px solid #d8e1e2;
+        border-radius: 12px;
+        min-width: 0;
+    }
+    .stages span {
+        display: block;
+        font-size: 11px;
+        color: #62767d;
+    }
+    .stages strong {
+        display: block;
+        font-size: 16px;
+        margin-top: 7px;
+    }
+    .stages strong[data-ok='true'] {
+        color: #137c76;
+    }
+    .stages strong[data-ok='false'] {
+        color: #984817;
+    }
+    .action-row {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 15px;
+        margin: 20px auto 0;
+        max-width: 900px;
+    }
+    .action-row button {
+        background: #a54e1d;
+        border-color: #a54e1d;
+        color: #fff;
+        flex-shrink: 0;
+        font-weight: 700;
+    }
+    .action-row p {
+        font-size: 13px;
+        line-height: 1.7;
+        margin: 0;
+    }
+    .gaps {
+        text-align: center;
+        font-size: 12px;
+        color: #50676b;
+        margin-top: 12px;
+    }
+    dialog {
+        width: min(620px, calc(100% - 28px));
+        max-height: 85svh;
+        padding: 30px;
+        border: 1px solid #ccdcdd;
+        border-radius: 20px;
+        color: #29414a;
+        background: #f8fbfb;
+    }
+    dialog::backdrop {
+        background: #17313955;
+        backdrop-filter: blur(4px);
+    }
+    dialog h2 {
+        line-height: 1.4;
+        font-size: 27px;
+        letter-spacing: -0.04em;
+    }
+    dialog h3 {
+        font-size: 15px;
+        margin: 23px 0 7px;
+    }
+    dialog p {
+        font-size: 14px;
+        line-height: 1.85;
+    }
+    .dialog-close {
+        float: right;
+        font-size: 23px;
+        min-width: 42px;
+    }
+    .sources a {
+        color: #0e6b67;
+        overflow-wrap: anywhere;
+    }
+    @media (max-width: 700px) {
+        .clearance-lab {
+            padding: 14px 16px 24px;
+        }
+        header {
+            padding-top: 18px;
+        }
+        h1 {
+            font-size: 28px;
+        }
+        .small {
+            display: block;
+        }
+        header span {
+            font-size: 12px;
+        }
+        .open .scene-area {
+            margin-left: 0;
+        }
+        [data-settings-panel] {
+            position: fixed;
+            top: 75px;
+            left: 12px;
+            width: min(300px, calc(100% - 24px));
+            max-height: calc(100svh - 92px);
+            box-shadow: 0 10px 80px #183c4260;
+        }
+        .canvas-wrap {
+            height: 360px;
+        }
+        .methods button {
+            font-size: 12px;
+        }
+        .stages {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+        .action-row {
+            align-items: flex-start;
+            gap: 10px;
+        }
+        .action-row p {
+            font-size: 12px;
+        }
+        .gaps {
+            font-size: 11px;
+            line-height: 1.8;
+        }
+        dialog {
+            padding: 20px;
+        }
+        dialog h2 {
+            font-size: 23px;
+        }
+    }
+</style>

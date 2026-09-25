@@ -1,0 +1,731 @@
+---
+import Page from '../../layouts/Page.astro';
+---
+
+<Page
+    title="같은 시드인데 공격 결과가 달라진다 | 게임 실험실"
+    description="장식 호출, 스트림 분리와 체크포인트 복원 방법을 비교합니다."
+>
+    <div class="lab">
+        <header>
+            <button
+                id="menu"
+                class="menu"
+                aria-label="설정 열기 및 닫기"
+                aria-controls="settings"
+                aria-expanded="true"
+            >
+                ☰
+            </button>
+            <h1>같은 시드인데 공격 결과가 달라진다</h1>
+            <a href="/">목록으로</a>
+        </header>
+        <div id="menu-backdrop" class="menu-backdrop" aria-hidden="true" hidden></div>
+        <main>
+            <div class="settings" id="settings" role="complementary" aria-label="실험 설정">
+                <div class="settings-heading">
+                    <h2>호출 순서</h2>
+                    <button id="close-menu" aria-label="설정 닫기" hidden>×</button>
+                </div>
+                <label for="seed">
+                    시드 · 바꾸면 처음부터<output id="seed-out">5</output>
+                </label>
+                <input id="seed" type="range" min="0" max="15" value="5" step="1" />
+                <label class="check">
+                    <input id="decorate" type="checkbox" checked />B 실행에 장식 난수 호출 추가
+                </label>
+                <label class="check">
+                    <input id="split" type="checkbox" />
+                    장식과 전투 스트림 분리
+                </label>
+                <label for="threshold">
+                    명중 조건 · 출력 < 값<output id="threshold-out">4</output>
+                </label>
+                <input id="threshold" type="range" min="1" max="16" value="4" step="1" />
+                <label for="restore-mode">복원할 난수</label>
+                <select id="restore-mode">
+                    <option value="state">저장된 중간 상태</option>
+                    <option value="seed">시드만 재설정 · 불일치</option>
+                </select>
+                <label for="table">같은 값의 조우 후보</label>
+                <select id="table">
+                    <option value="day">낮: 풀벌레 8 / 늑대 4 / 용 4</option>
+                    <option value="night">밤: 늑대 8 / 유령 6 / 용 2</option>
+                </select>
+                <label class="check">
+                    <input id="reject" type="checkbox" />
+                    범위 변환에서 15 거절
+                </label>
+                <p>생성기: s′ = (5s+1) mod 16. 작은 상태를 모두 드러내는 학습용 생성기입니다.</p>
+                <div class="actions">
+                    <button id="explain">원인과 해결</button>
+                    <button id="reset">초기화</button>
+                </div>
+            </div>
+            <section class="stage" aria-label="실험 장면">
+                <p class="intro">
+                    A는 공격만, B는 선택적으로 장식을 먼저 처리합니다. 첫 턴을 진행한 뒤 상태를 저장하고
+                    복원하여 다음 출력이 이어지는지 확인하세요.
+                </p>
+                <div class="metrics" aria-live="polite">
+                    <div class="metric">
+                        <small>현재 턴</small>
+                        <strong id="turn">—</strong>
+                    </div>
+                    <div class="metric">
+                        <small>저장된 체크포인트</small>
+                        <strong id="checkpoint">—</strong>
+                    </div>
+                    <div class="metric">
+                        <small>A/B 전투 상태</small>
+                        <strong id="equal">—</strong>
+                    </div>
+                </div>
+                <div class="actions">
+                    <button id="advance" class="primary">
+                        공격 1턴
+                    </button>
+                    <button id="ten">10턴 진행</button>
+                    <button id="save">체크포인트 저장</button>
+                    <button id="restore">체크포인트 복원</button>
+                </div>
+                <div class="split">
+                    <section class="surface">
+                        <h2>A · 전투만 호출</h2>
+                        <p class="big" id="a-state"></p>
+                        <p id="a-detail" class="note"></p>
+                        <div id="a-sequence" class="token-row"></div>
+                    </section>
+                    <section class="surface">
+                        <h2>B · 장식 호출 비교</h2>
+                        <p class="big" id="b-state"></p>
+                        <p id="b-detail" class="note"></p>
+                        <div id="b-sequence" class="token-row"></div>
+                    </section>
+                </div>
+                <section class="surface">
+                    <h2>같은 출력의 해석도 계약이다</h2>
+                    <p id="encounter"></p>
+                    <div id="range-counts" class="split"></div>
+                    <p class="note">
+                        0…15의 원본 값 16개를 직접 세었습니다. 15를 거절하면 0, 1, 2가 각 5개에 대응합니다.
+                    </p>
+                </section>
+                <section class="surface">
+                    <h2>입력·호출 로그</h2>
+                    <ol id="events" class="log"></ol>
+                </section>
+                <p id="summary" class="status" role="status">
+                    계산 중입니다.
+                </p>
+            </section>
+        </main>
+    </div>
+    <dialog id="explanation" aria-label="실험 설명">
+        <div class="dialog-heading">
+            <h2>시드는 시작점, 상태는 현재 위치</h2>
+            <button id="close-dialog" aria-label="설명 닫기">
+                닫기
+            </button>
+        </div>
+        <h3>문제 · 장식이 전투 결과를 바꾼다</h3>
+        <p>
+            시드 5의 출력은 10, 3, 0, 1, 6…입니다. 첫 공격은 10이라 실패하지만 같은 스트림에서 불꽃 색상이
+            10을 소비하면 공격이 3을 받아 명중합니다. 스트림 분리는 이 결합을 끊고 저장할 상태 수를 늘립니다.
+        </p>
+        <h3>해결 · 같은 논리 시점 저장</h3>
+        <p>
+            체크포인트는 턴, HP, 두 스트림 상태, 호출 수, 출력 로그, 명중 규칙과 후보 테이블을 함께
+            복사합니다. 복원 시 해당 규칙도 되돌립니다. ‘시드만 재설정’은 게임 상태를 중간 턴에 놓고 RNG만
+            시작으로 돌리는 오류 비교입니다.
+        </p>
+        <h3>대가와 범위</h3>
+        <p>
+            후보 테이블을 바꾸면 같은 난수 값도 다른 대상을 고릅니다. %3은 6:5:5 대응으로 치우치며 15 거절은
+            5:5:5가 됩니다. 이 장난감 LCG는 고작 16개 상태를 가지며 실제 품질이나 보안용으로 권하지 않습니다.
+            게임 전체 결정론은 물리·버전·이벤트 순서까지 별도 계약이 필요합니다.
+        </p>
+        <p>
+            <a href="https://docs.godotengine.org/en/stable/classes/class_randomnumbergenerator.html">
+                Godot의 seed와 state 문서
+            </a>
+            는 상태 복원과 시드 초기화를 구분하며 내부 알고리즘에 의존하지 말라고 안내합니다. 본 실험은 Godot
+            생성기를 복제하지 않습니다.
+        </p>
+    </dialog>
+</Page>
+<script>
+    import '../../experiments/deterministic-rng/client';
+</script>
+<style>
+    .lab {
+        min-height: 100svh;
+        display: flex;
+        flex-direction: column;
+        color: #29434a;
+    }
+    header {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 14px 20px;
+        background: #f8fafa;
+        border-bottom: 1px solid #cad9d9;
+    }
+    h1 {
+        font-size: clamp(17px, 2vw, 23px);
+        margin: 0;
+        word-break: keep-all;
+    }
+    header a {
+        margin-left: auto;
+        color: #1d6564;
+        white-space: nowrap;
+        font-size: 13px;
+    }
+    button,
+    select,
+    input[type='number'] {
+        min-height: 42px;
+        border: 1px solid #b8ccce;
+        border-radius: 9px;
+        background: #fff;
+        color: #29434a;
+        padding: 8px 12px;
+        font: inherit;
+    }
+    button {
+        cursor: pointer;
+    }
+    button:hover {
+        background: #e4f1ed;
+    }
+    button:disabled {
+        opacity: 0.5;
+        cursor: default;
+    }
+    button.primary {
+        background: #187c72;
+        color: #fff;
+        border-color: #187c72;
+    }
+    .menu {
+        font-size: 20px;
+        min-width: 44px;
+        padding: 4px;
+    }
+    main {
+        display: flex;
+        flex: 1;
+        min-width: 0;
+    }
+    .settings {
+        flex: 0 0 260px;
+        max-height: calc(100svh - 72px);
+        overflow: auto;
+        border-right: 1px solid #cad9d9;
+        padding: 19px;
+        background: #f8fafa;
+    }
+    .settings-heading {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        margin-bottom: 20px;
+    }
+    .settings-heading h2 {
+        margin: 0;
+    }
+    #close-menu {
+        flex: 0 0 42px;
+        font-size: 22px;
+    }
+    .menu-backdrop {
+        position: fixed;
+        inset: 0;
+        z-index: 4;
+        background: #244f5966;
+    }
+    .settings h2 {
+        font-size: 14px;
+        margin: 0;
+    }
+    .settings label {
+        display: block;
+        font-size: 13px;
+        line-height: 1.6;
+        margin: 14px 0 4px;
+    }
+    .settings output {
+        float: right;
+        font-weight: 700;
+    }
+    input[type='range'] {
+        width: 100%;
+        min-height: 40px;
+        accent-color: #147b72;
+        margin: 0;
+    }
+    select,
+    input[type='number'] {
+        width: 100%;
+        font-size: 13px;
+    }
+    .settings .check {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        min-height: 42px;
+    }
+    .check input {
+        width: 18px;
+        height: 18px;
+        accent-color: #147b72;
+    }
+    .settings p,
+    .note {
+        font-size: 12px;
+        line-height: 1.7;
+        color: #537079;
+    }
+    .stage {
+        flex: 1;
+        min-width: 0;
+        padding: 22px;
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+    }
+    .intro {
+        font-size: 14px;
+        line-height: 1.7;
+        margin: 0;
+        color: #4a6670;
+    }
+    .metrics {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+    }
+    .metric {
+        background: white;
+        border: 1px solid #cbdcdd;
+        border-radius: 12px;
+        padding: 13px 16px;
+        flex: 1;
+        min-width: 125px;
+    }
+    .metric small {
+        font-size: 12px;
+        color: #56747b;
+        display: block;
+        margin-bottom: 8px;
+    }
+    .metric strong {
+        font-size: 22px;
+        color: #146f66;
+        font-variant-numeric: tabular-nums;
+    }
+    .surface {
+        background: #f9fcfb;
+        border: 1px solid #cbdcdd;
+        border-radius: 16px;
+        padding: 22px;
+        min-width: 0;
+    }
+    .surface h2 {
+        font-size: 16px;
+        margin: 0 0 16px;
+    }
+    .split {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 16px;
+    }
+    .actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 9px;
+    }
+    .actions button {
+        font-size: 13px;
+    }
+    .status {
+        background: #e1efea;
+        color: #25544e;
+        padding: 14px 17px;
+        border-radius: 10px;
+        font-size: 13px;
+        line-height: 1.7;
+        margin: 0;
+    }
+    .scroll {
+        overflow: auto;
+        max-width: 100%;
+    }
+    table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 13px;
+        text-align: left;
+    }
+    th {
+        font-size: 11px;
+        color: #527078;
+        white-space: nowrap;
+    }
+    td,
+    th {
+        padding: 12px 8px;
+        border-bottom: 1px solid #d5e3e0;
+    }
+    td small {
+        display: block;
+        font-size: 11px;
+        color: #58717a;
+        margin-top: 5px;
+    }
+    .good {
+        color: #107264;
+    }
+    .bad {
+        color: #ac4d36;
+    }
+    .pill {
+        display: inline-block;
+        padding: 5px 9px;
+        background: #d7ede6;
+        border-radius: 6px;
+        font-size: 12px;
+    }
+    .muted {
+        color: #597079;
+        font-size: 12px;
+    }
+    .bar {
+        height: 20px;
+        border-radius: 5px;
+        overflow: hidden;
+        background: #dbe6e3;
+        position: relative;
+        margin: 9px 0 16px;
+    }
+    .bar > i {
+        display: block;
+        height: 100%;
+        background: #19877a;
+        transition: width 0.15s;
+    }
+    .bar > em {
+        position: absolute;
+        top: 0;
+        height: 100%;
+        background: #e7ad61;
+    }
+    .log {
+        max-height: 225px;
+        overflow: auto;
+        font-size: 12px;
+        line-height: 1.8;
+        margin: 0;
+        padding-left: 20px;
+    }
+    .chart {
+        width: 100%;
+        height: auto;
+        display: block;
+    }
+    .token-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 5px;
+    }
+    .token {
+        width: 32px;
+        height: 36px;
+        display: grid;
+        place-content: center;
+        border-radius: 6px;
+        background: #e0e9e5;
+        font-size: 13px;
+    }
+    .token.hit {
+        background: #207f70;
+        color: white;
+    }
+    .token.miss {
+        background: #e8d4c7;
+        color: #743e25;
+    }
+    .big {
+        font-size: 38px;
+        font-weight: 750;
+        line-height: 1.3;
+        margin: 12px 0;
+        color: #17766c;
+    }
+    .rowlabel {
+        display: flex;
+        justify-content: space-between;
+        gap: 10px;
+        font-size: 13px;
+    }
+    .visual-card {
+        padding: 16px;
+        border: 1px solid #ccddda;
+        border-radius: 11px;
+        background: white;
+    }
+    .visual-card h3 {
+        font-size: 14px;
+        margin: 0 0 10px;
+    }
+    .outcomes {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 3px;
+        min-height: 24px;
+    }
+    .outcomes i {
+        width: 9px;
+        height: 15px;
+        background: #cbddd6;
+        border-radius: 2px;
+    }
+    .outcomes i.success {
+        background: #167e6e;
+    }
+    .histogram {
+        display: flex;
+        align-items: end;
+        gap: 5px;
+        height: 145px;
+    }
+    .histogram > div {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: end;
+        height: 100%;
+        font-size: 10px;
+    }
+    .histogram i {
+        display: block;
+        width: 100%;
+        background: #269382;
+        min-height: 1px;
+    }
+    .histogram span {
+        margin-top: 5px;
+    }
+    dialog {
+        max-width: min(680px, calc(100vw - 28px));
+        max-height: 85svh;
+        border: 1px solid #bbd1cd;
+        border-radius: 16px;
+        background: #fbfdfc;
+        color: #29434a;
+        padding: 25px;
+    }
+    dialog::backdrop {
+        background: #244f5966;
+    }
+    dialog h2 {
+        font-size: 21px;
+        margin-top: 0;
+    }
+    dialog h3 {
+        font-size: 15px;
+        color: #137367;
+        margin-bottom: 5px;
+    }
+    dialog p {
+        font-size: 14px;
+        line-height: 1.8;
+    }
+    dialog a {
+        color: #14786c;
+    }
+    .dialog-heading {
+        display: flex;
+        align-items: flex-start;
+        gap: 12px;
+        margin-bottom: 18px;
+    }
+    .dialog-heading h2 {
+        flex: 1;
+        min-width: 0;
+        margin: 0;
+    }
+    .dialog-heading button {
+        flex-shrink: 0;
+    }
+    code {
+        font-size: 12px;
+        background: #e2ede8;
+        padding: 3px 5px;
+        border-radius: 4px;
+    }
+    @media (max-width: 780px) {
+        header {
+            position: relative;
+            z-index: 6;
+            padding: 11px 12px;
+            gap: 9px;
+        }
+        header a {
+            font-size: 12px;
+        }
+        .settings {
+            position: fixed;
+            z-index: 5;
+            inset: 68px auto 0 0;
+            width: min(282px, calc(100vw - 25px));
+            max-height: calc(100svh - 68px);
+            box-shadow: 12px 0 30px #244e4b22;
+        }
+        .stage {
+            padding: 13px;
+            gap: 12px;
+        }
+        .split {
+            grid-template-columns: 1fr;
+        }
+        .surface {
+            padding: 15px;
+        }
+        .metric {
+            min-width: 105px;
+            padding: 11px;
+        }
+        .metric strong {
+            font-size: 19px;
+        }
+        .intro {
+            font-size: 13px;
+        }
+        .actions button {
+            flex: 1 0 100px;
+        }
+        td,
+        th {
+            padding: 10px 6px;
+        }
+        h1 {
+            max-width: 210px;
+        }
+    }
+
+    .surface :global(.visual-card) {
+        padding: 16px;
+        border: 1px solid #ccddda;
+        border-radius: 11px;
+        background: white;
+        min-width: 0;
+    }
+    .surface :global(.visual-card h3) {
+        font-size: 14px;
+        margin: 0 0 10px;
+    }
+    .surface :global(.note) {
+        font-size: 12px;
+        line-height: 1.7;
+        color: #537079;
+    }
+    .surface :global(.rowlabel) {
+        display: flex;
+        justify-content: space-between;
+        gap: 10px;
+        font-size: 13px;
+    }
+    .surface :global(.bar) {
+        height: 20px;
+        border-radius: 5px;
+        overflow: hidden;
+        background: #dbe6e3;
+        position: relative;
+        margin: 9px 0 16px;
+    }
+    .surface :global(.bar > i) {
+        display: block;
+        height: 100%;
+        background: #19877a;
+    }
+    .surface :global(.token) {
+        width: 32px;
+        height: 36px;
+        display: grid;
+        place-content: center;
+        border-radius: 6px;
+        background: #e0e9e5;
+        font-size: 13px;
+    }
+    .surface :global(.token.hit) {
+        background: #207f70;
+        color: white;
+    }
+    .surface :global(.token.miss) {
+        background: #e8d4c7;
+        color: #743e25;
+    }
+    .surface :global(td) {
+        padding: 12px 8px;
+        border-bottom: 1px solid #d5e3e0;
+    }
+    .surface :global(td small) {
+        display: block;
+        font-size: 11px;
+        color: #58717a;
+        margin-top: 5px;
+    }
+    .surface :global(.good) {
+        color: #107264;
+    }
+    .surface :global(.bad) {
+        color: #ac4d36;
+    }
+    .surface :global(.outcomes) {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 3px;
+        min-height: 24px;
+    }
+    .surface :global(.outcomes i) {
+        width: 9px;
+        height: 15px;
+        background: #cbddd6;
+        border-radius: 2px;
+    }
+    .surface :global(.outcomes i.success) {
+        background: #167e6e;
+    }
+    .surface :global(.histogram > div) {
+        min-width: 0;
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: end;
+        height: 100%;
+        font-size: 10px;
+    }
+    .surface :global(.histogram i) {
+        display: block;
+        width: 100%;
+        background: #269382;
+        min-height: 1px;
+    }
+    .surface :global(.histogram span) {
+        margin-top: 5px;
+    }
+    @media (max-width: 780px) {
+        .surface :global(.histogram > div) {
+            font-size: 8px;
+        }
+        .surface :global(td) {
+            padding: 10px 6px;
+        }
+    }
+</style>

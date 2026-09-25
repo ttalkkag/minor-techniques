@@ -1,0 +1,12 @@
+{
+    "id": "bottle-liquid",
+    "title": "기울인 병에서 달라지는 액체의 양",
+    "description": "병의 기울기와 형상을 바꾸며 고정 수면과 부피 보정을 비교합니다.",
+    "tags": [
+        "렌더링·재질",
+        "좌표계",
+        "부피"
+    ],
+    "thumbnail": "/images/bottle-liquid.svg",
+    "href": "/experiments/bottle-liquid/"
+}

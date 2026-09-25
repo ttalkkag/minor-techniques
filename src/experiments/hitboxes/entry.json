@@ -1,0 +1,8 @@
+{
+    "id": "hitboxes",
+    "title": "한 번 휘둘렀는데 여섯 번 맞았다",
+    "description": "공격 활성 시간과 피격 영역 수를 바꿔 중복 피해를 확인합니다.",
+    "tags": ["이동과 충돌", "전투 판정", "시간"],
+    "thumbnail": "/images/hitboxes.svg",
+    "href": "/experiments/hitboxes/"
+}

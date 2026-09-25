@@ -1,0 +1,469 @@
+---
+import Page from '../../layouts/Page.astro';
+---
+
+<Page
+    title="같은 픽셀, 다른 화면 격자 · 게임 실험실"
+    description="원본 작화, 확대 필터, 좌표 스냅과 색으로 만드는 움직임을 나눠 관찰하세요."
+>
+    <main>
+        <nav>
+            <button id="menu" aria-label="설정 메뉴 열기" aria-controls="settings" aria-expanded="false">
+                ☰
+            </button>
+            <a href="/">게임 실험실</a>
+            <button id="help">원리 보기</button>
+        </nav>
+        <header>
+            <p class="eyebrow">PIXEL ART RENDERING</p>
+            <h1>같은 픽셀, 다른 화면 격자</h1>
+            <p>원본 작화, 확대 필터, 좌표 스냅과 색으로 만드는 움직임을 나눠 관찰하세요.</p>
+        </header>
+        <div class="tabs" role="group" aria-label="관찰 주제">
+            <button id="raster-mode" aria-pressed="true">
+                배율 · 필터 · 스냅
+            </button>
+            <button id="color-mode" aria-pressed="false">
+                색 기반 움직임 · 디더링
+            </button>
+        </div>
+        <section class="stage" aria-label="데이터와 결과 비교">
+            <canvas
+                id="scene"
+                aria-label="원본 격자와 출력 격자 또는 색 기반 밝기 이동과 두 색 디더링 비교"
+                aria-describedby="result"
+            ></canvas>
+        </section>
+        <section class="readout" aria-live="polite">
+            <p id="result"></p>
+            <p id="detail"></p>
+        </section>
+        <p class="hint">
+            원본과 출력 격자를 함께 비교하세요. 정수 배율·필터·표시 좌표·원본 색 변화는 서로 다른 조절입니다.
+        </p>
+        <div id="settings" role="complementary" hidden aria-label="실험 설정">
+            <div class="aside-head">
+                <h2>관찰 조건</h2>
+                <button id="close-menu" aria-label="설정 메뉴 닫기">
+                    ×
+                </button>
+            </div>
+            <form id="controls">
+                <div id="raster-controls">
+                    <label for="scale">원본 → 출력 배율</label>
+                    <select id="scale">
+                        <option value="1">1×</option>
+                        <option value="1.25">1.25×</option>
+                        <option value="1.5" selected>
+                            1.5×
+                        </option>
+                        <option value="2">2× 정수 배율</option>
+                    </select>
+                    <label for="filter">출력 샘플 필터</label>
+                    <select id="filter">
+                        <option value="nearest">점 샘플 · 원래 색 선택</option>
+                        <option value="linear">선형 RGB 보간 · 중간색</option>
+                    </select>
+                    <label for="world">
+                        실제 위치 x <output id="world-out"></output>
+                    </label>
+                    <input id="world" type="range" min="0" max="1" step="0.01" value="0.12" />
+                    <label for="ppu">
+                        출력 픽셀 / 월드 단위 <output id="ppu-out"></output>
+                    </label>
+                    <input id="ppu" type="range" min="2" max="8" step="1" value="4" />
+                    <label class="check">
+                        <input id="snap" type="checkbox" checked />
+                        표시 위치만 격자에 스냅
+                    </label>
+                    <label class="check">
+                        <input id="jagged" type="checkbox" />
+                        원본 윤곽에 한 픽셀 추가
+                    </label>
+                    <button id="integer" type="button">
+                        정수 배율 · 점 필터로
+                    </button>
+                    <p class="note">
+                        오른쪽 큰 칸 하나가 계산된 출력 1픽셀입니다. 관찰용 확대 격자는 실제 모니터의 1픽셀과
+                        다릅니다.
+                    </p>
+                </div>
+                <div id="color-controls" hidden>
+                    <label for="phase">
+                        색 변화 단계 t <output id="phase-out"></output>
+                    </label>
+                    <input id="phase" type="range" min="0" max="1" step="0.25" value="0.25" />
+                    <button id="next-frame" type="button">
+                        다음 색 프레임
+                    </button>
+                    <p class="note">
+                        왼쪽은 고정된 두 칸의 선형 밝기 (1−t, t), 오른쪽은 두 색을 공간에 배치하는 8×8
+                        디더링입니다. 좌표는 이동하지 않습니다.
+                    </p>
+                </div>
+                <button id="reset" type="reset">
+                    처음으로
+                </button>
+            </form>
+        </div>
+    </main>
+    <dialog id="explanation" aria-labelledby="explanation-title">
+        <button id="close-help" aria-label="설명 닫기">
+            ×
+        </button>
+        <p class="eyebrow">원인 · 해결 · 대가</p>
+        <h2 id="explanation-title">같은 픽셀, 다른 화면 격자</h2>
+        <h3>원본의 윤곽과 표시 격자는 다른 단계</h3>
+        <p>
+            원본 윤곽의 한 픽셀을 바꾸는 것은 작화입니다. 점 필터라도 비정수 확대에서는 한 원본 칸이 서로 다른
+            개수의 출력 칸을 차지할 수 있습니다. 4칸을 1.5배로 늘리는 가운데 표본 규칙에서는 폭이 1·2·1·2칸,
+            2배에서는 2·2·2·2칸입니다.
+        </p>
+        <h3>필터와 스냅이 바꾸는 것</h3>
+        <p>
+            점 필터는 원래 색을 고르고 보간은 경계에 중간색을 만듭니다. 이 모델은 선형 RGB에서 4개 표본을 섞은
+            뒤 sRGB로 표시합니다. 표시는 x_display = round(p·x) / p로 격자에 맞추지만 실제 x는 그대로
+            유지됩니다. 설정의 p는 출력 격자의 픽셀/월드 비율이며 원본 확대 배율과 별도로 적용합니다.
+        </p>
+        <h3>색 기반 서브픽셀과 디더링</h3>
+        <p>
+            두 고정 칸의 선형 밝기를 (1,0)에서 (0,1)로 옮기면 밝기 중심이 조금씩 이동합니다. 픽셀 좌표가
+            이동하거나 격자가 더 촘촘해진 것은 아닙니다. 여기서는 선형 밝기를 sRGB로 변환해 표시하므로 감마
+            RGB 바이트를 바로 평균하는 예가 아닙니다. 실제 작화의 미적 결과를 보증하는 수열도 아닙니다.
+        </p>
+        <p>
+            디더링은 밝은색과 어두운색을 공간에 번갈아 놓아 중간톤을 표현합니다. 이 모델은 4×4 순서 행렬을
+            8×8에 반복합니다. 두 색 이외의 중간색은 만들지 않으며, 1/16 단위의 면적 비율을 표현합니다. 색으로 만드는
+            프레임 변화와 공간 무늬를 같은 기법으로 설명하지 않습니다.
+        </p>
+        <h3>범위와 대가</h3>
+        <p>
+            이 화면은 자체 8×8 그림과 결정적인 CPU 샘플러입니다. 캔버스의 검사 확대와 계산 격자를 분리하며
+            특정 엔진의 최종 GPU 필터·카메라·아틀라스를 재현하지 않습니다. 정수 확대는 쓸 수 있는 화면 크기를
+            제한하고, 스냅은 표시 이동을 계단화하며, 보간은 팔레트 밖 색을 만들 수 있습니다.
+        </p>
+        <p>
+            <a href="https://docs.unity3d.com/kr/6000.0/Manual/urp/2d-pixelperfect-ref.html">
+                Unity 6.0 · Pixel Perfect Camera
+            </a>
+            <br />
+            <a href="https://2dwillneverdie.com/tutorial/give-your-sprites-depth-with-sub-pixel-animation/">
+                2D Will Never Die · 작가의 서브픽셀 작화 예제
+            </a>
+        </p>
+    </dialog>
+</Page>
+<script>
+    import '../../experiments/pixel-art-rendering/client';
+</script>
+<style>
+    main {
+        min-height: 100svh;
+        padding: 22px 4vw 28px;
+    }
+    nav {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+    }
+    nav a {
+        font-weight: 750;
+        color: #30474f;
+        text-decoration: none;
+    }
+    nav #help {
+        margin-left: auto;
+    }
+    button {
+        min-height: 42px;
+        min-width: 44px;
+        border: 1px solid #c5d3d7;
+        border-radius: 12px;
+        background: #fff;
+        color: #29474c;
+        padding: 9px 14px;
+        cursor: pointer;
+    }
+    button:hover {
+        background: #deefec;
+    }
+    button[aria-pressed='true'] {
+        background: #117e76;
+        color: white;
+        border-color: #117e76;
+    }
+    header {
+        text-align: center;
+        padding: 20px 0 12px;
+    }
+    .eyebrow {
+        color: #0e706a;
+        font-size: 12px;
+        letter-spacing: 0.16em;
+        font-weight: 750;
+    }
+    h1 {
+        font-size: clamp(25px, 3.6vw, 42px);
+        letter-spacing: -0.05em;
+        margin: 10px 0;
+    }
+    header > p:last-child,
+    .hint {
+        color: #52676e;
+        font-size: 14px;
+        line-height: 1.65;
+    }
+    .tabs {
+        display: flex;
+        justify-content: center;
+        gap: 8px;
+        flex-wrap: wrap;
+        margin-bottom: 18px;
+    }
+    .stage {
+        max-width: 1080px;
+        margin: auto;
+    }
+    canvas {
+        display: block;
+        width: 100%;
+        height: 490px;
+        touch-action: manipulation;
+    }
+    .readout {
+        max-width: 1000px;
+        margin: 16px auto 0;
+        background: #fff9;
+        border: 1px solid #cfdddd;
+        border-radius: 16px;
+        padding: 14px 20px;
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 14px;
+        font-size: 14px;
+        line-height: 1.65;
+    }
+    .readout p {
+        margin: 0;
+    }
+    .hint {
+        text-align: center;
+        max-width: 900px;
+        margin: 14px auto;
+    }
+    .columns {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 18px;
+    }
+    .card {
+        background: #fff9;
+        border: 1px solid #ccdbda;
+        border-radius: 18px;
+        padding: 22px;
+        min-width: 0;
+    }
+    .card h2 {
+        font-size: 17px;
+        margin: 0 0 20px;
+    }
+    .member {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        border-bottom: 1px solid #d5dfdd;
+        padding: 16px 0;
+        font-size: 15px;
+    }
+    .member b {
+        background: #d7e8df;
+        border-radius: 12px;
+        padding: 12px;
+        min-width: 56px;
+        text-align: center;
+        color: #306255;
+    }
+    .member small {
+        display: block;
+        margin-top: 5px;
+        color: #7d7063;
+    }
+    code {
+        display: block;
+        white-space: normal;
+        overflow-wrap: anywhere;
+        line-height: 1.8;
+        color: #167168;
+        font-size: 13px;
+        background: #e8f1ed;
+        border-radius: 10px;
+        padding: 12px;
+    }
+    .bytes {
+        margin: 14px 0;
+    }
+    .bytes p {
+        font-size: 13px;
+        margin: 8px 0;
+    }
+    #settings {
+        position: fixed;
+        z-index: 5;
+        left: 16px;
+        top: 78px;
+        bottom: 18px;
+        width: 320px;
+        max-width: calc(100vw - 32px);
+        overflow: auto;
+        padding: 20px;
+        background: #fffef9;
+        box-shadow: 0 16px 60px #20394433;
+        border: 1px solid #c5d3d7;
+        border-radius: 20px;
+    }
+    .aside-head {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+    .aside-head h2 {
+        font-size: 19px;
+    }
+    form label {
+        display: flex;
+        justify-content: space-between;
+        gap: 8px;
+        margin-top: 16px;
+        font-size: 13px;
+        font-weight: 600;
+    }
+    output {
+        font-variant-numeric: tabular-nums;
+        color: #0b7b74;
+    }
+    input[type='range'] {
+        width: 100%;
+        min-height: 40px;
+        accent-color: #13847c;
+    }
+    input[type='number'],
+    select {
+        width: 100%;
+        min-height: 44px;
+        font-size: 13px;
+        border: 1px solid #becfd0;
+        border-radius: 8px;
+        background: white;
+        padding: 6px;
+        margin-top: 6px;
+    }
+    input[type='color'] {
+        width: 100%;
+        height: 44px;
+        margin-top: 7px;
+        background: white;
+        border: 1px solid #becfd0;
+        border-radius: 8px;
+    }
+    .check {
+        align-items: center;
+        justify-content: flex-start;
+        min-height: 40px;
+    }
+    .check input {
+        width: 20px;
+        height: 20px;
+        accent-color: #13847c;
+    }
+    .note {
+        font-size: 12px;
+        line-height: 1.7;
+        color: #52676e;
+    }
+    form button {
+        margin-top: 10px;
+        width: 100%;
+    }
+    .inline-fields {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 10px;
+    }
+    .inline-fields label {
+        display: block;
+    }
+    .inline-fields span {
+        display: block;
+        font-size: 12px;
+    }
+    dialog {
+        width: min(660px, calc(100vw - 28px));
+        max-height: 86svh;
+        border: 1px solid #c5d3d7;
+        border-radius: 22px;
+        padding: 28px;
+        line-height: 1.75;
+        color: #30434b;
+        background: #f8faf9;
+    }
+    dialog::backdrop {
+        background: #20384088;
+        backdrop-filter: blur(3px);
+    }
+    dialog #close-help {
+        float: right;
+    }
+    dialog h2 {
+        font-size: 24px;
+    }
+    dialog h3 {
+        font-size: 17px;
+        margin-top: 25px;
+    }
+    dialog p {
+        font-size: 14px;
+    }
+    dialog a {
+        color: #08766f;
+        overflow-wrap: anywhere;
+    }
+    @media (max-width: 620px) {
+        main {
+            padding: 14px 14px 20px;
+        }
+        header {
+            padding-top: 12px;
+        }
+        header > p:last-child {
+            max-width: 285px;
+            margin: 12px auto;
+        }
+        .readout,
+        .columns {
+            grid-template-columns: 1fr;
+            gap: 12px;
+        }
+        .readout {
+            padding: 12px;
+            font-size: 12px;
+        }
+        .card {
+            padding: 16px;
+        }
+        .member {
+            padding: 10px 0;
+        }
+        canvas {
+            height: 540px;
+        }
+        .hint {
+            font-size: 12px;
+        }
+        dialog {
+            padding: 20px;
+        }
+        code {
+            font-size: 11px;
+        }
+    }
+</style>

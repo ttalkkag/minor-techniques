@@ -1,0 +1,433 @@
+---
+import Page from '../../layouts/Page.astro';
+---
+
+<Page
+    title="평면 지도가 멀어지는 도로로 보일 때 · 게임 실험실"
+    description="한 장의 지도를 전역 아핀·행별 투영·3D 광선 교차로 읽고, 선택한 행이 지도에서 가져오는 선을 비교하세요."
+>
+    <main id="lab">
+        <nav aria-label="실험실 탐색">
+            <button id="menu" aria-label="설정 메뉴 열기" aria-expanded="false" aria-controls="settings">
+                ☰
+            </button>
+            <a href="/">게임 실험실</a>
+            <button id="explain" aria-label="원인과 해결 설명 열기">
+                ?
+            </button>
+        </nav>
+        <header>
+            <p class="eyebrow">행별 바닥 투영 · MODE 7</p>
+            <h1>평면 지도가 멀어지는 도로로 보일 때</h1>
+            <p>
+                한 장의 지도를 전역 아핀·행별 투영·3D 광선 교차로 읽고, 선택한 행이 지도에서 가져오는 선을
+                비교하세요.
+            </p>
+        </header>
+        <section class="stage" aria-label="수치 모델 관찰 장면">
+            <canvas
+                id="scene"
+                aria-label="평면 지도가 멀어지는 도로로 보일 때 비교 그림"
+                aria-describedby="summary"
+            ></canvas>
+        </section>
+        <div class="readouts">
+            <div class="metric">
+                <span>선택 행 전방 거리 t</span>
+                <strong id="metric-0">계산 중</strong>
+            </div>
+            <div class="metric">
+                <span>한 픽셀의 맵 간격</span>
+                <strong id="metric-1">계산 중</strong>
+            </div>
+            <div class="metric">
+                <span>중앙 픽셀의 맵 좌표</span>
+                <strong id="metric-2">계산 중</strong>
+            </div>
+        </div>
+        <p id="summary" class="summary" role="status"></p>
+        <div class="toolbar">
+            <button id="reset">초기화</button>
+        </div>
+        <footer>설정을 열어 조건을 바꾸고 두 결과를 비교하세요.</footer>
+        <div id="settings" class="settings" role="complementary" aria-label="실험 설정" hidden>
+            <h2>
+                설정
+                <button id="close-menu" aria-label="설정 메뉴 닫기">
+                    ×
+                </button>
+            </h2>
+            <div class="control">
+                <label for="mode">오른쪽 비교 방식</label>
+                <select id="mode">
+                    <option value="rows">행별 바닥 투영</option>
+                    <option value="ray">3D 광선–평면 교차</option>
+                </select>
+            </div>
+            <div class="control">
+                <label for="height">
+                    카메라 높이 H<output id="height-value"></output>
+                </label>
+                <input id="height" type="range" min="0.5" max="5" step="0.1" value="2" />
+            </div>
+            <div class="control">
+                <label for="yaw">
+                    바닥 위 회전<output id="yaw-value"></output>
+                </label>
+                <input id="yaw" type="range" min="-180" max="180" step="1" value="0" />
+            </div>
+            <div class="control">
+                <label for="forward">
+                    카메라 지도 Z 이동<output id="forward-value"></output>
+                </label>
+                <input id="forward" type="range" min="-12" max="12" step="0.1" value="0" />
+            </div>
+            <div class="control">
+                <label for="row">
+                    선택한 화면 행<output id="row-value"></output>
+                </label>
+                <input id="row" type="range" min="37" max="179" step="1" value="96" />
+            </div>
+            <div class="control">
+                <label for="boundary">지도 밖 샘플 처리</label>
+                <select id="boundary">
+                    <option value="repeat">반복</option>
+                    <option value="clamp">가장자리 고정</option>
+                    <option value="empty">비움</option>
+                </select>
+            </div>
+            <label class="check">
+                <input id="obstacle" type="checkbox" />
+                높이 2m 기둥 별도 투영
+            </label>
+            <p class="note">
+                논리 화면 280 × 180, F = 150px, 지평선 y₀ = 36px. 지도는 24 × 24m, 최대 바닥 거리는
+                100m입니다. 표본은 픽셀 중심 (x + 0.5, y + 0.5)에서 읽으며, 중앙 표본의 열 번호는
+                140입니다. 카메라는 수평 시선을 유지합니다.
+            </p>
+        </div>
+    </main>
+    <dialog id="explanation" aria-labelledby="explanation-title">
+        <h2 id="explanation-title">
+            원인과 해결
+            <button id="close-dialog" aria-label="설명 닫기">
+                ×
+            </button>
+        </h2>
+        <h3>문제와 원인</h3>
+        <p>
+            전역 아핀 변환은 화면 어디서나 같은 맵 간격을 사용합니다. 원근 바닥에서는 가까운 행과 먼 행의
+            간격이 달라야 합니다. 같은 화면 행 안에서는 일정한 증가량으로 읽되, 행마다 시작점과 증가량을 새로
+            계산합니다.
+        </p>
+        <h3>투영식과 비교</h3>
+        <p>
+            수평 바닥과 수평 카메라에서 <code>t = F × H / (y − y₀)</code>, <code>s = (x − cₓ) × t / F</code>
+            입니다. 오른쪽의 행별 식과 카메라 광선을 바닥 y=0에 교차시키는 방식은 같은 좌표를 돌려줍니다. 아래
+            지도에서 선택 행의 표본 선을 확인하세요.
+        </p>
+        <h3>비용과 범위</h3>
+        <p>
+            지평선에서는 교차점이 없고 먼 바닥의 읽기 범위가 급격히 커집니다. 지도 밖 처리와 최대 거리를 따로
+            정합니다. 높이 기둥은 별도 3D 정점을 투영해 얹으므로 높이·가림 처리가 추가됩니다. 이것은 SNES
+            레지스터·HDMA·주사선 타이밍의 에뮬레이션이 아닌 핀홀 카메라와 맵 샘플 모델입니다. 임의
+            pitch·roll과 높이 지형은 지원하지 않습니다.
+        </p>
+        <p>
+            <a href="https://github.com/bsnes-emu/bsnes/blob/master/bsnes/sfc/ppu-fast/mode7.cpp">
+                bsnes Mode 7 구현
+            </a>{' '}
+            ·{' '}
+            <a href="https://www.nintendo.com/jp/topics/article/3228ce3a-8d29-11e7-8cda-063b7ac45a6d">
+                닌텐도 개발자 회고
+            </a>{' '}
+            ·{' '}
+            <a href="https://docs.godotengine.org/en/stable/classes/class_camera3d.html#enum-camera3d-projectiontype">
+                Godot 투영 종류
+            </a>
+        </p>
+    </dialog>
+    <script>
+        import '../../experiments/mode7-projection/client';
+    </script>
+</Page>
+<style>
+    :global(body) {
+        background: #edf1f3;
+        color: #233744;
+    }
+    main {
+        min-height: 100svh;
+        padding: 80px 28px 26px;
+        display: flex;
+        flex-direction: column;
+        gap: 18px;
+    }
+    nav {
+        position: absolute;
+        inset: 0 0 auto;
+        height: 64px;
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        padding: 12px 24px;
+        border-bottom: 1px solid #cdd7db;
+        background: #f7f9fa;
+        z-index: 3;
+    }
+    nav a {
+        font-weight: 800;
+        color: inherit;
+        text-decoration: none;
+    }
+    nav button:last-child {
+        margin-left: auto;
+    }
+    button,
+    select {
+        min-height: 42px;
+        border: 1px solid #b6c6cb;
+        border-radius: 10px;
+        background: #f8fafb;
+        color: #233744;
+        padding: 8px 13px;
+        cursor: pointer;
+    }
+    button:hover {
+        background: #dce9e8;
+    }
+    header {
+        max-width: 780px;
+    }
+    header p {
+        margin: 0;
+        color: #4b6470;
+        line-height: 1.6;
+    }
+    h1 {
+        font-size: clamp(24px, 4vw, 40px);
+        letter-spacing: -0.045em;
+        margin: 4px 0 10px;
+    }
+    h2 {
+        font-size: 20px;
+    }
+    .eyebrow {
+        font-size: 12px;
+        font-weight: 800;
+        letter-spacing: 0.16em;
+        color: #147871;
+    }
+    .stage {
+        width: 100%;
+        flex: 1;
+        min-height: 410px;
+        border: 1px solid #c9d6da;
+        border-radius: 20px;
+        overflow: hidden;
+        background: #f6f8f8;
+        position: relative;
+    }
+    canvas {
+        display: block;
+        width: 100%;
+        height: 100%;
+        position: absolute;
+        inset: 0;
+    }
+    .readouts {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 12px;
+    }
+    .metric {
+        background: #f9fbfb;
+        border: 1px solid #ccd9dc;
+        border-radius: 13px;
+        padding: 14px;
+        min-width: 0;
+    }
+    .metric span {
+        display: block;
+        font-size: 13px;
+        color: #516771;
+    }
+    .metric strong {
+        display: block;
+        font-size: 20px;
+        font-variant-numeric: tabular-nums;
+        margin-top: 6px;
+        overflow-wrap: anywhere;
+    }
+    .summary {
+        line-height: 1.6;
+        margin: 0;
+        color: #3e5c68;
+        min-height: 26px;
+    }
+    .toolbar {
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+    }
+    .settings {
+        position: fixed;
+        z-index: 5;
+        top: 75px;
+        left: 16px;
+        bottom: 18px;
+        width: 300px;
+        max-width: calc(100vw - 32px);
+        overflow: auto;
+        padding: 20px;
+        background: #fbfdfd;
+        border: 1px solid #bcced1;
+        box-shadow: 0 15px 50px #20384426;
+        border-radius: 18px;
+    }
+    .settings h2 {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin: 0 0 18px;
+    }
+    .control {
+        display: block;
+        margin: 20px 0;
+    }
+    .control label {
+        display: flex;
+        justify-content: space-between;
+        gap: 8px;
+        font-size: 14px;
+        font-weight: 650;
+    }
+    .control output {
+        color: #126d69;
+        font-variant-numeric: tabular-nums;
+    }
+    .control input[type='range'] {
+        width: 100%;
+        height: 40px;
+        accent-color: #168980;
+    }
+    .control select {
+        width: 100%;
+        margin-top: 8px;
+    }
+    .check {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        min-height: 44px;
+        font-size: 14px;
+    }
+    .check input {
+        width: 18px;
+        height: 18px;
+        accent-color: #168980;
+    }
+    .note {
+        font-size: 13px;
+        line-height: 1.65;
+        color: #566e76;
+    }
+    .primary {
+        background: #126f6a;
+        color: white;
+        border-color: #126f6a;
+    }
+    dialog {
+        max-width: min(660px, calc(100vw - 32px));
+        max-height: 85svh;
+        overflow: auto;
+        border: 1px solid #bed0d1;
+        border-radius: 20px;
+        padding: 25px;
+        color: #263e48;
+        background: #f8fbfb;
+    }
+    dialog::backdrop {
+        background: #153a4c80;
+    }
+    dialog h2 {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 20px;
+    }
+    dialog p {
+        line-height: 1.8;
+    }
+    dialog a {
+        color: #116b67;
+    }
+    dialog code {
+        font-size: 0.9em;
+        overflow-wrap: anywhere;
+    }
+    footer {
+        font-size: 12px;
+        color: #526d75;
+    }
+    @media (min-width: 1100px) {
+        main.menu-open {
+            padding-left: 350px;
+        }
+    }
+    @media (max-width: 640px) {
+        main {
+            padding: 78px 14px 20px;
+            gap: 14px;
+        }
+        nav {
+            padding: 10px 14px;
+        }
+        header p {
+            font-size: 14px;
+        }
+        .stage {
+            min-height: 420px;
+        }
+        .readouts {
+            grid-template-columns: 1fr;
+        }
+        .metric {
+            padding: 11px 14px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 12px;
+        }
+        .metric strong {
+            font-size: 17px;
+            margin: 0;
+            text-align: right;
+        }
+        .settings {
+            top: 72px;
+        }
+        .toolbar button {
+            flex: 1 1 125px;
+            font-size: 13px;
+        }
+        .metric span {
+            flex: 0 0 38%;
+        }
+        .metric strong {
+            flex: 1;
+            min-width: 0;
+        }
+        footer {
+            line-height: 1.6;
+        }
+    }
+    .stage {
+        min-height: 470px;
+    }
+    @media (max-width: 640px) {
+        .stage {
+            min-height: 610px;
+        }
+    }
+</style>

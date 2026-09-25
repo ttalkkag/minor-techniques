@@ -1,0 +1,8 @@
+{
+    "id": "depth-buffer",
+    "title": "겹친 두 판이 같은 깊이가 될 때",
+    "description": "판의 거리·간격과 저장 포맷을 바꾸고 일반 깊이와 반전 깊이의 구분 능력을 비교하세요.",
+    "tags": ["렌더링 정밀도", "깊이 저장"],
+    "thumbnail": "/images/depth-buffer.svg",
+    "href": "/experiments/depth-buffer/"
+}

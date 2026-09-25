@@ -14,13 +14,18 @@
     "build": "astro check && astro build",
     "preview": "astro preview",
     "check": "astro check",
+    "test": "node --experimental-strip-types --test src/experiments/*/*.test.ts",
+    "verify:experiments": "node scripts/verify-experiments.mjs",
     "prepare": "husky"
   },
   "dependencies": {
-    "astro": "^7.3.5"
+    "astro": "^7.3.5",
+    "three": "^0.186.1"
   },
   "devDependencies": {
     "@astrojs/check": "^0.9.10",
+    "@types/node": "^22.20.4",
+    "@types/three": "^0.186.0",
     "husky": "^9.1.7",
     "typescript": "^6.0.3"
   }

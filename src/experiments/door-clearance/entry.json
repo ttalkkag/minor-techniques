@@ -1,0 +1,8 @@
+{
+    "id": "door-clearance",
+    "title": "몸은 지나가는데 카메라는 막힌다",
+    "description": "문 폭·몸 반지름·카메라 프로브를 각각 조절해 통과하세요.",
+    "tags": ["카메라·레벨", "충돌", "시야"],
+    "thumbnail": "/images/door-clearance.svg",
+    "href": "/experiments/door-clearance/"
+}

@@ -1,0 +1,8 @@
+{
+    "id": "screen-coordinate-precision",
+    "title": "부드러운 이동이 한 칸씩 뛸 때",
+    "description": "투영된 정점의 소수 부분을 격자에 붙이고, 연속 위치와 윤곽의 차이를 확대해 관찰하세요.",
+    "tags": ["렌더링 정밀도", "화면 정점"],
+    "thumbnail": "/images/screen-coordinate-precision.svg",
+    "href": "/experiments/screen-coordinate-precision/"
+}

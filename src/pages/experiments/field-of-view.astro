@@ -1,0 +1,457 @@
+---
+import Page from '../../layouts/Page.astro';
+---
+
+<Page
+    title="시야각 안인데 벽 뒤에 있다면 | 게임 실험실"
+    description="거리, 정규화, 벽 차폐와 신체 표본 수를 조합해 발견 판정을 바꿉니다."
+>
+    <div class="lab">
+        <header>
+            <button
+                id="menu"
+                class="menu-button"
+                aria-label="설정 열기 및 닫기"
+                aria-expanded="true"
+                aria-controls="settings"
+            >
+                ☰
+            </button>
+            <h1>시야각 안인데 벽 뒤에 있다면</h1>
+            <a href="/">목록으로</a>
+        </header>
+        <main>
+            <div data-settings-panel role="complementary" class="settings" id="settings" aria-label="실험 설정">
+                <button id="close-menu" aria-label="설정 닫기">×</button>
+                <h2>발견 규칙</h2>
+                <label for="heading">
+                    관측자 방향 <output id="heading-out">0°</output>
+                </label>
+                <input id="heading" type="range" min="-180" max="180" value="0" />
+                <label for="fov">
+                    전체 시야각 <output id="fov-out">90°</output>
+                </label>
+                <input id="fov" type="range" min="0" max="360" value="90" />
+                <label for="range">
+                    거리 한도 <output id="range-out">15 m</output>
+                </label>
+                <input id="range" type="range" min="1" max="20" value="15" step="0.5" />
+                <label class="check">
+                    <input id="normalize" type="checkbox" checked /> 표적 방향 정규화
+                </label>
+                <label class="check">
+                    <input id="occlusion" type="checkbox" checked /> 벽 차폐 검사
+                </label>
+                <label for="samples">표적당 표본</label>
+                <select id="samples">
+                    <option value="1">중심 한 점</option>
+                    <option value="3">중심 + 양쪽 세 점 · 하나라도 보이면</option>
+                </select>
+                <label for="query">광선 반환 규칙</label>
+                <select id="query">
+                    <option value="wall">벽만 질의 · 벽이 없으면 보임</option>
+                    <option value="first">벽과 표적 · 첫 충돌이 표적이면 보임</option>
+                </select>
+                <label for="target-x">
+                    주 표적 X <output id="target-x-out">5 m</output>
+                </label>
+                <input id="target-x" type="range" min="-8" max="9" value="5" step="0.1" />
+                <label for="target-y">
+                    주 표적 Y <output id="target-y-out">0 m</output>
+                </label>
+                <input id="target-y" type="range" min="-5" max="5" value="0" step="0.1" />
+                <label for="wall-end">
+                    벽 끝 Y <output id="wall-end-out">0.4 m</output>
+                </label>
+                <input id="wall-end" type="range" min="-4" max="4" value="0.4" step="0.1" />
+                <label for="memory">
+                    마지막 발견 기억 <output id="memory-out">2초</output>
+                </label>
+                <input id="memory" type="range" min="0" max="5" value="2" step="0.5" />
+                <div class="actions">
+                    <button id="counterexample">정규화 반례</button>
+                    <button id="inside-wall">벽 안에서 시작</button>
+                    <button id="same-position">같은 위치</button>
+                    <button id="reset">초기화</button>
+                </div>
+                <div class="actions">
+                    <button id="explain">판정 원리</button>
+                </div>
+            </div>
+            <section class="stage" aria-label="실험 장면">
+                <p class="intro">
+                    청록 관측자가 주황 표적을 발견할 수 있을까요? 장면을 눌러 주 표적을 옮길 수 있습니다. 회색
+                    점 5개도 같은 규칙을 검사합니다.
+                </p>
+                <div class="metrics" aria-live="polite">
+                    <div class="metric">
+                        <small>전체 → 거리 → 각도 → 발견</small>
+                        <strong id="pipeline">—</strong>
+                    </div>
+                    <div class="metric">
+                        <small>주 표적 내적 / 임계값</small>
+                        <strong id="dot-value">—</strong>
+                    </div>
+                    <div class="metric">
+                        <small>이번 광선 질의 수</small>
+                        <strong id="ray-count">—</strong>
+                    </div>
+                </div>
+                <div class="scene">
+                    <canvas id="canvas" aria-label="시야각 안인데 벽 뒤에 있다면 시각화"></canvas>
+                </div>
+                <p class="legend">
+                    <span>청록: 발견 / 맑은 광선</span>
+                    <span>주황: 주 표적</span>
+                    <span>빨강: 벽에서 중단</span>
+                    <span>회색: 단계 탈락</span>
+                </p>
+                <p id="summary" class="status" role="status">
+                    장면을 계산하고 있습니다.
+                </p>
+                <div class="actions time">
+                    <button id="tick">시간 +0.5초</button>
+                    <span id="time">0.0초</span>
+                    <strong id="memory-state">미발견</strong>
+                </div>
+            </section>
+        </main>
+    </div>
+    <dialog id="explanation" aria-label="실험 설명">
+        <button id="close-dialog" aria-label="설명 닫기">
+            닫기
+        </button>
+        <h2>내적은 방향만 판정한다</h2>
+        <h3>문제 · 같은 방향인데 멀리 있을수록 발견된다</h3>
+        <p>
+            정규화를 생략한 내적에는 거리가 곱해져 있습니다. 반례 버튼은 방향 (3, 4), 거리 5, 시야 90°를
+            설정합니다. 단위 방향의 내적 0.6은 임계값 약 0.707보다 작지만, 정규화를 끄면 3이 되어 잘못
+            통과합니다.
+        </p>
+        <h3>원인 · 서로 다른 세 질문</h3>
+        <p>
+            거리 제곱을 한도 제곱과 비교하고, 단위 방향 내적을 cos(전체 시야각 ÷ 2)와 비교한 뒤 남은 후보만
+            벽에 광선을 보냅니다. 시야각은 중심을 기준으로 하고 신체 표본은 차폐에만 사용합니다. 한 점이
+            가려져도 세 점 중 하나가 노출되면 발견합니다.
+        </p>
+        <h3>해결 · 질의 의미를 일관되게 사용</h3>
+        <p>
+            벽 전용 질의는 목표까지 벽이 없는지를 봅니다. 벽과 표적을 질의할 때는 가장 가까운 결과가 표적인지
+            봅니다. 이 모델은 표본 끝점을 표적으로 정의해 두 방식이 같은 결론을 냅니다. 자기 몸은 제외하고 벽
+            하나만 차폐 대상으로 둡니다.
+        </p>
+        <h3>대가와 경계</h3>
+        <p>
+            표본을 모두 검사하므로 질의 수는 거리·각도 통과 후보 × 표본 수입니다. 동일 위치는 방향 검사 없이
+            발견하며 광선이 필요 없습니다. 벽 내부 시작은 미검출을 맑은 시야로 오해하지 않도록 발견 불가로
+            처리합니다. 2D 사각형과 선분 교차 모델이며 엔진의 트리거·레이어·3D 높이를 재현하지 않습니다.
+        </p>
+        <p>
+            기억 상태는 순간 발견과 별개입니다. 표적이 보인 시점을 저장하고, ‘시간 +0.5초’로 기억 만료를
+            관찰합니다. 설정을 바꾸는 동안 시뮬레이션 시간은 정지합니다.
+        </p>
+        <p>
+            공식 근거:{' '}
+            <a
+                href="https://docs.unity3d.com/6000.0/Documentation/ScriptReference/Vector3.Dot.html"
+                target="_blank"
+                rel="noreferrer"
+            >
+                Unity Vector3.Dot
+            </a>
+            ,{' '}
+            <a
+                href="https://docs.unity3d.com/6000.0/Documentation/ScriptReference/Physics.Raycast.html"
+                target="_blank"
+                rel="noreferrer"
+            >
+                Physics.Raycast의 거리·레이어·내부 시작점 제약
+            </a>
+            .
+        </p>
+    </dialog>
+</Page>
+<script>
+    import '../../experiments/field-of-view/client';
+</script>
+<style>
+    :global(body) {
+        background: #edf1f3;
+        color: #243b43;
+    }
+    .lab {
+        min-height: 100svh;
+        display: flex;
+        flex-direction: column;
+    }
+    header {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 14px 22px;
+        border-bottom: 1px solid #cad6d9;
+        background: #f7f9f9;
+    }
+    h1 {
+        word-break: keep-all;
+        font-size: clamp(17px, 2vw, 23px);
+        margin: 0;
+    }
+    header a {
+        margin-left: auto;
+        color: #245d60;
+        white-space: nowrap;
+        font-size: 14px;
+    }
+    button,
+    select {
+        min-height: 42px;
+        border: 1px solid #becfd2;
+        border-radius: 9px;
+        background: #fff;
+        color: #29434a;
+        padding: 8px 13px;
+        cursor: pointer;
+    }
+    button:hover {
+        background: #e2efed;
+    }
+    .menu-button {
+        font-size: 21px;
+        min-width: 44px;
+        padding: 5px;
+    }
+    main {
+        display: flex;
+        flex: 1;
+        min-width: 0;
+        position: relative;
+    }
+    .settings {
+        flex: 0 0 272px;
+        padding: 20px;
+        background: #f8fafa;
+        border-right: 1px solid #cad6d9;
+        max-height: calc(100svh - 72px);
+        overflow: auto;
+    }
+    #close-menu {
+        float: right;
+        min-width: 40px;
+        min-height: 40px;
+        margin: -8px 0 8px 8px;
+        font-size: 22px;
+    }
+    .settings h2 {
+        font-size: 14px;
+        margin: 0 0 18px;
+        color: #49666e;
+    }
+    .settings label {
+        display: block;
+        font-size: 13px;
+        margin: 17px 0 5px;
+        line-height: 1.5;
+    }
+    .settings label output {
+        float: right;
+        font-weight: 700;
+        font-variant-numeric: tabular-nums;
+    }
+    input[type='range'] {
+        width: 100%;
+        accent-color: #167d78;
+        min-height: 40px;
+        margin: 0;
+    }
+    select {
+        width: 100%;
+        font-size: 13px;
+    }
+    .settings label.check {
+        display: flex;
+        align-items: center;
+        gap: 9px;
+        min-height: 40px;
+        margin: 8px 0;
+    }
+    .check input {
+        width: 18px;
+        height: 18px;
+        accent-color: #167d78;
+    }
+    .actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 7px;
+        margin-top: 18px;
+    }
+    .actions button {
+        font-size: 12px;
+        flex: 1 0 95px;
+    }
+    .stage {
+        flex: 1;
+        min-width: 0;
+        padding: 22px;
+        display: flex;
+        flex-direction: column;
+        gap: 15px;
+    }
+    .intro {
+        margin: 0;
+        font-size: 14px;
+        color: #486169;
+        line-height: 1.6;
+    }
+    .metrics {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+    }
+    .metric {
+        padding: 11px 15px;
+        background: #fff;
+        border: 1px solid #cfddde;
+        border-radius: 12px;
+        flex: 1;
+        min-width: 120px;
+    }
+    .metric small {
+        display: block;
+        font-size: 12px;
+        color: #5c7076;
+        margin-bottom: 6px;
+    }
+    .metric strong {
+        font-size: 19px;
+        color: #146b66;
+        font-variant-numeric: tabular-nums;
+    }
+    .scene {
+        flex: 1;
+        position: relative;
+        min-height: 380px;
+        border: 1px solid #cddadc;
+        border-radius: 16px;
+        overflow: hidden;
+        background: #f8fbfb;
+    }
+    canvas {
+        width: 100%;
+        height: 100%;
+        display: block;
+        position: absolute;
+        inset: 0;
+    }
+    .status {
+        margin: 0;
+        line-height: 1.6;
+        font-size: 13px;
+        padding: 12px 15px;
+        background: #e1eeeb;
+        border-radius: 10px;
+        color: #244e4b;
+    }
+    .legend {
+        font-size: 12px;
+        color: #526c73;
+        margin: 0;
+    }
+    .legend span {
+        display: inline-block;
+        margin-right: 15px;
+    }
+    dialog {
+        max-width: min(650px, calc(100vw - 30px));
+        max-height: 85svh;
+        border: 1px solid #c2d4d5;
+        border-radius: 17px;
+        padding: 25px;
+        background: #fbfdfd;
+        color: #29434a;
+    }
+    dialog::backdrop {
+        background: #173e4966;
+    }
+    dialog h2 {
+        font-size: 21px;
+        margin-top: 0;
+    }
+    dialog h3 {
+        font-size: 15px;
+        color: #136a65;
+        margin-bottom: 5px;
+    }
+    dialog p,
+    dialog li {
+        font-size: 14px;
+        line-height: 1.8;
+    }
+    dialog a {
+        color: #176e69;
+    }
+    dialog button {
+        float: right;
+    }
+    code {
+        font-size: 12px;
+        background: #e8efee;
+        border-radius: 4px;
+        padding: 3px;
+    }
+    @media (max-width: 750px) {
+        header {
+            padding: 11px 12px;
+            gap: 9px;
+        }
+        header a {
+            font-size: 12px;
+        }
+        .settings {
+            position: fixed;
+            z-index: 4;
+            inset: 68px auto 0 0;
+            width: min(285px, calc(100vw - 30px));
+            max-height: calc(100svh - 68px);
+            box-shadow: 15px 0 35px #244e4b22;
+        }
+        .stage {
+            padding: 13px;
+            gap: 11px;
+        }
+        .scene {
+            min-height: 420px;
+        }
+        .metric {
+            min-width: 90px;
+            padding: 9px;
+        }
+        .metric strong {
+            font-size: 17px;
+        }
+        .intro {
+            font-size: 13px;
+        }
+        h1 {
+            max-width: 190px;
+        }
+        .legend {
+            line-height: 1.7;
+        }
+    }
+    .time {
+        margin: 0;
+        align-items: center;
+    }
+    .time button {
+        flex: none;
+    }
+    .time span {
+        font-size: 13px;
+    }
+    .time strong {
+        font-size: 14px;
+        color: #176b66;
+    }
+</style>

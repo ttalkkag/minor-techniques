@@ -1,0 +1,533 @@
+---
+import Page from '../../layouts/Page.astro';
+---
+
+<Page
+    title="입력값이 명령으로 읽히는 순간 · 게임 실험실"
+    description="숫자 기록과 실행 위치를 따로 바꾸며 데이터가 명령이 되는 조건을 비교하세요."
+>
+    <main id="lab" class="lab">
+        <nav aria-label="실험실 탐색">
+            <button id="menu" aria-label="설정 메뉴 열기" aria-controls="settings" aria-expanded="false">
+                ☰
+            </button>
+            <a href="/">게임 실험실</a>
+            <button id="help" aria-label="원인과 해결 설명 열기">
+                ?
+            </button>
+        </nav>
+        <header>
+            <p>입력 · 숫자 메모리 · 프로그램 카운터</p>
+            <h1>입력값이 명령으로 읽히는 순간</h1>
+            <span>숫자 기록과 실행 위치를 따로 바꾸며 데이터가 명령이 되는 조건을 비교하세요.</span>
+        </header>
+        <div id="settings" role="complementary" hidden aria-label="실험 설정">
+            <div class="panel-title">
+                <h2>조건을 바꿔 보세요</h2>
+                <button id="close-menu" aria-label="설정 메뉴 닫기">
+                    ×
+                </button>
+            </div>
+            <div class="presets">
+                <button id="data-preset">숫자만 기록</button>
+                <button id="execute-preset">데이터 실행</button>
+                <button id="loop-preset">반복</button>
+            </div>
+            <label for="input-value">컨트롤러 입력 숫자</label>
+            <select id="input-value">
+                <option value="3">3 · 장면 전환과 같은 숫자</option>
+                <option value="1">1 · 점수 +1과 같은 숫자</option>
+                <option value="2">2 · 이동과 같은 숫자</option>
+                <option value="4">4 · 반복과 같은 숫자</option>
+                <option value="0">0 · 정지와 같은 숫자</option>
+                <option value="99">99 · 미정의 숫자</option>
+            </select>
+            <label for="address">숫자를 쓸 메모리 칸</label>
+            <select id="address">
+                <option value="8">08 · 데이터</option>
+                <option value="9">09 · 데이터</option>
+                <option value="10">10 · 데이터</option>
+                <option value="11">11 · 데이터</option>
+                <option value="12">12 · 데이터</option>
+                <option value="13">13 · 데이터</option>
+                <option value="14">14 · 데이터</option>
+                <option value="15">15 · 데이터</option>
+                <option value="0">00 · 명령</option>
+                <option value="1">01 · 명령</option>
+                <option value="2">02 · 명령</option>
+                <option value="3">03 · 명령</option>
+                <option value="4">04 · 명령</option>
+                <option value="5">05 · 명령</option>
+                <option value="6">06 · 명령</option>
+                <option value="7">07 · 명령</option>
+            </select>
+            <button id="write" class="wide">
+                입력 숫자 기록
+            </button>
+            <label for="target">다음 실행 위치 (PC)</label>
+            <select id="target">
+                <option value="8">08번</option>
+                <option value="9">09번</option>
+                <option value="10">10번</option>
+                <option value="11">11번</option>
+                <option value="12">12번</option>
+                <option value="13">13번</option>
+                <option value="14">14번</option>
+                <option value="15">15번</option>
+                <option value="0">00번</option>
+                <option value="1">01번</option>
+                <option value="2">02번</option>
+                <option value="3">03번</option>
+                <option value="4">04번</option>
+                <option value="5">05번</option>
+                <option value="6">06번</option>
+                <option value="7">07번</option>
+            </select>
+            <button id="jump" class="wide">
+                PC 위치 이동
+            </button>
+            <label class="check">
+                <input id="write-guard" type="checkbox" />
+                쓰기: 데이터 영역만 허용
+            </label>
+            <label class="check">
+                <input id="execute-guard" type="checkbox" />
+                분기·실행: 명령 영역만 허용
+            </label>
+            <label class="check">
+                <input id="opcode-guard" type="checkbox" checked />
+                명령 0–4만 허용
+            </label>
+            <label for="budget">
+                최대 실행 단계<output id="budget-value"></output>
+            </label>
+            <input id="budget" type="range" min="1" max="24" step="1" value="12" />
+            <button id="reset" class="wide">
+                초기화
+            </button>
+        </div>
+        <section class="scene-area">
+            <div class="canvas-wrap">
+                <canvas
+                    id="scene"
+                    aria-label="입력값이 명령으로 읽히는 순간 수치 모델 장면"
+                    aria-describedby="summary"
+                ></canvas>
+            </div>
+            <div class="stats">
+                <article>
+                    <span>PC 위치</span>
+                    <strong id="metric-0"></strong>
+                    <small id="detail-0">주황 테두리의 메모리 칸</small>
+                </article>
+                <article>
+                    <span>점수 데이터</span>
+                    <strong id="metric-1"></strong>
+                    <small id="detail-1">메모리 08번</small>
+                </article>
+                <article>
+                    <span>실행한 단계</span>
+                    <strong id="metric-2"></strong>
+                    <small id="detail-2">기록·분기는 실행과 분리</small>
+                </article>
+                <article>
+                    <span>게임 장면</span>
+                    <strong id="metric-3"></strong>
+                    <small id="detail-3">명령 3이 실행되면 전환</small>
+                </article>
+            </div>
+            <div class="toolbar">
+                <button id="step">한 단계 실행</button>
+                <button id="run">한도까지 실행</button>
+            </div>
+            <p id="summary" role="status" aria-live="polite"></p>
+            <p class="note">고정된 16칸 숫자 배열과 5개 동작만 사용하는 교육 모형입니다.</p>
+            <div id="log" class="log" role="region" aria-label="최근 상태 기록"></div>
+        </section>
+    </main>
+    <dialog id="explanation" aria-labelledby="explanation-title">
+        <button id="close-dialog" class="dialog-close" aria-label="설명 닫기">
+            ×
+        </button>
+        <p class="eyebrow">문제 · 원인 · 해결 · 대가</p>
+        <h2 id="explanation-title">입력값이 명령으로 읽히는 순간</h2>
+        <h3>문제와 원인</h3>
+        <p>
+            입력값이 메모리에 기록되는 것만으로 명령이 실행되지는 않습니다. PC가 그 칸을 가리키고, 숫자를
+            명령으로 읽어야 동작이 바뀝니다. 「숫자만 기록」과 「데이터 실행」을 번갈아 선택한 뒤 한 단계를
+            실행하세요.
+        </p>
+        <h3>서로 다른 경계</h3>
+        <p>
+            쓰기 검사는 입력이 명령 영역을 덮지 못하게 합니다. 분기·실행 검사는 데이터 영역을 실행 위치로 쓰지
+            못하게 합니다. 명령 집합 검사는 미정의 숫자를 거부하지만, 허용된 반복 명령 4의 무한 반복은 막지
+            못합니다. 실행 단계 상한은 별도의 제한입니다.
+        </p>
+        <h3>동작과 대가</h3>
+        <p>
+            0=정지, 1=점수 +1, 2=오른쪽 이동, 3=장면 전환, 4=현재 칸 반복입니다. 명령 집합 검사를 끄면 미정의
+            숫자는 이 모형에서 건너뜁니다. 메모리 16칸과 0–255 입력 제한은 항상 유지됩니다. 경계 검사에는
+            제약과 검사 작업이 추가되며, 실제 시스템의 메모리 보호 전체를 대신하지 않습니다.
+        </p>
+        <h3>역사적 사례의 범위</h3>
+        <p>
+            Triforce% 제작팀은 원본 카트리지에 남은 자료, 공개 자료를 바탕으로 재제작한 장면, 새 창작물을
+            구분합니다. 새 장면은 컨트롤러 입력으로 주입됐으며 개발용 수정 ROM과 행사 실행도 다릅니다. 이
+            모형의 주소·숫자·장면은 자체 설계이며 콘솔 입력열이나 원작 코드를 실행하지 않습니다.
+        </p>
+        <p class="sources">
+            <a href="https://gettriforce.link/faq.html" target="_blank" rel="noreferrer">
+                Triforce% 제작팀 FAQ
+            </a>
+        </p>
+    </dialog>
+    <script>
+        import '../../experiments/input-execution-boundary/client';
+    </script>
+</Page>
+<style>
+    .lab {
+        min-height: 100svh;
+        padding: 18px 28px 30px;
+        color: #263b43;
+        position: relative;
+    }
+    nav {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+    }
+    nav a {
+        font-weight: 750;
+        color: inherit;
+        text-decoration: none;
+    }
+    nav button:last-child {
+        margin-left: auto;
+    }
+    button {
+        min-height: 42px;
+        border: 1px solid #cad8da;
+        border-radius: 10px;
+        padding: 8px 14px;
+        color: #30494f;
+        background: #fff;
+        cursor: pointer;
+    }
+    button:hover {
+        background: #e2efed;
+    }
+    nav button {
+        width: 44px;
+        padding: 0;
+        font-size: 23px;
+    }
+    header {
+        padding: 24px 0 20px;
+    }
+    header p,
+    .eyebrow {
+        font-size: 12px;
+        letter-spacing: 0.08em;
+        color: #0f706b;
+        font-weight: 750;
+    }
+    h1 {
+        margin: 7px 0 10px;
+        font-size: clamp(26px, 3.4vw, 42px);
+        letter-spacing: -0.055em;
+        word-break: keep-all;
+    }
+    header span {
+        font-size: 14px;
+        color: #52676e;
+    }
+    .scene-area {
+        transition: margin 0.15s;
+    }
+    .open .scene-area {
+        margin-left: 300px;
+    }
+    #settings {
+        position: absolute;
+        z-index: 5;
+        top: 210px;
+        left: 28px;
+        width: 276px;
+        padding: 18px;
+        background: #f9fbfb;
+        border: 1px solid #d3dfe0;
+        border-radius: 18px;
+        box-shadow: 0 12px 40px #25434b0b;
+        max-height: calc(100svh - 230px);
+        overflow: auto;
+    }
+    .panel-title {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+    }
+    .panel-title h2 {
+        font-size: 16px;
+        margin: 0;
+    }
+    .panel-title button {
+        border: 0;
+        font-size: 23px;
+        padding: 0;
+        min-width: 40px;
+    }
+    .presets {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 5px;
+        margin: 13px 0;
+    }
+    .presets button {
+        font-size: 11px;
+        padding: 7px 9px;
+        flex: 1;
+    }
+    label {
+        display: flex;
+        justify-content: space-between;
+        font-size: 12px;
+        margin-top: 14px;
+        gap: 8px;
+    }
+    output {
+        font-variant-numeric: tabular-nums;
+        color: #0f706b;
+    }
+    input[type='range'] {
+        width: 100%;
+        height: 40px;
+        accent-color: #14837c;
+        cursor: pointer;
+    }
+    select,
+    input[type='number'] {
+        width: 100%;
+        min-height: 43px;
+        font-size: 12px;
+        border: 1px solid #c4d3d4;
+        border-radius: 8px;
+        background: white;
+        margin-top: 8px;
+        padding: 7px;
+    }
+    .check {
+        align-items: center;
+        justify-content: flex-start;
+        min-height: 40px;
+        margin-top: 5px;
+        line-height: 1.5;
+    }
+    .check input {
+        width: 18px;
+        height: 18px;
+        accent-color: #0f706b;
+        flex-shrink: 0;
+    }
+    .wide {
+        width: 100%;
+        margin-top: 13px;
+    }
+    .canvas-wrap {
+        height: clamp(370px, 51vh, 540px);
+    }
+    canvas {
+        display: block;
+        width: 100%;
+        height: 100%;
+    }
+    .stats {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 8px;
+        margin: 12px auto 0;
+        max-width: 1100px;
+    }
+    .stats article {
+        padding: 12px;
+        background: #f9fbfbbf;
+        border: 1px solid #d8e1e2;
+        border-radius: 12px;
+        min-width: 0;
+    }
+    .stats span {
+        display: block;
+        font-size: 11px;
+        color: #62767d;
+    }
+    .stats strong {
+        display: block;
+        font-size: clamp(19px, 2vw, 27px);
+        font-variant-numeric: tabular-nums;
+        margin-top: 7px;
+        color: #147e77;
+    }
+    .stats small {
+        display: block;
+        font-size: 10px;
+        color: #52676e;
+        margin-top: 6px;
+        line-height: 1.6;
+    }
+    .toolbar {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 9px;
+        flex-wrap: wrap;
+        margin-top: 18px;
+    }
+    .toolbar button:first-child {
+        background: #187f78;
+        color: #fff;
+        border-color: #187f78;
+    }
+    .toolbar label {
+        margin: 0;
+        align-items: center;
+        white-space: nowrap;
+    }
+    .toolbar input {
+        width: 150px;
+    }
+    .toolbar output {
+        font-size: 12px;
+        min-width: 62px;
+    }
+    #summary {
+        text-align: center;
+        font-size: 13px;
+        line-height: 1.8;
+        margin: 15px 0 6px;
+    }
+    .note {
+        text-align: center;
+        font-size: 11px;
+        color: #52676e;
+        line-height: 1.6;
+    }
+    .log {
+        font-size: 11px;
+        line-height: 1.8;
+        color: #52676e;
+        max-width: 750px;
+        margin: 12px auto 0;
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 3px 16px;
+    }
+    .log p {
+        margin: 0;
+        overflow-wrap: anywhere;
+    }
+    dialog {
+        width: min(630px, calc(100% - 28px));
+        max-height: 85svh;
+        padding: 30px;
+        border: 1px solid #ccdcdd;
+        border-radius: 20px;
+        color: #29414a;
+        background: #f8fbfb;
+    }
+    dialog::backdrop {
+        background: #17313955;
+        backdrop-filter: blur(4px);
+    }
+    dialog h2 {
+        line-height: 1.4;
+        font-size: 27px;
+        letter-spacing: -0.04em;
+    }
+    dialog h3 {
+        font-size: 15px;
+        margin: 23px 0 7px;
+    }
+    dialog p {
+        font-size: 14px;
+        line-height: 1.85;
+    }
+    .dialog-close {
+        float: right;
+        font-size: 23px;
+        min-width: 42px;
+    }
+    .sources a {
+        color: #0f706b;
+        overflow-wrap: anywhere;
+    }
+    code {
+        font-size: 12px;
+    }
+    .panel-note {
+        font-size: 11px;
+        line-height: 1.7;
+        color: #52676e;
+    }
+    @media (max-width: 700px) {
+        .lab {
+            padding: 14px 16px 24px;
+        }
+        header {
+            padding-top: 18px;
+        }
+        h1 {
+            font-size: 28px;
+        }
+        header span {
+            font-size: 12px;
+            line-height: 1.6;
+            display: block;
+        }
+        .open .scene-area {
+            margin-left: 0;
+        }
+        #settings {
+            position: fixed;
+            top: 75px;
+            left: 12px;
+            width: min(300px, calc(100% - 24px));
+            max-height: calc(100svh - 92px);
+            box-shadow: 0 10px 80px #183c4260;
+        }
+        .canvas-wrap {
+            height: 440px;
+        }
+        .stats {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+        .toolbar {
+            gap: 7px;
+        }
+        .toolbar button {
+            font-size: 12px;
+            padding: 8px 10px;
+        }
+        .toolbar label {
+            font-size: 11px;
+        }
+        .toolbar input {
+            width: 100px;
+        }
+        .toolbar output {
+            font-size: 11px;
+            min-width: auto;
+        }
+        .note {
+            font-size: 10px;
+        }
+        .log {
+            grid-template-columns: 1fr;
+        }
+        dialog {
+            padding: 20px;
+        }
+        dialog h2 {
+            font-size: 23px;
+        }
+    }
+</style>

@@ -1,0 +1,8 @@
+{
+  "id": "collision-tunneling",
+  "title": "벽을 통과한 총알?",
+  "description": "빠른 탄환이 얇은 벽을 지나치는 이유. 속도와 검사 간격을 바꾸며 충돌을 비교해보세요.",
+  "thumbnail": "/images/collision-tunneling.svg",
+  "tags": ["물리", "3D 관찰", "2D 단면"],
+  "href": "/experiments/collision-tunneling/"
+}

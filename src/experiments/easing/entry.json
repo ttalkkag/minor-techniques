@@ -1,0 +1,8 @@
+{
+    "id": "easing",
+    "title": "멈추는 순간, 무엇이 튈까",
+    "description": "시간 곡선과 재생 시간을 바꾸며 위치·속도·가속도의 연결을 관찰합니다.",
+    "tags": ["애니메이션·효과", "시간 곡선", "도함수"],
+    "thumbnail": "/images/easing.svg",
+    "href": "/experiments/easing/"
+}

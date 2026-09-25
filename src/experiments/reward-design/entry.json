@@ -1,0 +1,8 @@
+{
+    "id": "reward-design",
+    "title": "점수는 높은데 도착하지 않는 정책",
+    "description": "왕복·위험한 지름길·안전한 우회에 같은 보상식을 적용해 보세요.",
+    "tags": ["게임 AI", "상태 비교"],
+    "thumbnail": "/images/reward-design.svg",
+    "href": "/experiments/reward-design/"
+}

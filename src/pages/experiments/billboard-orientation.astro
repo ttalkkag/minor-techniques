@@ -1,0 +1,410 @@
+---
+import Page from '../../layouts/Page.astro';
+---
+
+<Page
+    title="상공에서 얇아지는 빌보드 | 게임 실험실"
+    description="정렬 카메라와 관찰 시점을 바꾸며 세 가지 평면 기저를 비교합니다."
+>
+    <div class="lab">
+        <header>
+            <button
+                id="menu"
+                class="menu-button"
+                aria-label="설정 열기 및 닫기"
+                aria-expanded="true"
+                aria-controls="settings"
+            >
+                ☰
+            </button>
+            <h1>상공에서 얇아지는 빌보드</h1>
+            <a href="/">목록으로</a>
+        </header>
+        <main>
+            <div data-settings-panel role="complementary" class="settings" id="settings" aria-label="실험 설정">
+                <button id="close-menu" aria-label="설정 닫기">×</button>
+                <h2>정렬 카메라</h2>
+                <label for="azimuth">
+                    수평 회전 <output id="azimuth-out">25°</output>
+                </label>
+                <input id="azimuth" type="range" min="-180" max="180" value="25" step="1" />
+                <label for="elevation">
+                    상승 각도 <output id="elevation-out">25°</output>
+                </label>
+                <input id="elevation" type="range" min="0" max="90" value="25" step="1" />
+                <label for="projection">투영 방식</label>
+                <select id="projection">
+                    <option value="perspective">원근 — 물체마다 시선이 다름</option>
+                    <option value="ortho">직교 — 모든 시선이 평행</option>
+                </select>
+                <label for="observer">장면을 보는 위치</label>
+                <select id="observer">
+                    <option value="player">정렬 카메라에서 보기</option>
+                    <option value="external">외부 관찰 카메라에서 보기</option>
+                </select>
+                <div id="observer-controls" hidden>
+                    <label for="observer-azimuth">
+                        관찰 수평 회전 <output id="observer-azimuth-out">45°</output>
+                    </label>
+                    <input id="observer-azimuth" type="range" min="-180" max="180" value="45" />
+                    <label for="observer-elevation">
+                        관찰 상승 각도 <output id="observer-elevation-out">30°</output>
+                    </label>
+                    <input id="observer-elevation" type="range" min="0" max="85" value="30" />
+                </div>
+                <label class="check">
+                    <input id="preserve" type="checkbox" checked /> 퇴화할 때 유효한 기저 사용
+                </label>
+                <div class="actions">
+                    <button id="overhead">정확히 상공</button>
+                    <button id="reset">초기화</button>
+                </div>
+                <div class="actions">
+                    <button id="explain">왜 달라질까?</button>
+                </div>
+            </div>
+            <section class="stage" aria-label="실험 장면">
+                <p class="intro">
+                    같은 세 장의 나무 평면을 세 가지 규칙으로 정렬합니다. 상승 각도를 90°로 올리고, 외부 관찰
+                    시점에서 세로축을 비교해 보세요.
+                </p>
+                <div class="metrics" aria-live="polite">
+                    <div class="metric">
+                        <small>정렬 카메라 상승</small>
+                        <strong id="angle">25°</strong>
+                    </div>
+                    <div class="metric">
+                        <small>세로축 고정 · 정면 비율</small>
+                        <strong id="area">—</strong>
+                    </div>
+                    <div class="metric">
+                        <small>세로축 고정 · 상태</small>
+                        <strong id="basis-state">유효</strong>
+                    </div>
+                </div>
+                <div class="scene">
+                    <canvas id="canvas" aria-label="상공에서 얇아지는 빌보드 시각화"></canvas>
+                </div>
+                <p class="legend">
+                    <span>청록 선: 평면 법선</span>
+                    <span>주황 선: 평면 세로축</span>
+                    <span>회색: 월드 세로축</span>
+                </p>
+                <p id="summary" class="status" role="status">
+                    장면을 계산하고 있습니다.
+                </p>
+            </section>
+        </main>
+    </div>
+    <dialog id="explanation" aria-label="실험 설명">
+        <button id="close-dialog" aria-label="설명 닫기">
+            닫기
+        </button>
+        <h2>카메라를 향하는 세 가지 방법</h2>
+        <h3>문제 · 상공에서 나무가 눕거나 사라진다</h3>
+        <p>
+            평면 한 장은 세로축을 세우는 것과 카메라를 정면으로 향하는 것을 동시에 만족하지 못할 수 있습니다.
+            왼쪽부터 화면 평행, 개별 시점 지향, 월드 Y축 고정입니다.
+        </p>
+        <h3>원인 · 사용하는 기저가 다르다</h3>
+        <p>
+            화면 평행은 카메라 오른쪽·위 축을 공유합니다. 시점 지향은 각 물체에서 카메라로 향하는 법선을
+            씁니다. 세로축 고정은 시선의 Y 성분을 제거합니다. 상공에서는 그 수평 성분이 0이 됩니다. 원근 화면
+            가장자리에서는 화면 평행 법선과 개별 시선이 서로 다릅니다.
+        </p>
+        <h3>해결 · 안정적인 기저와 적합한 표현</h3>
+        <p>
+            퇴화 처리를 켜면 세로축 고정은 직전 유효한 수평 방향을 유지하고, 시점 지향은 카메라의 오른쪽 축을
+            사용합니다. 그래도 수직 평면을 위에서 보면 면적은 0입니다. 기하나 여러 각도의 임포스터가 필요한
+            경우입니다.
+        </p>
+        <h3>대가와 모델 범위</h3>
+        <p>
+            화면의 정면 비율은 중앙 평면 법선과 정렬 시선 내적의 절댓값입니다. 화면 전체 픽셀 면적이나 GPU
+            비용은 아닙니다. 이 장면은 자체 기저로 3D 정점을 만든 후 Canvas에 투영합니다. 투명 합성, 그림자,
+            반사는 계산하지 않습니다. 직교 모드에서는 시점 지향에도 평행 시선 정책을 적용합니다. 외부 관찰
+            카메라는 정렬에 영향을 주지 않습니다.
+        </p>
+        <p>
+            공식 문서:{' '}
+            <a
+                href="https://docs.godotengine.org/en/4.6/classes/class_basematerial3d.html#enum-basematerial3d-billboardmode"
+                target="_blank"
+                rel="noreferrer"
+            >
+                Godot 4.6 BillboardMode
+            </a>
+            . API 모드 이름과 이 자체 좌표 기저를 동일한 구현으로 간주하지 않습니다.
+        </p>
+    </dialog>
+</Page>
+<script>
+    import '../../experiments/billboard-orientation/client';
+</script>
+<style>
+    :global(body) {
+        background: #edf1f3;
+        color: #243b43;
+    }
+    .lab {
+        min-height: 100svh;
+        display: flex;
+        flex-direction: column;
+    }
+    header {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 14px 22px;
+        border-bottom: 1px solid #cad6d9;
+        background: #f7f9f9;
+    }
+    h1 {
+        word-break: keep-all;
+        font-size: clamp(17px, 2vw, 23px);
+        margin: 0;
+    }
+    header a {
+        margin-left: auto;
+        color: #245d60;
+        white-space: nowrap;
+        font-size: 14px;
+    }
+    button,
+    select {
+        min-height: 42px;
+        border: 1px solid #becfd2;
+        border-radius: 9px;
+        background: #fff;
+        color: #29434a;
+        padding: 8px 13px;
+        cursor: pointer;
+    }
+    button:hover {
+        background: #e2efed;
+    }
+    .menu-button {
+        font-size: 21px;
+        min-width: 44px;
+        padding: 5px;
+    }
+    main {
+        display: flex;
+        flex: 1;
+        min-width: 0;
+        position: relative;
+    }
+    .settings {
+        flex: 0 0 272px;
+        padding: 20px;
+        background: #f8fafa;
+        border-right: 1px solid #cad6d9;
+        max-height: calc(100svh - 72px);
+        overflow: auto;
+    }
+    #close-menu {
+        float: right;
+        min-width: 40px;
+        min-height: 40px;
+        margin: -8px 0 8px 8px;
+        font-size: 22px;
+    }
+    .settings h2 {
+        font-size: 14px;
+        margin: 0 0 18px;
+        color: #49666e;
+    }
+    .settings label {
+        display: block;
+        font-size: 13px;
+        margin: 17px 0 5px;
+        line-height: 1.5;
+    }
+    .settings label output {
+        float: right;
+        font-weight: 700;
+        font-variant-numeric: tabular-nums;
+    }
+    input[type='range'] {
+        width: 100%;
+        accent-color: #167d78;
+        min-height: 40px;
+        margin: 0;
+    }
+    select {
+        width: 100%;
+        font-size: 13px;
+    }
+    .settings label.check {
+        display: flex;
+        align-items: center;
+        gap: 9px;
+        min-height: 40px;
+        margin: 8px 0;
+    }
+    .check input {
+        width: 18px;
+        height: 18px;
+        accent-color: #167d78;
+    }
+    .actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 7px;
+        margin-top: 18px;
+    }
+    .actions button {
+        font-size: 12px;
+        flex: 1 0 95px;
+    }
+    .stage {
+        flex: 1;
+        min-width: 0;
+        padding: 22px;
+        display: flex;
+        flex-direction: column;
+        gap: 15px;
+    }
+    .intro {
+        margin: 0;
+        font-size: 14px;
+        color: #486169;
+        line-height: 1.6;
+    }
+    .metrics {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+    }
+    .metric {
+        padding: 11px 15px;
+        background: #fff;
+        border: 1px solid #cfddde;
+        border-radius: 12px;
+        flex: 1;
+        min-width: 120px;
+    }
+    .metric small {
+        display: block;
+        font-size: 12px;
+        color: #5c7076;
+        margin-bottom: 6px;
+    }
+    .metric strong {
+        font-size: 19px;
+        color: #146b66;
+        font-variant-numeric: tabular-nums;
+    }
+    .scene {
+        flex: 1;
+        position: relative;
+        min-height: 380px;
+        border: 1px solid #cddadc;
+        border-radius: 16px;
+        overflow: hidden;
+        background: #f8fbfb;
+    }
+    canvas {
+        width: 100%;
+        height: 100%;
+        display: block;
+        position: absolute;
+        inset: 0;
+    }
+    .status {
+        margin: 0;
+        line-height: 1.6;
+        font-size: 13px;
+        padding: 12px 15px;
+        background: #e1eeeb;
+        border-radius: 10px;
+        color: #244e4b;
+    }
+    .legend {
+        font-size: 12px;
+        color: #526c73;
+        margin: 0;
+    }
+    .legend span {
+        display: inline-block;
+        margin-right: 15px;
+    }
+    dialog {
+        max-width: min(650px, calc(100vw - 30px));
+        max-height: 85svh;
+        border: 1px solid #c2d4d5;
+        border-radius: 17px;
+        padding: 25px;
+        background: #fbfdfd;
+        color: #29434a;
+    }
+    dialog::backdrop {
+        background: #173e4966;
+    }
+    dialog h2 {
+        font-size: 21px;
+        margin-top: 0;
+    }
+    dialog h3 {
+        font-size: 15px;
+        color: #136a65;
+        margin-bottom: 5px;
+    }
+    dialog p,
+    dialog li {
+        font-size: 14px;
+        line-height: 1.8;
+    }
+    dialog a {
+        color: #176e69;
+    }
+    dialog button {
+        float: right;
+    }
+    code {
+        font-size: 12px;
+        background: #e8efee;
+        border-radius: 4px;
+        padding: 3px;
+    }
+    @media (max-width: 750px) {
+        header {
+            padding: 11px 12px;
+            gap: 9px;
+        }
+        header a {
+            font-size: 12px;
+        }
+        .settings {
+            position: fixed;
+            z-index: 4;
+            inset: 68px auto 0 0;
+            width: min(285px, calc(100vw - 30px));
+            max-height: calc(100svh - 68px);
+            box-shadow: 15px 0 35px #244e4b22;
+        }
+        .stage {
+            padding: 13px;
+            gap: 11px;
+        }
+        .scene {
+            min-height: 420px;
+        }
+        .metric {
+            min-width: 90px;
+            padding: 9px;
+        }
+        .metric strong {
+            font-size: 17px;
+        }
+        .intro {
+            font-size: 13px;
+        }
+        h1 {
+            max-width: 190px;
+        }
+        .legend {
+            line-height: 1.7;
+        }
+    }
+</style>

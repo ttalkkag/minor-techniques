@@ -1,0 +1,397 @@
+---
+import Page from '../../layouts/Page.astro';
+---
+
+<Page
+    title="봉우리를 모으다가 파도가 접힌다 · 게임 실험실"
+    description="높이와 수평 변위를 함께 조절하고 법선·접힘·기준점 궤적을 관찰합니다."
+>
+    <main>
+        <nav aria-label="실험실 탐색">
+            <button id="menu" aria-label="설정 메뉴 열기" aria-controls="settings" aria-expanded="false">
+                ☰
+            </button>
+            <a href="/">게임 실험실</a>
+            <button id="explain">원리 보기</button>
+        </nav>
+        <header>
+            <p>Gerstner · 변형된 좌표와 법선</p>
+            <h1>봉우리를 모으다가 파도가 접힌다</h1>
+            <span>높이와 수평 변위를 함께 조절하고 법선·접힘·기준점 궤적을 관찰합니다.</span>
+        </header>
+        <section class="stage" aria-label="봉우리를 모으다가 파도가 접힌다 관찰 장면">
+            <canvas
+                id="scene"
+                aria-label="봉우리를 모으다가 파도가 접힌다 수치 모델"
+                aria-describedby="summary"
+            ></canvas>
+        </section>
+        <div class="stats">
+            <div>
+                <span>가파름 합 ΣQAk</span>
+                <output id="metric-0"></output>
+            </div>
+            <div>
+                <span>최소 수평 Jacobian</span>
+                <output id="metric-1"></output>
+            </div>
+            <div>
+                <span>기준점의 수평 이동</span>
+                <output id="metric-2"></output>
+            </div>
+        </div>
+        <p id="summary" class="summary" role="status"></p>
+        <div class="toolbar">
+            <button id="reset">초기화</button>
+        </div>
+        <div id="settings" aria-label="실험 설정" hidden>
+            <div class="panel-head">
+                <h2>설정</h2>
+                <button id="close-menu" aria-label="설정 메뉴 닫기">
+                    ×
+                </button>
+            </div>
+            <label for="amplitude">
+                진폭 A <output id="amplitude-value"></output>
+                <input id="amplitude" type="range" min="0.1" max="2" value="1" step="0.1" />
+            </label>
+            <label for="wavelength">
+                파장 λ <output id="wavelength-value"></output>
+                <input id="wavelength" type="range" min="4" max="16" value="10" step="0.5" />
+            </label>
+            <label for="steepness">
+                수평 계수 Q <output id="steepness-value"></output>
+                <input id="steepness" type="range" min="0" max="3" value="2" step="0.1" />
+            </label>
+            <label class="check" for="safe">
+                <input id="safe" type="checkbox" />
+                ΣQAk를 0.9 이하로 제한
+            </label>
+            <label class="check" for="multiple">
+                <input id="multiple" type="checkbox" />
+                다른 방향 파동 2개 더하기
+            </label>
+            <label for="normal">
+                음영 법선
+                <select id="normal">
+                    <option value="full">수평·수직 접선의 외적</option>
+                    <option value="height">높이 미분만 사용</option>
+                </select>
+            </label>
+            <label for="yaw">
+                관찰 회전 <output id="yaw-value"></output>
+                <input id="yaw" type="range" min="-90" max="90" value="30" step="1" />
+            </label>
+            <label for="pitch">
+                관찰 고도 <output id="pitch-value"></output>
+                <input id="pitch" type="range" min="10" max="85" value="35" step="1" />
+            </label>
+            <label for="resolution">
+                한 변의 구간 수 <output id="resolution-value"></output>
+                <input id="resolution" type="range" min="8" max="44" value="24" step="4" />
+            </label>
+            <label for="time">
+                시간 t <output id="time-value"></output>
+                <input id="time" type="range" min="0" max="10" value="0" step="0.05" />
+            </label>
+            <button id="play">재생</button>
+        </div>
+        <dialog id="info" aria-labelledby="info-title">
+            <div class="dialog-head">
+                <h2 id="info-title">원인과 해결</h2>
+                <button id="close-info" aria-label="설명 닫기">
+                    ×
+                </button>
+            </div>
+            <h3>문제와 원인</h3>
+            <p>
+                높이만 사인파로 움직이면 봉우리와 골이 대칭입니다. q에 QAd cos θ를 더하면 봉우리를 모으지만
+                변위가 크면 표면의 좌표 순서가 뒤집힙니다.
+            </p>
+            <h3>계산과 해결</h3>
+            <p>
+                θ=k(d·q)−ωt, k=2π/λ, ω=√(9.81k), y=A sin θ입니다. 매번 고정된 q에서 다시 계산합니다. 한
+                파동에서는 수평 미분 1−QAk sin θ가 음수일 때 접힙니다. 여러 방향의 파동은 전체 수평 Jacobian과
+                보수적 조건 ΣQAk&lt;1을 확인합니다.
+            </p>
+            <h3>법선과 표본</h3>
+            <p>
+                음영은 변형된 P의 두 접선 외적으로 얻은 법선을 사용합니다. 높이 미분만 사용하면 수평 변위를
+                빠뜨립니다. 표본 수가 적으면 짧은 파동을 놓칠 수 있습니다. 주황 점은 고정된 기준점의 궤적,
+                아래 선은 v=0 단면입니다.
+            </p>
+            <h3>대가와 범위</h3>
+            <p>
+                정점마다 파동 수만큼 계산하는 파형 모델입니다. 접힘은 관찰할 수 있지만
+                쇄파·압력·해안·굴절·부력은 계산하지 않습니다. 월드 x,z에서 높이를 찾으려면 수평 변위의
+                역매핑이 추가로 필요합니다.
+            </p>
+            <p>
+                <a href="https://developer.nvidia.com/gpugems/gpugems/part-i-natural-effects/chapter-1-effective-water-simulation-physical-models">
+                    GPU Gems 1 · Gerstner 파형과 접선
+                </a>
+            </p>
+        </dialog>
+    </main>
+    <style>
+        main {
+            min-height: 100svh;
+            padding: 20px 28px 28px;
+            background: radial-gradient(circle at 60% 40%, #fff, #edf1f3 75%);
+        }
+        nav {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+        }
+        nav a {
+            color: #263340;
+            text-decoration: none;
+            font-weight: 750;
+            margin-right: auto;
+        }
+        button,
+        select,
+        input[type='number'] {
+            min-height: 44px;
+            border: 1px solid #bdccce;
+            border-radius: 12px;
+            padding: 9px 12px;
+            background: #fff;
+            color: #263340;
+        }
+        button {
+            cursor: pointer;
+        }
+        button:hover {
+            background: #e0efed;
+        }
+        header {
+            text-align: center;
+            margin: 24px auto 12px;
+        }
+        header > p {
+            font-size: 13px;
+            color: #0a736d;
+            letter-spacing: 0.05em;
+        }
+        h1 {
+            word-break: keep-all;
+            font-size: clamp(25px, 3vw, 42px);
+            margin: 10px 0;
+        }
+        header > span {
+            display: block;
+            color: #53666c;
+            font-size: 14px;
+            line-height: 1.7;
+            max-width: 860px;
+            margin: auto;
+        }
+        .stage {
+            height: clamp(420px, 58vh, 680px);
+            width: 100%;
+            max-width: 1350px;
+            margin: auto;
+        }
+        canvas {
+            width: 100%;
+            height: 100%;
+            display: block;
+            touch-action: manipulation;
+        }
+        .stats {
+            display: flex;
+            gap: 12px;
+            max-width: 1050px;
+            margin: 12px auto;
+        }
+        .stats > div {
+            flex: 1;
+            min-width: 0;
+            background: #ffffffe0;
+            border: 1px solid #d1dedf;
+            border-radius: 16px;
+            padding: 13px 16px;
+        }
+        .stats span {
+            color: #51676d;
+            font-size: 12px;
+            display: block;
+        }
+        .stats output {
+            font-size: 20px;
+            font-weight: 700;
+            display: block;
+            margin-top: 7px;
+            font-variant-numeric: tabular-nums;
+        }
+        .summary {
+            max-width: 1050px;
+            margin: 12px auto;
+            text-align: center;
+            font-size: 14px;
+            line-height: 1.8;
+            overflow-wrap: anywhere;
+        }
+        .toolbar {
+            text-align: right;
+            max-width: 1050px;
+            margin: auto;
+        }
+        #settings {
+            position: fixed;
+            top: 80px;
+            left: 24px;
+            width: 310px;
+            max-height: calc(100svh - 104px);
+            overflow: auto;
+            scroll-padding-top: 80px;
+            z-index: 5;
+            background: #fffffff7;
+            border: 1px solid #c7d5d6;
+            box-shadow: 0 18px 70px #263b3d30;
+            border-radius: 20px;
+            padding: 20px;
+        }
+        .panel-head,
+        .dialog-head {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+        }
+        h2 {
+            font-size: 18px;
+            margin: 0;
+        }
+        .panel-head {
+            position: sticky;
+            top: -20px;
+            z-index: 1;
+            background: #fff;
+            padding: 3px 0 9px;
+        }
+        .panel-head button,
+        .dialog-head button {
+            font-size: 23px;
+        }
+        label {
+            display: block;
+            font-size: 14px;
+            font-weight: 650;
+            margin: 18px 0;
+        }
+        label output {
+            float: right;
+            color: #0a746e;
+        }
+        input[type='range'] {
+            display: block;
+            width: 100%;
+            height: 40px;
+            accent-color: #117d77;
+        }
+        input[type='checkbox'] {
+            width: 22px;
+            height: 22px;
+            vertical-align: middle;
+            accent-color: #117d77;
+            margin-right: 8px;
+        }
+        select,
+        input[type='number'] {
+            display: block;
+            width: 100%;
+            margin-top: 8px;
+            font-size: 13px;
+        }
+        #settings > button {
+            width: 100%;
+            margin: 5px 0;
+        }
+        .check {
+            min-height: 44px;
+            display: flex;
+            align-items: center;
+        }
+        #settings p {
+            font-size: 12px;
+            line-height: 1.7;
+            color: #52686e;
+        }
+        dialog {
+            max-width: 690px;
+            width: calc(100% - 32px);
+            max-height: 86svh;
+            overflow: auto;
+            border: 1px solid #bdcdce;
+            border-radius: 22px;
+            padding: 26px;
+            color: #263340;
+        }
+        dialog::backdrop {
+            background: #162b3b77;
+        }
+        dialog h3 {
+            font-size: 15px;
+            margin-top: 24px;
+        }
+        dialog p {
+            font-size: 14px;
+            line-height: 1.8;
+        }
+        dialog a {
+            color: #0b716b;
+        }
+        code {
+            font-size: 12px;
+            overflow-wrap: anywhere;
+        }
+        @media (max-width: 600px) {
+            main {
+                padding: 14px 12px 24px;
+            }
+            nav {
+                gap: 8px;
+            }
+            nav button {
+                padding: 9px 11px;
+            }
+            header {
+                margin-top: 22px;
+            }
+            header > span {
+                padding: 0 8px;
+            }
+            .stage {
+                height: 620px;
+            }
+            .stats {
+                gap: 7px;
+                flex-wrap: wrap;
+            }
+            .stats > div {
+                min-width: 85px;
+                padding: 10px;
+            }
+            .stats output {
+                font-size: 17px;
+            }
+            .stats span {
+                font-size: 11px;
+            }
+            .summary {
+                font-size: 13px;
+            }
+            #settings {
+                left: 12px;
+                top: 74px;
+                width: min(310px, calc(100% - 24px));
+            }
+        }
+    </style>
+    <script>
+        import '../../experiments/gerstner-waves/client';
+    </script>
+</Page>

@@ -1,0 +1,536 @@
+---
+import Page from '../../layouts/Page.astro';
+---
+
+<Page
+    title="미리 구한 풍경이 사라지는 순간 · 게임 실험실"
+    description="카메라 레일의 사전 가시성 집합과 현재 화면을 비교하며 경로, 시야각, 문 상태의 영향을 살펴봅니다."
+>
+    <main class="pv-lab">
+        <nav aria-label="실험실 탐색">
+            <button id="pv-menu" aria-label="설정 열기" aria-controls="pv-settings" aria-expanded="true">
+                ☰
+            </button>
+            <a href="/">게임 실험실</a>
+            <button id="pv-explain" class="help">
+                원리 보기
+            </button>
+        </nav>
+        <header>
+            <p>렌더링 · 사전 가시성</p>
+            <h1>
+                미리 구한 풍경이
+                <br class="mobile-break" /> 사라지는 순간
+            </h1>
+            <span>미리 저장한 목록은 바뀐 카메라까지 알고 있을까요?</span>
+        </header>
+        <div class="pv-workspace">
+            <div data-settings-panel role="complementary" id="pv-settings" aria-label="가시성 실험 설정">
+                <div class="pv-panel-heading">
+                    <h2>장면 설정</h2>
+                    <button id="pv-close-menu" aria-label="설정 닫기">
+                        ×
+                    </button>
+                </div>
+                <div class="pv-presets" role="group" aria-label="조건 예시">
+                    <button id="pv-door-preset">문이 열린 뒤</button>
+                    <button id="pv-sparse-preset">끝점만 저장</button>
+                </div>
+                <label class="pv-field" for="pv-method">
+                    제출 방식
+                    <select id="pv-method">
+                        <option value="baked">사전 목록 사용</option>
+                        <option value="live">현재 시점 재계산</option>
+                        <option value="all">전체 대상 제출</option>
+                    </select>
+                </label>
+                <label class="pv-field" for="pv-progress">
+                    레일 진행률 <output id="pv-progress-value">50%</output>
+                    <input id="pv-progress" type="range" min="0" max="100" step="0.1" value="50" />
+                </label>
+                <label class="pv-field" for="pv-deviation">
+                    레일 이탈 <output id="pv-deviation-value">0</output>
+                    <input id="pv-deviation" type="range" min="-25" max="22" step="1" value="0" />
+                </label>
+                <label class="pv-field" for="pv-fov">
+                    현재 시야각 <output id="pv-fov-value">60°</output>
+                    <input id="pv-fov" type="range" min="35" max="120" step="1" value="60" />
+                </label>
+                <label class="pv-check">
+                    <input id="pv-door" type="checkbox" /> 문 열기
+                </label>
+                <h3>제작 단계의 목록</h3>
+                <p class="pv-note">
+                    기준: 레일 위 · 시야각 60°
+                    <br />
+                    아래 조건을 바꾸면 목록을 다시 만듭니다.
+                </p>
+                <label class="pv-field" for="pv-bins">
+                    경로 구간 수 <output id="pv-bins-value">8</output>
+                    <input id="pv-bins" type="range" min="2" max="16" step="1" value="8" />
+                </label>
+                <label class="pv-field" for="pv-samples">
+                    구간당 표본 <output id="pv-samples-value">5</output>
+                    <input id="pv-samples" type="range" min="2" max="13" step="1" value="5" />
+                </label>
+                <label class="pv-check">
+                    <input id="pv-states" type="checkbox" /> 열린 문 목록도 저장
+                </label>
+                <label class="pv-check">
+                    <input id="pv-neighbors" type="checkbox" /> 인접 구간 목록까지 합치기
+                </label>
+                <p id="pv-bake-info" class="pv-note"></p>
+                <button id="pv-reset" class="pv-reset">
+                    처음 조건으로
+                </button>
+            </div>
+            <section class="pv-scene" aria-label="가시성 비교 장면">
+                <div class="pv-metrics" aria-live="polite" aria-atomic="true">
+                    <div>
+                        <span>지금 필요한 대상</span>
+                        <strong id="pv-required">—</strong>
+                    </div>
+                    <div>
+                        <span>제출한 대상</span>
+                        <strong id="pv-submitted">—</strong>
+                    </div>
+                    <div class="pv-missing">
+                        <span>화면에서 누락</span>
+                        <strong id="pv-missing">—</strong>
+                    </div>
+                </div>
+                <canvas
+                    id="pv-canvas"
+                    aria-label="레일과 카메라 시야, 저장 목록에 포함된 대상과 누락을 보여주는 평면 관찰도"
+                    aria-describedby="pv-status pv-legend"
+                ></canvas>
+                <p id="pv-status" role="status"></p>
+                <p id="pv-legend">
+                    <span class="teal">● 현재 보이며 제출됨</span>
+                    <span class="orange">× 필요하지만 누락</span>
+                    <span>○ 현재 불필요한 제출</span>
+                    <span class="gray">● 미제출</span>
+                </p>
+                <div class="pv-transport">
+                    <button id="pv-back" aria-label="이전 구간으로">
+                        ←
+                    </button>
+                    <button id="pv-play">레일 이동</button>
+                    <button id="pv-next" aria-label="다음 구간으로">
+                        →
+                    </button>
+                    <span id="pv-bin-label">구간 —</span>
+                </div>
+            </section>
+        </div>
+        <noscript>이 실험을 조작하려면 JavaScript를 켜 주세요.</noscript>
+    </main>
+    <dialog id="pv-dialog" aria-labelledby="pv-dialog-title">
+        <div class="pv-dialog-top">
+            <p>문제 · 원인 · 해결 · 대가</p>
+            <button id="pv-close-dialog" aria-label="설명 닫기">
+                ×
+            </button>
+        </div>
+        <h2 id="pv-dialog-title">
+            경로를 제한하면,
+            <br />
+            미래의 화면을 저장할 수 있습니다.
+        </h2>
+        <h3>문제 · 문 뒤의 풍경이 빠졌어요</h3>
+        <p>
+            ‘문이 열린 뒤’를 눌러 보세요. 주황색 ×는 지금 카메라에 필요하지만 닫힌 문을 기준으로 만든 목록에는
+            없는 대상입니다. 관찰도에 남아 있는 회색 대상도 월드에서 삭제된 것은 아닙니다.
+        </p>
+        <h3>원인 · 저장한 조건과 달라졌기 때문</h3>
+        <p>
+            카메라 경로를 구간으로 나누고, 각 구간의 여러 시점에서 보인 대상의 합집합 Bᵢ를 저장합니다.
+            안전하려면 구간 내 모든 위치의 V(s)가 Bᵢ에 들어가야 합니다. ‘끝점만 저장’에서는 양 끝에서 안 보인
+            대상이 구간 중간에 나타납니다. 유한 표본만으로 연속 구간 전체를 보장할 수 없습니다.
+        </p>
+        <h3>해결 · 상태를 준비하거나 현재 시점을 검사</h3>
+        <p>
+            열린 문 목록을 함께 저장하면 문 상태에 맞는 목록을 고를 수 있습니다. 인접 목록의 합집합은 제출
+            범위를 늘려 경계의 누락을 줄이지만, 원래 목록에 없던 문 뒤 대상까지 만들지는 못합니다. 카메라
+            이탈과 시야각 확대는 별도 조건입니다. ‘현재 시점 재계산’은 이 장면의 현재 가시 집합을 직접
+            구합니다. 되돌아가도 같은 진행률과 상태는 같은 목록을 선택합니다.
+        </p>
+        <h3>대가 · 제출량, 제작 작업, 저장량</h3>
+        <p>
+            ‘전체 대상 제출’은 모든 36개 장식 대상을 보냅니다. 사전 목록은 실행 시 가시성 검사를 줄이는 대신
+            제작 때 표본을 검사하고 구간별 목록을 저장합니다. 구간·상태가 늘면 비트셋 저장량과 표본 검사
+            횟수가 늘어납니다. 제출된 대상은 여전히 그리는 작업이 필요합니다.
+        </p>
+        <h3>이 장면의 계산 범위</h3>
+        <p>
+            대상 중심점 36개와 선분 가림막을 사용한 2D 모델입니다. 아래 화면은 점의 시야각·거리를 정규화해
+            보여주며 실제 원근 렌더러가 아닙니다. 문과 가림막은 별도 표시하고 제출 개수에는 장식 대상만
+            셉니다. 비트셋 환산 저장량은 구간당 36비트를 바이트 단위로 올린 5B입니다. 실제 JavaScript Set의
+            메모리가 아니며 자료구조 부가 비용은 제외합니다. 제작 시간은 이 브라우저의 표본 목록 생성
+            시간입니다. 비교용 현재 가시성 검사 비용은 선택 방식의 검사 수와 구분합니다. 원작의 압축·정렬·동적
+            객체 알고리즘이나 실기 성능을 재현하지 않습니다.
+        </p>
+        <a
+            href="https://all-things-andy-gavin.com/2011/02/04/making-crash-bandicoot-part-3/"
+            target="_blank"
+            rel="noopener noreferrer"
+        >
+            개발자 회고 · Andy Gavin, Making Crash Bandicoot – part 3 ↗
+        </a>
+    </dialog>
+    <script>
+        import '../../experiments/precomputed-visibility/client';
+    </script>
+</Page>
+
+<style>
+    .pv-lab {
+        min-height: 100svh;
+        display: flex;
+        flex-direction: column;
+        background: #edf1f3;
+        color: #263340;
+    }
+    nav {
+        height: 66px;
+        padding: 12px 26px;
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        border-bottom: 1px solid #d7dfe3;
+    }
+    nav a {
+        font-weight: 750;
+        color: inherit;
+        text-decoration: none;
+    }
+    button,
+    select {
+        min-height: 42px;
+        border: 1px solid #cbd7dc;
+        border-radius: 10px;
+        background: #fff;
+        color: #263340;
+        padding: 9px 13px;
+        cursor: pointer;
+    }
+    button:hover {
+        background: #e0edeb;
+    }
+    .help {
+        margin-left: auto;
+    }
+    header {
+        padding: 23px 32px 19px;
+    }
+    header p {
+        margin: 0 0 6px;
+        font-size: 12px;
+        letter-spacing: 0.1em;
+        color: #46636a;
+    }
+    h1 {
+        font-size: clamp(23px, 3vw, 35px);
+        letter-spacing: -0.05em;
+        margin: 0 0 7px;
+    }
+    header span {
+        font-size: 14px;
+        color: #4b606c;
+    }
+    .mobile-break {
+        display: none;
+    }
+    .pv-workspace {
+        display: flex;
+        flex: 1;
+        min-height: 610px;
+        position: relative;
+    }
+    [data-settings-panel] {
+        flex: 0 0 280px;
+        width: 280px;
+        padding: 8px 22px 22px;
+        background: #f8fafb;
+        border-top: 1px solid #dce4e6;
+        border-right: 1px solid #dce4e6;
+        max-height: calc(100svh - 204px);
+        overflow: auto;
+    }
+    .pv-panel-heading,
+    .pv-dialog-top {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+    }
+    h2 {
+        font-size: 18px;
+    }
+    .pv-panel-heading button,
+    .pv-dialog-top button {
+        font-size: 24px;
+        width: 42px;
+        padding: 2px;
+    }
+    .pv-presets {
+        display: flex;
+        gap: 6px;
+        margin-bottom: 20px;
+    }
+    .pv-presets button {
+        flex: 1;
+        font-size: 12px;
+        padding: 6px;
+    }
+    .pv-field {
+        display: block;
+        font-size: 13px;
+        font-weight: 650;
+        margin: 15px 0;
+    }
+    .pv-field output {
+        float: right;
+        color: #117b77;
+        font-variant-numeric: tabular-nums;
+    }
+    .pv-field input {
+        display: block;
+        width: 100%;
+        accent-color: #13877e;
+        min-height: 40px;
+        margin: 3px 0 0;
+    }
+    .pv-field select {
+        display: block;
+        width: 100%;
+        margin-top: 8px;
+        font-size: 13px;
+    }
+    .pv-check {
+        display: flex;
+        gap: 9px;
+        align-items: center;
+        min-height: 40px;
+        font-size: 13px;
+        cursor: pointer;
+    }
+    .pv-check input {
+        width: 18px;
+        height: 18px;
+        accent-color: #13877e;
+    }
+    [data-settings-panel] h3 {
+        font-size: 14px;
+        margin: 24px 0 7px;
+    }
+    .pv-note {
+        font-size: 12px;
+        line-height: 1.65;
+        color: #506771;
+        margin: 7px 0;
+    }
+    .pv-reset {
+        margin-top: 12px;
+        width: 100%;
+    }
+    .pv-scene {
+        flex: 1;
+        min-width: 0;
+        display: flex;
+        flex-direction: column;
+        padding: 0 20px 16px;
+    }
+    .pv-metrics {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 9px;
+        margin: 0 auto;
+        width: min(100%, 690px);
+    }
+    .pv-metrics div {
+        padding: 12px 16px;
+        background: #fff;
+        border: 1px solid #dde5e7;
+        border-radius: 13px;
+    }
+    .pv-metrics span {
+        display: block;
+        font-size: 12px;
+        color: #4f626d;
+    }
+    .pv-metrics strong {
+        display: block;
+        font-size: 26px;
+        margin-top: 3px;
+        font-variant-numeric: tabular-nums;
+    }
+    .pv-metrics .pv-missing {
+        background: #fff4eb;
+    }
+    .pv-missing strong {
+        color: #c06535;
+    }
+    canvas {
+        width: 100%;
+        height: 420px;
+        flex: 1;
+        min-height: 350px;
+        display: block;
+    }
+    #pv-status {
+        margin: 3px auto;
+        font-size: 12px;
+        line-height: 1.5;
+        text-align: center;
+        max-width: 640px;
+        min-height: 36px;
+    }
+    #pv-legend {
+        display: flex;
+        gap: 8px 15px;
+        flex-wrap: wrap;
+        justify-content: center;
+        margin: 10px 0 14px;
+        font-size: 11px;
+        color: #536974;
+    }
+    .teal {
+        color: #0b6f65;
+    }
+    .orange {
+        color: #9e4620;
+    }
+    .gray {
+        color: #536771;
+    }
+    .pv-transport {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        font-size: 12px;
+    }
+    .pv-transport button {
+        min-width: 42px;
+    }
+    #pv-play {
+        background: #157d73;
+        color: white;
+        border-color: #157d73;
+        min-width: 112px;
+    }
+    #pv-bin-label {
+        margin-left: 8px;
+    }
+    dialog {
+        width: min(650px, calc(100vw - 28px));
+        max-height: calc(100svh - 40px);
+        border: 0;
+        border-radius: 20px;
+        padding: 24px 30px;
+        color: #263340;
+        box-shadow: 0 20px 100px #1b343a40;
+    }
+    dialog::backdrop {
+        background: #172d3c66;
+    }
+    dialog h2 {
+        font-size: 27px;
+        line-height: 1.35;
+        letter-spacing: -0.04em;
+        margin: 18px 0 26px;
+    }
+    dialog h3 {
+        font-size: 16px;
+        margin: 25px 0 8px;
+    }
+    dialog p {
+        font-size: 14px;
+        line-height: 1.8;
+        margin: 6px 0;
+    }
+    dialog a {
+        display: block;
+        color: #0f7b74;
+        font-size: 13px;
+        line-height: 1.6;
+        margin-top: 24px;
+    }
+    .pv-dialog-top p {
+        font-size: 12px;
+        color: #647a83;
+    }
+    @media (max-width: 760px) {
+        nav {
+            height: 60px;
+            padding: 9px 14px;
+        }
+        header {
+            padding: 18px 18px 22px;
+        }
+        header span {
+            font-size: 12px;
+        }
+        .pv-workspace {
+            min-height: 660px;
+        }
+        [data-settings-panel] {
+            position: absolute;
+            top: 0;
+            bottom: 0;
+            left: 0;
+            z-index: 3;
+            max-height: 100%;
+            box-shadow: 15px 0 35px #26334025;
+            width: min(290px, calc(100vw - 22px));
+            padding: 9px 20px 20px;
+        }
+        .pv-scene {
+            padding: 0 12px 18px;
+        }
+        .pv-metrics {
+            gap: 6px;
+        }
+        .pv-metrics div {
+            padding: 10px;
+        }
+        .pv-metrics span {
+            font-size: 10px;
+        }
+        .pv-metrics strong {
+            font-size: 24px;
+        }
+        canvas {
+            min-height: 410px;
+            height: 410px;
+        }
+        .pv-transport {
+            gap: 6px;
+        }
+        #pv-bin-label {
+            margin-left: 0;
+            font-size: 11px;
+        }
+        dialog {
+            padding: 18px 20px;
+        }
+        dialog h2 {
+            font-size: 23px;
+        }
+    }
+    @media (max-width: 380px) {
+        .mobile-break {
+            display: block;
+        }
+        header span {
+            display: block;
+            max-width: 265px;
+            line-height: 1.5;
+        }
+        #pv-legend {
+            gap: 6px 10px;
+            font-size: 10px;
+        }
+    }
+</style>

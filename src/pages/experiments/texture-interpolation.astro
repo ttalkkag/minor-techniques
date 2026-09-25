@@ -1,0 +1,635 @@
+---
+import Page from '../../layouts/Page.astro';
+---
+
+<Page
+    title="비스듬한 바닥의 무늬가 휘는 이유 · 게임 실험실"
+    description="같은 3D 평면을 아핀 보간과 원근 보정으로 그리며, 분할 공간이 UV 오차에 미치는 영향을 비교합니다."
+>
+    <main class="texture-lab">
+        <nav aria-label="실험실 탐색">
+            <button
+                id="texture-menu"
+                aria-label="설정 메뉴 열기"
+                aria-controls="texture-settings"
+                aria-expanded="false"
+            >
+                ☰
+            </button>
+            <a href="/">게임 실험실</a>
+            <button id="texture-help" aria-label="원인과 해결 설명 열기">
+                ?
+            </button>
+        </nav>
+        <header>
+            <p class="eyebrow">렌더링 정밀도 / 텍스처 보간</p>
+            <h1>
+                바닥은 평평한데,
+                <br class="mobile-break" /> 무늬는 왜 휠까요?
+            </h1>
+            <p>같은 정점, 같은 카메라. 정점 사이의 UV만 달라집니다.</p>
+        </header>
+        <div id="texture-backdrop" class="backdrop" hidden></div>
+        <div id="texture-settings" class="settings" role="dialog" aria-modal="true" aria-label="텍스처 실험 설정" hidden>
+            <div class="settings-heading">
+                <h2>실험 설정</h2>
+                <button id="texture-close-menu" aria-label="설정 메뉴 닫기">
+                    ×
+                </button>
+            </div>
+            <label for="texture-method">보간 방식</label>
+            <select id="texture-method">
+                <option value="affine">아핀 · 화면에서 UV 선형 보간</option>
+                <option value="perspective">원근 보정 · 깊이를 반영</option>
+            </select>
+            <label for="texture-space">분할 정점을 만드는 공간</label>
+            <select id="texture-space">
+                <option value="world">3D 면 위에서 만든 뒤 재투영</option>
+                <option value="screen">화면에서 기존 아핀 UV 분할</option>
+            </select>
+            <label for="texture-divisions">한 변의 분할 수</label>
+            <select id="texture-divisions">
+                <option value="1">1 · 삼각형 2개</option>
+                <option value="2">2 · 삼각형 8개</option>
+                <option value="4">4 · 삼각형 32개</option>
+                <option value="8">8 · 삼각형 128개</option>
+                <option value="16">16 · 삼각형 512개</option>
+            </select>
+            <p id="texture-division-note" class="note">
+                새 3D 정점의 위치와 UV를 구하고 다시 투영합니다.
+            </p>
+            <label for="texture-tilt">
+                바닥 기울기 <output id="texture-tilt-value">62°</output>
+            </label>
+            <input id="texture-tilt" type="range" min="0" max="75" value="62" />
+            <label for="texture-yaw">
+                좌우 관찰 각도 <output id="texture-yaw-value">12°</output>
+            </label>
+            <input id="texture-yaw" type="range" min="-35" max="35" value="12" />
+            <label for="texture-distance">
+                카메라 거리 <output id="texture-distance-value">4.5</output>
+            </label>
+            <input id="texture-distance" type="range" min="3.4" max="8" step="0.1" value="4.5" />
+            <label for="texture-resolution">원본 텍스처 해상도</label>
+            <select id="texture-resolution">
+                <option value="16">16 × 16</option>
+                <option value="64" selected>
+                    64 × 64
+                </option>
+                <option value="256">256 × 256</option>
+            </select>
+            <label class="check">
+                <input id="texture-wire" type="checkbox" />
+                <span>제출 삼각형의 모서리 보기</span>
+            </label>
+            <div class="presets">
+                <button id="texture-flat">동일 깊이 대조군</button>
+                <button id="texture-reset">초기화</button>
+            </div>
+        </div>
+        <section class="comparison" aria-label="동일한 3D 바닥의 보간 비교">
+            <figure>
+                <figcaption>
+                    <span class="badge orange">A</span>
+                    <div>
+                        <h2 id="texture-current-title">아핀 보간</h2>
+                        <p id="texture-current-subtitle">큰 삼각형 두 개에 UV를 곧게 펼칩니다.</p>
+                    </div>
+                    <strong id="texture-triangles">2개</strong>
+                </figcaption>
+                <div class="canvas-wrap">
+                    <canvas
+                        id="texture-current"
+                        tabindex="0"
+                        aria-label="선택한 보간으로 그린 3D 바닥. 클릭하거나 화살표 키로 표본 위치를 옮겨 UV를 비교합니다."
+                        aria-describedby="texture-summary"
+                    ></canvas>
+                    <span class="canvas-label">선택한 방법</span>
+                </div>
+                <div class="metric">
+                    <span>기준과의 UV RMS 오차</span>
+                    <strong id="texture-rms">—</strong>
+                </div>
+            </figure>
+            <figure>
+                <figcaption>
+                    <span class="badge teal">B</span>
+                    <div>
+                        <h2>원근 보정 기준</h2>
+                        <p>정점 깊이 w로 보간 가중치를 보정합니다.</p>
+                    </div>
+                    <strong>2개</strong>
+                </figcaption>
+                <div class="canvas-wrap">
+                    <canvas
+                        id="texture-reference"
+                        tabindex="0"
+                        aria-label="원근 보정으로 그린 같은 3D 바닥. 클릭하거나 화살표 키로 표본 위치를 옮겨 UV를 비교합니다."
+                        aria-describedby="texture-summary"
+                    ></canvas>
+                    <span class="canvas-label">동일 카메라 · 동일 무늬</span>
+                </div>
+                <div class="metric">
+                    <span>정점의 최대 / 최소 깊이</span>
+                    <strong id="texture-depth">—</strong>
+                </div>
+            </figure>
+        </section>
+        <section class="probe" aria-label="선택 위치의 UV" aria-live="polite">
+            <div>
+                <span>화면의 십자 위치</span>
+                <strong id="texture-probe-error">—</strong>
+            </div>
+            <p>
+                <span id="texture-probe-a">A UV —</span>
+                <span id="texture-probe-b">B UV —</span>
+            </p>
+            <button id="texture-probe-center">중앙 표본</button>
+        </section>
+        <p class="hint" id="texture-summary" role="status">
+            설정에서 기울기와 분할 수를 조절해 보세요.
+        </p>
+        <noscript>실험을 조작하려면 JavaScript를 켜주세요.</noscript>
+    </main>
+    <dialog id="texture-explanation" aria-labelledby="texture-explanation-title">
+        <div class="dialog-heading">
+            <span>원인과 해결</span>
+            <button id="texture-close-help" aria-label="설명 닫기">
+                ×
+            </button>
+        </div>
+        <h2 id="texture-explanation-title">화면의 중간 ≠ 면의 중간</h2>
+        <p class="guide">
+            아핀 상태에서 분할 수를 8로 올린 뒤, 분할 공간을 바꿔 보세요. ‘동일 깊이 대조군’에서는 두 그림이
+            일치합니다.
+        </p>
+        <h3>문제 · 삼각형 안에서 꺾이는 무늬</h3>
+        <p>
+            가까운 부분은 크게, 먼 부분은 작게 투영됩니다. 화면 삼각형 안에서 UV를 단순 선형 보간하면 원래
+            평면의 위치와 다른 텍스처 좌표를 읽습니다. 두 그림은 같은 3D 정점과 투영식을 사용합니다.
+        </p>
+        <h3>원인 · 깊이를 빼놓은 보간</h3>
+        <p>
+            화면의 무게를 λ, 정점 깊이를 w라 하면 아핀은 Σ(λ × UV), 원근 보정은 Σ(λ × UV / w) ÷ Σ(λ /
+            w)입니다. 가까운 끝 UV=0, w=1과 먼 끝 UV=1, w=4의 화면상 중간은 아핀으로 0.5, 원근 보정으로
+            0.2입니다.
+        </p>
+        <h3>해결 · 원근 보정 또는 3D 면 분할</h3>
+        <p>
+            원근 보정은 각 픽셀의 깊이 비율을 직접 반영합니다. 아핀을 유지하려면 원래 3D 면 위에 정점을 만들고
+            다시 투영해 작은 삼각형 안의 오차를 줄일 수 있습니다. 화면 좌표와 기존 아핀 UV를 함께 잘게 나누면
+            원래의 선형 함수를 유지하므로 오차는 줄지 않습니다.
+        </p>
+        <h3>대가 · 제출 면 수와 계산</h3>
+        <p>
+            한 변을 N개로 나누면 삼각형은 2N²개가 됩니다. 여기서는 제출 면 수만 표시하며, 특정 GPU의 프레임
+            시간이나 텍스처 캐시는 모델링하지 않습니다. 원근 보정은 UV/w와 1/w의 보간 및 나눗셈이 필요합니다.
+        </p>
+        <h3>결과를 읽는 방법</h3>
+        <p>
+            UV RMS는 전체 투영 면의 화면 경계 상자에 놓은 41×41 표본 중 면 내부에 있는 점의 UV 거리 제곱 평균
+            제곱근입니다. UV 범위는 0~1입니다. 십자는 선택한 한 화면 위치입니다. 텍스처는 최근접 표본으로
+            읽으므로 해상도를 올리면 경계가 선명해져도 UV 오차는 그대로입니다.
+        </p>
+        <p>
+            이 장면은 직접 작성한 소프트웨어 삼각형 래스터라이저입니다. 화면 정점 양자화·색 정밀도·깊이 정렬은
+            적용하지 않아 보간 단계만 비교합니다. 원근 보정 모드는 원래 두 삼각형을 사용합니다.
+        </p>
+        <a
+            href="https://psx.arthus.net/sdk/Psy-Q/DOCS/LibOver47.pdf#page=115"
+            target="_blank"
+            rel="noopener noreferrer"
+        >
+            Sony · Run-Time Library Overview, 8-33~8-35쪽 ↗
+        </a>
+        <p class="note">
+            Sony 원문은 역사 문서 보관처 링크입니다. 특정 게임의 실행 결과를 재현하지 않습니다.
+        </p>
+    </dialog>
+    <script>
+        import '../../experiments/texture-interpolation/client';
+    </script>
+</Page>
+
+<style>
+    .texture-lab {
+        min-height: 100svh;
+        padding: 18px 30px 24px;
+        background: radial-gradient(ellipse at 50% 30%, #fff 0, #f0f3f4 65%);
+        color: #263c45;
+    }
+    nav {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        max-width: 1600px;
+        margin: auto;
+    }
+    nav a {
+        font-weight: 750;
+        text-decoration: none;
+        color: inherit;
+        letter-spacing: -0.03em;
+    }
+    button,
+    select {
+        min-height: 44px;
+        border: 1px solid #cbd5d8;
+        border-radius: 12px;
+        background: #fff;
+        color: #263c45;
+        cursor: pointer;
+    }
+    button {
+        padding: 9px 14px;
+    }
+    nav button {
+        width: 44px;
+        font-size: 22px;
+        padding: 0;
+    }
+    #texture-help {
+        margin-left: auto;
+    }
+    header {
+        text-align: center;
+        margin: 25px auto 24px;
+    }
+    header h1 {
+        font-size: clamp(25px, 3.3vw, 43px);
+        letter-spacing: -0.055em;
+        margin: 9px 0 12px;
+    }
+    header p {
+        font-size: 14px;
+        color: #62757d;
+        margin: 0;
+    }
+    .eyebrow {
+        font-size: 11px !important;
+        letter-spacing: 0.12em;
+        color: #157d79 !important;
+    }
+    .mobile-break {
+        display: none;
+    }
+    .comparison {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 22px;
+        max-width: 1500px;
+        margin: auto;
+    }
+    figure {
+        margin: 0;
+        min-width: 0;
+    }
+    figcaption {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        min-height: 72px;
+        padding: 0 8px;
+    }
+    figcaption h2 {
+        font-size: 17px;
+        margin: 0 0 6px;
+        letter-spacing: -0.035em;
+    }
+    figcaption p {
+        font-size: 12px;
+        margin: 0;
+        color: #6b7d82;
+    }
+    figcaption > strong {
+        margin-left: auto;
+        white-space: nowrap;
+        font-size: 12px;
+        color: #6b7d82;
+    }
+    .badge {
+        display: grid;
+        place-items: center;
+        flex: 0 0 30px;
+        height: 30px;
+        border-radius: 10px;
+        font-weight: 750;
+    }
+    .orange {
+        background: #fae4d6;
+        color: #ac5d29;
+    }
+    .teal {
+        background: #d9eeeb;
+        color: #167972;
+    }
+    .canvas-wrap {
+        position: relative;
+        height: clamp(230px, 43vh, 510px);
+        border: 1px solid #d6dfe1;
+        border-radius: 20px;
+        overflow: hidden;
+        background: linear-gradient(#e7eef0, #fafbfb);
+    }
+    canvas {
+        display: block;
+        width: 100%;
+        height: 100%;
+        cursor: crosshair;
+        touch-action: manipulation;
+    }
+    .canvas-label {
+        position: absolute;
+        left: 18px;
+        top: 15px;
+        font-size: 11px;
+        color: #71858c;
+        pointer-events: none;
+        letter-spacing: 0.04em;
+    }
+    .metric {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 17px 9px;
+        font-size: 12px;
+        color: #697d84;
+    }
+    .metric strong {
+        font-size: 24px;
+        letter-spacing: -0.05em;
+        color: #a65a2c;
+    }
+    figure:last-child .metric strong {
+        color: #197c75;
+    }
+    .probe {
+        display: flex;
+        gap: 20px;
+        align-items: center;
+        justify-content: center;
+        max-width: 720px;
+        margin: 16px auto 0;
+        padding: 16px 20px;
+        border: 1px solid #d1dcde;
+        border-radius: 16px;
+        background: #ffffffc9;
+    }
+    .probe > div {
+        display: grid;
+        gap: 5px;
+    }
+    .probe span {
+        font-size: 11px;
+        color: #62777f;
+    }
+    .probe strong {
+        font-size: 17px;
+    }
+    .probe p {
+        display: grid;
+        gap: 5px;
+        margin: 0;
+    }
+    .probe p span {
+        font-variant-numeric: tabular-nums;
+        font-size: 12px;
+    }
+    .probe button {
+        font-size: 12px;
+        margin-left: auto;
+    }
+    .hint {
+        text-align: center;
+        font-size: 12px;
+        line-height: 1.7;
+        color: #697d85;
+        max-width: 900px;
+        margin: 14px auto 0;
+    }
+    .backdrop {
+        position: fixed;
+        inset: 0;
+        background: #253c4933;
+        z-index: 3;
+    }
+    .settings {
+        position: fixed;
+        top: 12px;
+        left: 12px;
+        bottom: 12px;
+        width: 310px;
+        max-width: calc(100vw - 24px);
+        padding: 20px;
+        z-index: 4;
+        overflow: auto;
+        background: #f9fbfc;
+        border: 1px solid #cedcde;
+        border-radius: 20px;
+        box-shadow: 0 20px 80px #263c4526;
+    }
+    .settings-heading {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 18px;
+    }
+    .settings-heading h2 {
+        font-size: 17px;
+        margin: 0;
+    }
+    .settings-heading button {
+        font-size: 23px;
+        padding: 0;
+        width: 44px;
+    }
+    .settings > label {
+        display: flex;
+        justify-content: space-between;
+        font-size: 12px;
+        font-weight: 650;
+        margin-top: 20px;
+        margin-bottom: 9px;
+    }
+    .settings output {
+        color: #147b73;
+    }
+    .settings select {
+        width: 100%;
+        font-size: 12px;
+        padding: 0 10px;
+        border-radius: 10px;
+    }
+    .settings input[type='range'] {
+        width: 100%;
+        height: 32px;
+        accent-color: #187c75;
+        margin: 0;
+    }
+    .settings .note {
+        font-size: 11px;
+        line-height: 1.65;
+        color: #536972;
+        margin: 10px 0;
+    }
+    .check {
+        align-items: center;
+        justify-content: flex-start;
+        gap: 10px;
+        min-height: 40px;
+    }
+    .check input {
+        width: 19px;
+        height: 19px;
+        accent-color: #167e75;
+    }
+    .presets {
+        display: flex;
+        gap: 8px;
+        margin-top: 16px;
+    }
+    .presets button {
+        flex: 1;
+        font-size: 12px;
+    }
+    select:disabled {
+        opacity: 0.5;
+    }
+    dialog {
+        width: min(660px, calc(100vw - 28px));
+        max-height: calc(100svh - 40px);
+        overflow: auto;
+        border: 1px solid #cddcdd;
+        border-radius: 22px;
+        padding: 25px 30px;
+        color: #263c45;
+        background: #fafcfc;
+    }
+    dialog::backdrop {
+        background: #24384077;
+        backdrop-filter: blur(4px);
+    }
+    .dialog-heading {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        font-size: 12px;
+        color: #197a74;
+    }
+    .dialog-heading button {
+        font-size: 22px;
+        width: 44px;
+        padding: 0;
+    }
+    dialog h2 {
+        font-size: 27px;
+        letter-spacing: -0.05em;
+    }
+    dialog h3 {
+        font-size: 16px;
+        margin: 26px 0 10px;
+    }
+    dialog p {
+        font-size: 13px;
+        line-height: 1.85;
+        color: #567079;
+    }
+    dialog .guide {
+        padding: 15px;
+        background: #e1eeec;
+        border-radius: 12px;
+        color: #24655f;
+    }
+    dialog a {
+        display: block;
+        font-size: 13px;
+        color: #147d75;
+        margin-top: 24px;
+        line-height: 1.8;
+    }
+    dialog .note {
+        font-size: 11px;
+    }
+    button:hover {
+        background: #e7f0ee;
+    }
+    button:focus-visible,
+    select:focus-visible,
+    input:focus-visible {
+        outline: 3px solid #137e76;
+        outline-offset: 3px;
+    }
+    @media (max-width: 700px) {
+        .texture-lab {
+            padding: 12px 14px 20px;
+        }
+        nav {
+            gap: 11px;
+        }
+        header {
+            margin: 24px auto 15px;
+        }
+        header h1 {
+            font-size: 29px;
+            line-height: 1.25;
+        }
+        .mobile-break {
+            display: block;
+        }
+        header p {
+            font-size: 11px;
+        }
+        .comparison {
+            grid-template-columns: 1fr;
+            gap: 9px;
+        }
+        .canvas-wrap {
+            height: 235px;
+            border-radius: 16px;
+        }
+        figcaption {
+            min-height: 59px;
+            padding: 0 3px;
+        }
+        figcaption h2 {
+            font-size: 15px;
+        }
+        figcaption p {
+            font-size: 10px;
+        }
+        figcaption > strong {
+            font-size: 11px;
+        }
+        .metric {
+            padding: 11px 5px;
+        }
+        .metric strong {
+            font-size: 21px;
+        }
+        .probe {
+            gap: 10px;
+            padding: 12px;
+            margin-top: 10px;
+            flex-wrap: wrap;
+        }
+        .probe strong {
+            font-size: 14px;
+        }
+        .probe p span {
+            font-size: 11px;
+        }
+        .probe button {
+            min-height: 40px;
+            padding: 7px 10px;
+        }
+        .hint {
+            font-size: 11px;
+        }
+        dialog {
+            padding: 18px 21px;
+        }
+        dialog h2 {
+            font-size: 24px;
+        }
+    }
+</style>

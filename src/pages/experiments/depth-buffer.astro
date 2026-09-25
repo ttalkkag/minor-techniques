@@ -1,0 +1,404 @@
+---
+import Page from '../../layouts/Page.astro';
+---
+
+<Page
+    title="겹친 두 판이 같은 깊이가 될 때 · 게임 실험실"
+    description="판의 거리·간격과 저장 포맷을 바꾸고 일반 깊이와 반전 깊이의 구분 능력을 비교하세요."
+>
+    <main id="lab">
+        <nav aria-label="실험실 탐색">
+            <button id="menu" aria-label="설정 메뉴 열기" aria-expanded="false" aria-controls="settings">
+                ☰
+            </button>
+            <a href="/">게임 실험실</a>
+            <button id="explain" aria-label="원인과 해결 설명 열기">
+                ?
+            </button>
+        </nav>
+        <header>
+            <p class="eyebrow">깊이 저장 · REVERSED-Z</p>
+            <h1>겹친 두 판이 같은 깊이가 될 때</h1>
+            <p>판의 거리·간격과 저장 포맷을 바꾸고 일반 깊이와 반전 깊이의 구분 능력을 비교하세요.</p>
+        </header>
+        <section class="stage" aria-label="수치 모델 관찰 장면">
+            <canvas
+                id="scene"
+                aria-label="겹친 두 판이 같은 깊이가 될 때 비교 그림"
+                aria-describedby="summary"
+            ></canvas>
+        </section>
+        <div class="readouts">
+            <div class="metric">
+                <span>일반 깊이 동률</span>
+                <strong id="metric-0">계산 중</strong>
+            </div>
+            <div class="metric">
+                <span>반전 깊이 동률</span>
+                <strong id="metric-1">계산 중</strong>
+            </div>
+            <div class="metric">
+                <span>중앙 표본의 저장 깊이 차이</span>
+                <strong id="metric-2">계산 중</strong>
+            </div>
+        </div>
+        <p id="summary" class="summary" role="status"></p>
+        <div class="toolbar">
+            <button id="order">그리기 순서 뒤집기</button>
+            <button id="reset">초기화</button>
+        </div>
+        <footer>설정을 열어 조건을 바꾸고 두 결과를 비교하세요.</footer>
+        <div id="settings" class="settings" role="complementary" aria-label="실험 설정" hidden>
+            <h2>
+                설정
+                <button id="close-menu" aria-label="설정 메뉴 닫기">
+                    ×
+                </button>
+            </h2>
+            <div class="control">
+                <label for="format">깊이 저장 포맷</label>
+                <select id="format">
+                    <option value="float">32비트 부동소수점</option>
+                    <option value="24">24비트 균등 정수</option>
+                    <option value="16">16비트 균등 정수</option>
+                    <option value="8">8비트 균등 정수</option>
+                </select>
+            </div>
+            <div class="control">
+                <label for="distance">
+                    판의 기준 거리<output id="distance-value"></output>
+                </label>
+                <input id="distance" type="range" min="1" max="4.5" step="0.1" value="3.7" />
+            </div>
+            <div class="control">
+                <label for="gap">
+                    판 사이 간격<output id="gap-value"></output>
+                </label>
+                <input id="gap" type="range" min="-4" max="1" step="0.1" value="-2" />
+            </div>
+            <div class="control">
+                <label for="near">
+                    Near 거리<output id="near-value"></output>
+                </label>
+                <input id="near" type="range" min="-2" max="2" step="0.1" value="-1" />
+            </div>
+            <label class="check">
+                <input id="coincident" type="checkbox" />
+                완전히 같은 위치로 겹치기
+            </label>
+            <p class="note">
+                Far = 100,000m. 판 표본은 기준 거리의 0.8~1.2배에 있습니다. 두 화면은 같은 판과 같은 저장
+                포맷을 사용합니다.
+            </p>
+        </div>
+    </main>
+    <dialog id="explanation" aria-labelledby="explanation-title">
+        <h2 id="explanation-title">
+            원인과 해결
+            <button id="close-dialog" aria-label="설명 닫기">
+                ×
+            </button>
+        </h2>
+        <h3>문제와 원인</h3>
+        <p>
+            서로 다른 두 거리가 저장 후 같은 값이 되면 앞뒤를 구분할 수 없습니다. 각 칸은 기울어진 판의 한
+            표본이며, 초기 깊이 검사를 통과한 표면끼리 동률이면 먼저 그린 표면이 남습니다.
+        </p>
+        <h3>해결</h3>
+        <p>
+            일반 깊이는 <code>f/(f−n) − fn/((f−n)z)</code>, 반전 깊이는 <code>fn/((f−n)z) − n/(f−n)</code>로
+            직접 계산합니다. 반전에서는 초기 깊이 0과 GREATER 비교, 일반에서는 초기 깊이 1과 LESS 비교를 함께
+            사용합니다. 양자화한 깊이가 초기값과 같으면 첫 표면도 통과하지 못합니다. 통과한 표면이 없는
+            표본은 회색으로 표시합니다. 부동소수점은 먼 곳을 0 근처에 놓을 때 촘촘한 간격을 활용합니다.
+        </p>
+        <h3>비용과 범위</h3>
+        <p>
+            Near를 올리면 가까운 물체가 잘립니다. 정수 포맷에서는 반전만으로 눈금 간격이 개선되지 않습니다.
+            중복 면은 정밀도를 높여도 순서가 생기지 않으며, 좌표 변환에서 잃은 차이는 깊이 저장 변경으로
+            복원되지 않습니다. 이 장면은 Number 계산 후 Math.fround 또는 균등 정수로 저장하는 CPU 표본
+            모델입니다. 실제 GPU 포맷 지원·프레임 시간은 측정하지 않습니다.
+        </p>
+        <p>
+            <a href="https://developer.nvidia.com/blog/visualizing-depth-precision/">NVIDIA 깊이 정밀도</a> ·{' '}
+            <a href="https://godotengine.org/article/introducing-reverse-z/">Godot 반전 경로의 변경 범위</a> ·{' '}
+            <a href="https://registry.khronos.org/webgl/extensions/EXT_clip_control/">
+                Khronos clip 범위 명세
+            </a>
+        </p>
+    </dialog>
+    <script>
+        import '../../experiments/depth-buffer/client';
+    </script>
+</Page>
+<style>
+    :global(body) {
+        background: #edf1f3;
+        color: #233744;
+    }
+    main {
+        min-height: 100svh;
+        padding: 80px 28px 26px;
+        display: flex;
+        flex-direction: column;
+        gap: 18px;
+    }
+    nav {
+        position: absolute;
+        inset: 0 0 auto;
+        height: 64px;
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        padding: 12px 24px;
+        border-bottom: 1px solid #cdd7db;
+        background: #f7f9fa;
+        z-index: 3;
+    }
+    nav a {
+        font-weight: 800;
+        color: inherit;
+        text-decoration: none;
+    }
+    nav button:last-child {
+        margin-left: auto;
+    }
+    button,
+    select {
+        min-height: 42px;
+        border: 1px solid #b6c6cb;
+        border-radius: 10px;
+        background: #f8fafb;
+        color: #233744;
+        padding: 8px 13px;
+        cursor: pointer;
+    }
+    button:hover {
+        background: #dce9e8;
+    }
+    header {
+        max-width: 780px;
+    }
+    header p {
+        margin: 0;
+        color: #4b6470;
+        line-height: 1.6;
+    }
+    h1 {
+        font-size: clamp(24px, 4vw, 40px);
+        letter-spacing: -0.045em;
+        margin: 4px 0 10px;
+    }
+    h2 {
+        font-size: 20px;
+    }
+    .eyebrow {
+        font-size: 12px;
+        font-weight: 800;
+        letter-spacing: 0.16em;
+        color: #147871;
+    }
+    .stage {
+        width: 100%;
+        flex: 1;
+        min-height: 410px;
+        border: 1px solid #c9d6da;
+        border-radius: 20px;
+        overflow: hidden;
+        background: #f6f8f8;
+        position: relative;
+    }
+    canvas {
+        display: block;
+        width: 100%;
+        height: 100%;
+        position: absolute;
+        inset: 0;
+    }
+    .readouts {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 12px;
+    }
+    .metric {
+        background: #f9fbfb;
+        border: 1px solid #ccd9dc;
+        border-radius: 13px;
+        padding: 14px;
+        min-width: 0;
+    }
+    .metric span {
+        display: block;
+        font-size: 13px;
+        color: #516771;
+    }
+    .metric strong {
+        display: block;
+        font-size: 20px;
+        font-variant-numeric: tabular-nums;
+        margin-top: 6px;
+        overflow-wrap: anywhere;
+    }
+    .summary {
+        line-height: 1.6;
+        margin: 0;
+        color: #3e5c68;
+        min-height: 26px;
+    }
+    .toolbar {
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+    }
+    .settings {
+        position: fixed;
+        z-index: 5;
+        top: 75px;
+        left: 16px;
+        bottom: 18px;
+        width: 300px;
+        max-width: calc(100vw - 32px);
+        overflow: auto;
+        padding: 20px;
+        background: #fbfdfd;
+        border: 1px solid #bcced1;
+        box-shadow: 0 15px 50px #20384426;
+        border-radius: 18px;
+    }
+    .settings h2 {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin: 0 0 18px;
+    }
+    .control {
+        display: block;
+        margin: 20px 0;
+    }
+    .control label {
+        display: flex;
+        justify-content: space-between;
+        gap: 8px;
+        font-size: 14px;
+        font-weight: 650;
+    }
+    .control output {
+        color: #126d69;
+        font-variant-numeric: tabular-nums;
+    }
+    .control input[type='range'] {
+        width: 100%;
+        height: 40px;
+        accent-color: #168980;
+    }
+    .control select {
+        width: 100%;
+        margin-top: 8px;
+    }
+    .check {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        min-height: 44px;
+        font-size: 14px;
+    }
+    .check input {
+        width: 18px;
+        height: 18px;
+        accent-color: #168980;
+    }
+    .note {
+        font-size: 13px;
+        line-height: 1.65;
+        color: #566e76;
+    }
+    .primary {
+        background: #126f6a;
+        color: white;
+        border-color: #126f6a;
+    }
+    dialog {
+        max-width: min(660px, calc(100vw - 32px));
+        max-height: 85svh;
+        overflow: auto;
+        border: 1px solid #bed0d1;
+        border-radius: 20px;
+        padding: 25px;
+        color: #263e48;
+        background: #f8fbfb;
+    }
+    dialog::backdrop {
+        background: #153a4c80;
+    }
+    dialog h2 {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 20px;
+    }
+    dialog p {
+        line-height: 1.8;
+    }
+    dialog a {
+        color: #116b67;
+    }
+    dialog code {
+        font-size: 0.9em;
+        overflow-wrap: anywhere;
+    }
+    footer {
+        font-size: 12px;
+        color: #526d75;
+    }
+    @media (min-width: 1100px) {
+        main.menu-open {
+            padding-left: 350px;
+        }
+    }
+    @media (max-width: 640px) {
+        main {
+            padding: 78px 14px 20px;
+            gap: 14px;
+        }
+        nav {
+            padding: 10px 14px;
+        }
+        header p {
+            font-size: 14px;
+        }
+        .stage {
+            min-height: 420px;
+        }
+        .readouts {
+            grid-template-columns: 1fr;
+        }
+        .metric {
+            padding: 11px 14px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 12px;
+        }
+        .metric strong {
+            font-size: 17px;
+            margin: 0;
+            text-align: right;
+        }
+        .settings {
+            top: 72px;
+        }
+        .toolbar button {
+            flex: 1 1 125px;
+            font-size: 13px;
+        }
+        .metric span {
+            flex: 0 0 38%;
+        }
+        .metric strong {
+            flex: 1;
+            min-width: 0;
+        }
+        footer {
+            line-height: 1.6;
+        }
+    }
+</style>

@@ -1,0 +1,358 @@
+---
+import Page from '../../layouts/Page.astro';
+---
+
+<Page
+    title="빛만 울퉁불퉁한 평면 · 게임 실험실"
+    description="노멀맵의 RGB 방향과 빛을 비교하고 오류 조건을 조절합니다."
+>
+    <main>
+        <nav>
+            <button id="menu" aria-label="설정 메뉴 열기" aria-controls="settings" aria-expanded="false">
+                ☰
+            </button>
+            <a href="/">게임 실험실</a>
+            <button id="help">원리 보기</button>
+        </nav>
+        <header>
+            <p class="eyebrow">NORMAL MAPPING</p>
+            <h1>빛만 울퉁불퉁한 평면</h1>
+            <p>빛은 굴곡을 따라가도, 표면의 외곽은 여전히 평평합니다.</p>
+        </header>
+        <canvas
+            id="scene"
+            aria-label="기본 법선과 노멀맵의 조명 비교, 방향 이미지와 측면 평면"
+            aria-describedby="result sample-help"
+            tabindex="0"
+            aria-keyshortcuts="ArrowUp ArrowDown ArrowLeft ArrowRight Home"
+        ></canvas>
+        <section class="readout" aria-live="polite">
+            <p id="result"></p>
+            <p id="detail"></p>
+        </section>
+        <p id="sample-help" class="hint">
+            오른쪽 표면을 눌러 표본을 선택하세요. 캔버스에 초점을 두고 방향키로 표본을 이동할 수
+            있습니다. Shift와 함께 누르면 미세 이동, Home은 기본 표본입니다.
+        </p>
+        <div id="settings" role="complementary" hidden aria-label="노멀맵 설정">
+            <div class="aside-head">
+                <h2>관찰 조건</h2>
+                <button id="close-menu" aria-label="설정 메뉴 닫기">
+                    ×
+                </button>
+            </div>
+            <form id="controls">
+                <label for="fault">비교할 상태</label>
+                <select id="fault">
+                    <option value="none">정상 · 방향 복원 + 세계 공간</option>
+                    <option value="y">오류 · Y 채널 반전</option>
+                    <option value="srgb">오류 · sRGB 색상으로 읽기</option>
+                    <option value="frame">오류 · 노멀 프레임 지연</option>
+                    <option value="basis">오류 · 접선 기저 변환 누락</option>
+                    <option value="flip">오류 · 좌우 반전 방향 누락</option>
+                </select>
+                <label for="light">
+                    빛의 방위각 <output id="light-out">135°</output>
+                </label>
+                <input id="light" type="range" min="-180" max="180" step="5" value="135" />
+                <label for="yaw">
+                    표면 회전 (측면 시점) <output id="yaw-out">20°</output>
+                </label>
+                <input id="yaw" type="range" min="0" max="85" step="1" value="20" />
+                <label for="strength">
+                    요철 방향 강도 <output id="strength-out">1.00</output>
+                </label>
+                <input id="strength" type="range" min="0" max="3" step="0.1" value="1" />
+                <label for="phase">
+                    색·법선의 프레임 위치 <output id="phase-out">0.70</output>
+                </label>
+                <input id="phase" type="range" min="0" max="6.2" step="0.1" value="0.7" />
+                <label class="check">
+                    <input id="flipped" type="checkbox" checked />
+                    스프라이트 좌우 반전
+                </label>
+                <label class="check">
+                    <input id="raw" type="checkbox" />
+                    방향 RGB 원본 보기
+                </label>
+                <p class="note">
+                    왼쪽은 기본 법선, 오른쪽은 선택한 방향 처리입니다. 색상 무늬와 평면 정점은 두 방식이
+                    같습니다.
+                </p>
+                <button id="fix" type="button">
+                    방향 처리 바로잡기
+                </button>
+                <button id="reset" type="reset">
+                    처음으로
+                </button>
+            </form>
+        </div>
+    </main>
+    <dialog id="explanation" aria-labelledby="explanation-title">
+        <button id="close-help" aria-label="설명 닫기">
+            ×
+        </button>
+        <p class="eyebrow">NORMAL ≠ GEOMETRY</p>
+        <h2 id="explanation-title">빛을 계산하는 방향만 바꿉니다</h2>
+        <h3>문제 · 빛이 반대로 흐르거나 무늬가 미끄러짐</h3>
+        <p>
+            노멀맵은 방향 데이터입니다. Y 채널 규약이 다르거나, 색상처럼 감마를 바꾸거나, 색 프레임과 노멀
+            프레임이 어긋나면 실제 굴곡을 나타내는 방향이 달라집니다. 각 오류를 하나씩 선택해 비교하세요.
+        </p>
+        <h3>해결 · RGB 복원과 접선 기저</h3>
+        <p>
+            비압축 기본 RGB = (n + 1) / 2, n = normalize(2RGB − 1)입니다. 중립 (0.5, 0.5, 1)은 (0, 0,
+            1)입니다. 그 방향을 표면의 접선 T·종접선 B·법선 N으로 세계 공간에 옮긴 뒤, 세계 공간 빛과
+            내적합니다.
+        </p>
+        <p>
+            좌우 반전은 UV를 뒤집는 동시에 x 방향도 반사해야 합니다. 기저 변환 누락은 표면 회전이 0°일 때
+            드러나지 않으므로 표면을 돌려 관찰하세요. 이 모델의 Y+ 규약에서는 녹색이 위쪽 방향입니다.
+        </p>
+        <h3>검사할 값 · max(0, n·l)</h3>
+        <p>
+            표시 밝기는 0.18 + 0.82 × 코사인 항을 색상에 곱한 교육용 조명입니다. 방향광 하나를 쓰므로 기본
+            법선 평면의 코사인은 일정합니다. 점광원에서는 위치별 거리·방향 때문에 평면도 밝기가 달라질 수
+            있습니다. 완전한 물리 조명이나 Lambert BRDF 전체를 구현한 것은 아닙니다.
+        </p>
+        <h3>대가 · 실루엣과 충돌은 그대로</h3>
+        <p>
+            절차적으로 만든 세 개의 높이 봉우리를 미분해 법선을 생성하고 CPU에서 픽셀별로 조명합니다. 아래
+            단면의 점선은 법선 생성에 쓴 높이이고, 실제 평면과 충돌선은 높이 0에 남습니다. 그림자·가림·실제
+            변위·압축 노멀 디코더는 구현하지 않습니다. 실제 돌출이 필요하면 메시·충돌체가 별도로 필요하며,
+            방향 텍스처와 추가 조명 계산 비용도 남습니다.
+        </p>
+        <p>
+            <a
+                href="https://docs.unity3d.com/6000.1/Documentation/Manual/StandardShaderMaterialParameterNormalMap.html"
+                target="_blank"
+                rel="noreferrer"
+            >
+                Unity 6.1 · Normal Maps
+            </a>
+            <br />
+            <a
+                href="https://www.pbr-book.org/3ed-2018/Reflection_Models/Lambertian_Reflection"
+                target="_blank"
+                rel="noreferrer"
+            >
+                PBRT · Lambertian Reflection
+            </a>
+        </p>
+    </dialog>
+</Page>
+<script>
+    import '../../experiments/normal-mapping/client';
+</script>
+<style>
+    main {
+        min-height: 100svh;
+        position: relative;
+        padding: 22px 4vw 26px;
+    }
+    nav {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+    }
+    nav a {
+        font-weight: 750;
+        color: #30474f;
+        text-decoration: none;
+    }
+    nav #help {
+        margin-left: auto;
+    }
+    button {
+        min-height: 42px;
+        min-width: 44px;
+        border: 1px solid #c5d3d7;
+        border-radius: 12px;
+        background: #fff;
+        color: #29474c;
+        padding: 9px 14px;
+        cursor: pointer;
+    }
+    button:hover {
+        background: #deefec;
+    }
+    header {
+        text-align: center;
+        padding: 22px 0 4px;
+    }
+    .eyebrow {
+        color: #0b716b;
+        font-size: 12px;
+        letter-spacing: 0.16em;
+        font-weight: 750;
+    }
+    h1 {
+        font-size: clamp(25px, 3.6vw, 42px);
+        letter-spacing: -0.05em;
+        margin: 10px 0;
+    }
+    header > p:last-child,
+    .hint {
+        color: #53656d;
+        font-size: 14px;
+    }
+    canvas {
+        display: block;
+        width: min(1100px, 100%);
+        height: min(60svh, 570px);
+        min-height: 410px;
+        margin: auto;
+    }
+    canvas:focus-visible {
+        outline: 3px solid #0b716b;
+        outline-offset: 3px;
+    }
+    .readout {
+        max-width: 1000px;
+        margin: auto;
+        background: #fff9;
+        border: 1px solid #cfdddd;
+        border-radius: 16px;
+        padding: 12px 20px;
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 14px;
+        font-size: 14px;
+        line-height: 1.6;
+    }
+    .readout p {
+        margin: 0;
+    }
+    .hint {
+        text-align: center;
+        line-height: 1.6;
+    }
+    #settings {
+        position: fixed;
+        z-index: 5;
+        left: 16px;
+        top: 78px;
+        bottom: 18px;
+        width: 310px;
+        max-width: calc(100vw - 32px);
+        overflow: auto;
+        padding: 20px;
+        background: #fffef9;
+        box-shadow: 0 16px 60px #20394433;
+        border: 1px solid #c5d3d7;
+        border-radius: 20px;
+    }
+    .aside-head {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+    .aside-head h2 {
+        font-size: 19px;
+    }
+    form label {
+        display: flex;
+        justify-content: space-between;
+        gap: 8px;
+        margin-top: 17px;
+        font-size: 13px;
+        font-weight: 600;
+    }
+    output {
+        font-variant-numeric: tabular-nums;
+        color: #0b7b74;
+    }
+    input[type='range'] {
+        width: 100%;
+        min-height: 40px;
+        accent-color: #13847c;
+    }
+    select {
+        width: 100%;
+        min-height: 44px;
+        font-size: 13px;
+        border: 1px solid #becfd0;
+        border-radius: 8px;
+        background: white;
+        padding: 6px;
+        margin-top: 8px;
+    }
+    .check {
+        align-items: center;
+        justify-content: flex-start;
+        min-height: 40px;
+    }
+    .check input {
+        width: 20px;
+        height: 20px;
+        accent-color: #13847c;
+    }
+    .note {
+        font-size: 12px;
+        line-height: 1.65;
+        color: #566970;
+    }
+    form button {
+        margin-top: 8px;
+        width: 100%;
+    }
+    dialog {
+        width: min(620px, calc(100vw - 28px));
+        max-height: 86svh;
+        border: 1px solid #c5d3d7;
+        border-radius: 22px;
+        padding: 28px;
+        line-height: 1.75;
+        color: #30434b;
+        background: #f8faf9;
+    }
+    dialog::backdrop {
+        background: #20384088;
+        backdrop-filter: blur(3px);
+    }
+    dialog #close-help {
+        float: right;
+    }
+    dialog h2 {
+        font-size: 24px;
+    }
+    dialog h3 {
+        font-size: 17px;
+        margin-top: 25px;
+    }
+    dialog p {
+        font-size: 14px;
+    }
+    dialog a {
+        color: #08766f;
+        overflow-wrap: anywhere;
+    }
+    @media (max-width: 620px) {
+        main {
+            padding: 14px 14px 20px;
+        }
+        header {
+            padding-top: 12px;
+        }
+        header > p:last-child {
+            max-width: 270px;
+            margin: 14px auto;
+        }
+        canvas {
+            height: 640px;
+            min-height: 0;
+        }
+        .readout {
+            grid-template-columns: 1fr;
+            gap: 7px;
+            padding: 12px;
+            font-size: 12px;
+        }
+        .hint {
+            font-size: 12px;
+        }
+        dialog {
+            padding: 20px;
+        }
+    }
+</style>

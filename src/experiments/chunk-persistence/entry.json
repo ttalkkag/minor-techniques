@@ -1,0 +1,8 @@
+{
+    "id": "chunk-persistence",
+    "title": "떠났다가 돌아온 벽은 왜 살아날까?",
+    "description": "블록을 지우고 청크를 떠나 보세요. 저장된 수정과 다시 생성한 지형을 구분합니다.",
+    "tags": ["세계 생성", "청크", "저장"],
+    "thumbnail": "/images/chunk-persistence.svg",
+    "href": "/experiments/chunk-persistence/"
+}

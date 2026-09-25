@@ -1,0 +1,544 @@
+---
+import Page from '../../layouts/Page.astro';
+---
+
+<Page
+    title="풀밭의 비용은 한 가지가 아니다 · 게임 실험실"
+    description="컬링, LOD, 인스턴싱, 픽셀 중첩과 그림자 비용을 분리해서 관찰합니다."
+>
+    <main id="vc-lab" class="grass-lab">
+        <nav>
+            <button
+                id="vc-menu"
+                aria-label="설정 메뉴 열기"
+                aria-controls="vc-settings"
+                aria-expanded="false"
+            >
+                ☰
+            </button>
+            <a href="/">게임 실험실</a>
+            <button id="vc-help" aria-label="원인과 해결 설명 열기">
+                ?
+            </button>
+        </nav>
+        <header>
+            <p>잔디 · 제출 · 기하 · 픽셀</p>
+            <h1>
+                풀밭의 비용은
+                <br class="small" /> 한 가지가 아니다
+            </h1>
+            <span>같은 1,000포기에서 무엇을 줄였는지 따로 관찰하세요.</span>
+        </header>
+        <div data-settings-panel role="complementary" id="vc-settings" hidden aria-label="풀밭 실험 설정">
+            <div class="panel-title">
+                <h2>한 번에 하나씩</h2>
+                <button id="vc-close" aria-label="설정 메뉴 닫기">
+                    ×
+                </button>
+            </div>
+            <div class="presets">
+                <button id="vc-optimized">최적화 예시</button>
+                <button id="vc-wind-preset">바람 끝 잘림</button>
+            </div>
+            <label class="check">
+                <input id="vc-culling" type="checkbox" />
+                카메라 컬링
+            </label>
+            <label class="check">
+                <input id="vc-lod" type="checkbox" />먼 풀은 LOD 8 → 2 삼각형
+            </label>
+            <label class="check">
+                <input id="vc-instancing" type="checkbox" />
+                같은 메시끼리 인스턴싱
+            </label>
+            <label for="vc-camera">
+                카메라 좌우 이동 <output id="vc-camera-value"></output>
+            </label>
+            <input id="vc-camera" type="range" min="-5" max="5" step="0.1" value="0" />
+            <label for="vc-padding">
+                카드 빈 영역 비율 <output id="vc-padding-value"></output>
+            </label>
+            <input id="vc-padding" type="range" min="0" max="0.75" step="0.05" value="0.35" />
+            <label class="check">
+                <input id="vc-cards" type="checkbox" />
+                반투명 카드 영역 보기
+            </label>
+            <label for="vc-wind">
+                바람 진폭 <output id="vc-wind-value"></output>
+            </label>
+            <input id="vc-wind" type="range" min="0" max="1.2" step="0.05" value="0.65" />
+            <label class="check">
+                <input id="vc-safeBounds" type="checkbox" />
+                바람 진폭까지 bounds 확장
+            </label>
+            <label class="check">
+                <input id="vc-synchronized" type="checkbox" />
+                모든 풀의 위상을 같게
+            </label>
+            <label class="check">
+                <input id="vc-shadows" type="checkbox" checked />
+                별도 그림자 패스
+            </label>
+            <label class="check danger">
+                <input id="vc-reuseMain" type="checkbox" />
+                그림자에도 메인 컬링 재사용
+            </label>
+            <button id="vc-reset" class="wide">
+                초기화
+            </button>
+        </div>
+        <section class="scene-area">
+            <div class="legend">
+                <span>
+                    <i class="near"></i>8 삼각형
+                </span>
+                <span>
+                    <i class="far"></i>2 삼각형 LOD
+                </span>
+                <span>
+                    <i class="missing"></i>컬링 누락
+                </span>
+            </div>
+            <div class="canvas-wrap">
+                <canvas
+                    id="vc-canvas"
+                    aria-label="동일한 풀밭의 카메라 화면과 제출 영역 지도"
+                    aria-describedby="vc-summary"
+                ></canvas>
+            </div>
+            <div class="stats">
+                <article>
+                    <span>주 화면 제출 명령</span>
+                    <strong id="vc-commands"></strong>
+                    <small id="vc-submitted"></small>
+                </article>
+                <article>
+                    <span>주 화면 삼각형</span>
+                    <strong id="vc-triangles"></strong>
+                    <small id="vc-lod-detail"></small>
+                </article>
+                <article>
+                    <span>기준 화면 후보 픽셀</span>
+                    <strong id="vc-fragments"></strong>
+                    <small>카드 bounds 합 · 깊이 거부 전</small>
+                </article>
+                <article>
+                    <span>그림자 삼각형</span>
+                    <strong id="vc-shadow"></strong>
+                    <small id="vc-shadow-count"></small>
+                </article>
+            </div>
+            <div class="playbar">
+                <button id="vc-play" aria-pressed="false">
+                    바람 재생
+                </button>
+                <label for="vc-time">
+                    바람 위상 <input id="vc-time" type="range" min="0" max="6.28" step="0.01" value="1" />
+                </label>
+                <output id="vc-time-value">1.00 rad</output>
+            </div>
+            <p id="vc-summary" role="status" aria-live="polite"></p>
+            <p class="note">화면은 직교 투영 도식 · 픽셀 후보는 1,000 × 600 기준으로 계산합니다.</p>
+        </section>
+    </main>
+    <dialog id="vc-dialog" aria-labelledby="vc-dialog-title">
+        <button id="vc-dialog-close" class="dialog-close" aria-label="설명 닫기">
+            ×
+        </button>
+        <p class="eyebrow">문제 · 원인 · 해결 · 대가</p>
+        <h2 id="vc-dialog-title">
+            드로콜을 줄여도
+            <br />
+            풀잎 수는 그대로입니다.
+        </h2>
+        <h3>어디에서 비용이 생길까요?</h3>
+        <p>
+            CPU가 명령을 제출하는 횟수, GPU가 다루는 삼각형, 겹친 카드의 픽셀 후보, 별도 그림자 작업은 서로
+            다른 지표입니다. 인스턴싱만 켜 보세요. 명령 수는 줄지만 삼각형과 픽셀 후보는 유지됩니다.
+        </p>
+        <h3>하나씩 줄이기</h3>
+        <p>
+            바람 0, 카메라 중앙일 때 컬링은 1,000포기 중 400포기를 남깁니다. LOD는 그중 가까운 100포기를
+            8삼각형, 먼 300포기를 2삼각형으로 바꿔 1,400삼각형을 만듭니다. 같은 메시·재질을 사용하는
+            인스턴싱은 이를 두 명령으로 묶습니다. 카드 빈 영역을 줄이면 같은 풀의 픽셀 후보 영역이 작아집니다.
+        </p>
+        <h3>해결의 대가: 경계와 다른 패스</h3>
+        <p>
+            LOD 전환선에서 잎 수가 갑자기 바뀌고, 얇은 카드는 바람 bounds가 좁을 때 화면 가장자리에서
+            사라집니다. 주황 윤곽은 컬링으로 누락된 원래 풀의 위치입니다. bounds를 진폭만큼 넓히면 누락은
+            없어지지만 더 많은 포기를 제출합니다. 그림자는 오른쪽으로 1.6m 이동한 별도 영역을 검사하므로
+            카메라 밖의 풀도 필요합니다.
+        </p>
+        <h3>계산 범위</h3>
+        <p>
+            밑동은 고정하고 높이 비율 w에 대해 w·A·sin(t+φ)로 변형합니다. 포기별 위상은 재현 가능한 값이며, 한
+            포기의 상단은 같은 변위를 사용합니다. 후보 픽셀은 잘린 카드의 축 정렬 bounds 면적을 더한 값입니다.
+            실제 래스터화, 깊이 거부, 알파 테스트 이후 셰이더 호출이나 GPU 시간을 측정하지 않습니다. 그림자는
+            포기마다 2삼각형으로 근사합니다.
+        </p>
+        <p class="sources">
+            공식 근거:{' '}
+            <a href="https://unity.com/how-to/gpu-optimization" target="_blank" rel="noreferrer">
+                Unity GPU 최적화
+            </a>{' '}
+            ·{' '}
+            <a
+                href="https://developer.nvidia.com/gpugems/gpugems/part-i-natural-effects/chapter-7-rendering-countless-blades-waving-grass"
+                target="_blank"
+                rel="noreferrer"
+            >
+                GPU Gems 7장
+            </a>
+        </p>
+    </dialog>
+    <script>
+        import '../../experiments/vegetation-cost/client';
+    </script>
+</Page>
+<style>
+    .grass-lab {
+        min-height: 100svh;
+        padding: 18px 28px 24px;
+        color: #263b43;
+        position: relative;
+    }
+    nav {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+    }
+    nav a {
+        font-weight: 750;
+        color: inherit;
+        text-decoration: none;
+    }
+    nav button:last-child {
+        margin-left: auto;
+    }
+    button {
+        min-height: 42px;
+        border: 1px solid #cbd7d9;
+        border-radius: 10px;
+        padding: 8px 14px;
+        color: #30494f;
+        background: #fff;
+        cursor: pointer;
+    }
+    button:hover {
+        background: #e2efed;
+    }
+    nav button {
+        width: 44px;
+        padding: 0;
+        font-size: 23px;
+    }
+    header {
+        padding: 25px 0 20px;
+    }
+    header p,
+    .eyebrow {
+        font-size: 12px;
+        letter-spacing: 0.08em;
+        color: #0e6b67;
+        font-weight: 750;
+    }
+    h1 {
+        margin: 7px 0 10px;
+        font-size: clamp(26px, 3.5vw, 43px);
+        letter-spacing: -0.06em;
+    }
+    header span {
+        font-size: 14px;
+        color: #4e646a;
+    }
+    .small {
+        display: none;
+    }
+    .scene-area {
+        transition: margin 0.15s;
+    }
+    .open .scene-area {
+        margin-left: 300px;
+    }
+    [data-settings-panel] {
+        position: absolute;
+        z-index: 5;
+        top: 210px;
+        left: 28px;
+        width: 276px;
+        padding: 18px;
+        background: #f9fbfb;
+        border: 1px solid #d3dfe0;
+        border-radius: 18px;
+        box-shadow: 0 12px 40px #25434b0b;
+        max-height: calc(100svh - 230px);
+        overflow: auto;
+    }
+    .panel-title {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+    }
+    .panel-title h2 {
+        font-size: 16px;
+        margin: 0;
+    }
+    .panel-title button {
+        border: 0;
+        font-size: 23px;
+        padding: 0;
+        min-width: 40px;
+    }
+    .presets {
+        display: flex;
+        gap: 5px;
+        margin: 12px 0;
+    }
+    .presets button {
+        font-size: 12px;
+        padding: 7px 9px;
+        flex: 1;
+    }
+    label {
+        display: flex;
+        justify-content: space-between;
+        font-size: 12px;
+        margin-top: 14px;
+        gap: 8px;
+    }
+    output {
+        font-variant-numeric: tabular-nums;
+        color: #0c6a64;
+    }
+    input[type='range'] {
+        width: 100%;
+        height: 40px;
+        accent-color: #14837c;
+        cursor: pointer;
+    }
+    .check {
+        align-items: center;
+        justify-content: flex-start;
+        min-height: 40px;
+        margin-top: 3px;
+        line-height: 1.5;
+    }
+    .check input {
+        width: 18px;
+        height: 18px;
+        accent-color: #0e6b67;
+        flex-shrink: 0;
+    }
+    .danger {
+        color: #8e491f;
+    }
+    .wide {
+        width: 100%;
+        margin-top: 13px;
+    }
+    .legend {
+        display: flex;
+        gap: 18px;
+        justify-content: center;
+        font-size: 12px;
+        color: #4b6266;
+    }
+    .legend span {
+        display: flex;
+        align-items: center;
+        gap: 5px;
+    }
+    .legend i {
+        display: block;
+        width: 9px;
+        height: 9px;
+        border-radius: 3px;
+    }
+    .near {
+        background: #29795d;
+    }
+    .far {
+        background: #66a99c;
+    }
+    .missing {
+        background: #e18a4b;
+    }
+    .canvas-wrap {
+        height: clamp(350px, 49vh, 520px);
+        position: relative;
+    }
+    canvas {
+        display: block;
+        width: 100%;
+        height: 100%;
+    }
+    .stats {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 8px;
+        margin: 12px auto 0;
+        max-width: 1100px;
+    }
+    .stats article {
+        padding: 13px;
+        background: #f9fbfbbf;
+        border: 1px solid #d8e1e2;
+        border-radius: 12px;
+        min-width: 0;
+    }
+    .stats span {
+        display: block;
+        font-size: 11px;
+        color: #62767d;
+    }
+    .stats strong {
+        display: block;
+        font-size: clamp(20px, 2.1vw, 29px);
+        font-variant-numeric: tabular-nums;
+        margin-top: 7px;
+        color: #147e77;
+    }
+    .stats small {
+        display: block;
+        font-size: 10px;
+        color: #4d6468;
+        margin-top: 6px;
+        line-height: 1.6;
+    }
+    .playbar {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 16px;
+        margin-top: 18px;
+    }
+    .playbar button {
+        background: #187f78;
+        color: #fff;
+        border-color: #187f78;
+    }
+    .playbar label {
+        margin: 0;
+        align-items: center;
+        gap: 10px;
+        white-space: nowrap;
+    }
+    .playbar input {
+        width: 150px;
+    }
+    .playbar output {
+        font-size: 12px;
+        min-width: 65px;
+    }
+    #vc-summary {
+        text-align: center;
+        font-size: 13px;
+        line-height: 1.7;
+        margin: 15px 0 5px;
+    }
+    .note {
+        text-align: center;
+        font-size: 11px;
+        color: #4d6468;
+    }
+    dialog {
+        width: min(620px, calc(100% - 28px));
+        max-height: 85svh;
+        padding: 30px;
+        border: 1px solid #ccdcdd;
+        border-radius: 20px;
+        color: #29414a;
+        background: #f8fbfb;
+    }
+    dialog::backdrop {
+        background: #17313955;
+        backdrop-filter: blur(4px);
+    }
+    dialog h2 {
+        line-height: 1.4;
+        font-size: 27px;
+        letter-spacing: -0.04em;
+    }
+    dialog h3 {
+        font-size: 15px;
+        margin: 23px 0 7px;
+    }
+    dialog p {
+        font-size: 14px;
+        line-height: 1.85;
+    }
+    .dialog-close {
+        float: right;
+        font-size: 23px;
+        min-width: 42px;
+    }
+    .sources a {
+        color: #0e6b67;
+        overflow-wrap: anywhere;
+    }
+    @media (max-width: 700px) {
+        .grass-lab {
+            padding: 14px 16px 24px;
+        }
+        header {
+            padding-top: 18px;
+        }
+        h1 {
+            font-size: 28px;
+        }
+        .small {
+            display: block;
+        }
+        header span {
+            font-size: 12px;
+        }
+        .open .scene-area {
+            margin-left: 0;
+        }
+        [data-settings-panel] {
+            position: fixed;
+            top: 75px;
+            left: 12px;
+            width: min(300px, calc(100% - 24px));
+            max-height: calc(100svh - 92px);
+            box-shadow: 0 10px 80px #183c4260;
+        }
+        .canvas-wrap {
+            height: 410px;
+        }
+        .legend {
+            font-size: 10px;
+            gap: 12px;
+        }
+        .stats {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+        .playbar {
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+        .playbar button {
+            font-size: 12px;
+        }
+        .playbar label {
+            font-size: 11px;
+        }
+        .playbar input {
+            width: 100px;
+        }
+        .playbar output {
+            font-size: 11px;
+            min-width: auto;
+        }
+        .note {
+            font-size: 10px;
+            line-height: 1.7;
+        }
+        dialog {
+            padding: 20px;
+        }
+        dialog h2 {
+            font-size: 23px;
+        }
+    }
+</style>

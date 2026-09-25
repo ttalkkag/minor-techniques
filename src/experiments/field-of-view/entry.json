@@ -1,0 +1,8 @@
+{
+    "id": "field-of-view",
+    "title": "시야각 안인데 벽 뒤에 있다면",
+    "description": "거리, 정규화, 벽 차폐와 신체 표본 수를 조합해 발견 판정을 바꿉니다.",
+    "tags": ["렌더링·가시성", "내적", "차폐"],
+    "thumbnail": "/images/field-of-view.svg",
+    "href": "/experiments/field-of-view/"
+}

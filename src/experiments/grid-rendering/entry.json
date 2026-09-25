@@ -1,0 +1,12 @@
+{
+    "id": "grid-rendering",
+    "title": "평평한 벽이 휘어 보이는 이유",
+    "description": "시야각과 카메라를 바꾸며 광선 거리와 전방 깊이의 투영을 비교합니다.",
+    "tags": [
+        "렌더링·가시성",
+        "격자 광선",
+        "투영 비교"
+    ],
+    "thumbnail": "/images/grid-rendering.svg",
+    "href": "/experiments/grid-rendering/"
+}

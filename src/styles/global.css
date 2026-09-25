@@ -1,0 +1,28 @@
+:root {
+    font-family: -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif;
+    color: #263340;
+    background: #edf1f3;
+    font-synthesis: none;
+}
+
+* {
+    box-sizing: border-box;
+}
+
+body {
+    min-height: 100svh;
+    margin: 0;
+}
+
+button, input, select, textarea {
+    font: inherit;
+}
+
+:is(a, button, input, select, textarea):focus-visible {
+    outline: 3px solid #117b77;
+    outline-offset: 4px;
+}
+
+[hidden] {
+    display: none !important;
+}

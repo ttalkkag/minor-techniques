@@ -1,0 +1,454 @@
+---
+import Page from '../../layouts/Page.astro';
+---
+
+<Page
+    title="벽은 사라졌는데 길은 막혔다 · 게임 실험실"
+    description="타격 위치와 상태 전환 방식을 바꾸며 화면·충돌·AI 통로의 차이를 확인합니다."
+>
+    <main class="lab">
+        <nav class="top" aria-label="실험실 탐색">
+            <button id="menu" aria-label="설정 메뉴 열기" aria-controls="settings" aria-expanded="false">
+                ☰
+            </button>
+            <a href="/">게임 실험실</a>
+            <button id="explain" aria-label="원인과 해결 설명 열기">
+                ?
+            </button>
+        </nav>
+        <header class="heading">
+            <p class="eyebrow">움직임의 조건을 바꾸다</p>
+            <h1>벽은 사라졌는데 길은 막혔다</h1>
+            <p class="lead">타격 위치와 상태 전환 방식을 바꾸며 화면·충돌·AI 통로의 차이를 확인합니다.</p>
+        </header>
+        <div id="settings" class="settings" role="dialog" aria-modal="true" aria-labelledby="settings-title" hidden>
+            <header>
+                <h2 id="settings-title">실험 설정</h2>
+                <button id="close-menu" aria-label="설정 메뉴 닫기">
+                    ×
+                </button>
+            </header>
+            <label for="method">파괴 방식</label>
+            <select id="method">
+                <option value="fracture">사전 조각 · 연결 해제</option>
+                <option value="swap">정해진 모델 교체</option>
+                <option value="cut">타격점에서 2D 분할</option>
+            </select>
+            <label for="policy">상태 전환</label>
+            <select id="policy">
+                <option value="sync">메시·충돌·AI 동시 전환</option>
+                <option value="visual">메시만 제거 · 충돌 잔존</option>
+                <option value="collision">충돌 먼저 제거 · 메시 잔존</option>
+                <option value="delay">AI 통로 2틱 늦게 갱신</option>
+            </select>
+            <label for="hit-position">
+                타격 위치 <output id="hit-out"></output>
+            </label>
+            <input id="hit-position" type="range" min="0.1" max="0.9" step="0.05" value="0.5" />
+            <label for="power">
+                타격 피해 <output id="power-out"></output>
+            </label>
+            <input id="power" type="range" min="25" max="150" step="25" value="100" />
+            <label for="lane">
+                이동 위치 <output id="lane-out"></output>
+            </label>
+            <input id="lane" type="range" min="0.1" max="0.9" step="0.05" value="0.5" />
+            <label>
+                <input id="debris" type="checkbox" />큰 파편이 통로를 막음
+            </label>
+            <label>
+                <input id="overlay" type="checkbox" checked />
+                충돌 윤곽 표시
+            </label>
+        </div>
+        <div class="scene">
+            <svg
+                id="scene"
+                viewBox="0 0 1000 440"
+                role="img"
+                aria-label="벽의 렌더 메시 충돌 AI 경로 단면"
+                aria-describedby="summary"
+            ></svg>
+        </div>
+        <section class="results" aria-label="관찰 결과">
+            <article class="card">
+                <span>이동 시도 · 충돌 결과</span>
+                <strong id="player-readout">시도 전</strong>
+            </article>
+            <article class="card">
+                <span>AI가 알고 있는 길</span>
+                <strong id="nav-readout"></strong>
+            </article>
+            <article class="card">
+                <span>파편 · 활성 충돌체</span>
+                <strong id="debris-readout"></strong>
+            </article>
+        </section>
+        <p class="hint" id="summary" role="status"></p>
+        <div class="controls">
+            <button id="strike" class="primary">
+                타격
+            </button>
+            <button id="walk">캐릭터 이동 시도</button>
+            <button id="tick">다음 틱</button>
+            <button id="clear">파편 제거</button>
+            <button id="reset">초기화</button>
+        </div>
+        <dialog id="explanation" aria-labelledby="explanation-title">
+            <button class="close" id="close-explain" aria-label="설명 닫기">
+                ×
+            </button>
+            <h2 id="explanation-title">벽은 사라졌는데 길은 막혔다</h2>
+            <h3>문제 · 서로 다른 세 가지 상태</h3>
+            <p>
+                보이는 벽, 이동을 막는 충돌체, AI가 쓰는 통로 정보는 별개입니다. 메시만 지우면 보이지 않는
+                벽이 남고 충돌부터 지우면 보이는 벽을 통과합니다.
+            </p>
+            <h3>해결 · 파괴 사건에 상태 변경을 연결합니다</h3>
+            <p>
+                동시 전환은 파괴된 범위의 세 상태를 함께 갱신합니다. AI 지연 모드는 2틱 동안 이전 길 정보를
+                유지합니다. 큰 파편 옵션은 파괴 전 선택하며, 큰 파편은 별도 충돌체여서 제거 전까지 통로를
+                막습니다.
+            </p>
+            <h3>방식과 대가</h3>
+            <p>
+                모델 교체는 피해 100에서 정해진 중앙 통로를 엽니다. 사전 조각은 타격받은 셀의 누적 피해
+                100에서 연결을 해제하고 타격 방향으로 파편이 움직입니다. 2D 분할은 타격점 주변 구간을 새로
+                자릅니다. 새 타격 위치에서 결과를 비교하세요. 화면은 2D 구간 충돌과 투영된 벽이며 3D 메시
+                절단·구조역학·Chaos 강체 솔버는 구현하지 않습니다. 장식 파편 수와 게임에 영향을 주는 충돌 수는
+                다릅니다.
+            </p>
+            <p>
+                <a href="https://dev.epicgames.com/documentation/en-us/unreal-engine/destruction-quick-start">
+                    Epic Destruction Quick Start
+                </a>
+            </p>
+        </dialog>
+    </main>
+</Page>
+<script>
+    import '../../experiments/destruction-state/client';
+</script>
+<style>
+    :global(body) {
+        background: #edf1f3;
+        color: #203d43;
+        margin: 0;
+    }
+    .lab {
+        min-height: 100dvh;
+        overflow: hidden;
+    }
+    .top {
+        height: 66px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 0 24px;
+        border-bottom: 1px solid #d1dfe1;
+    }
+    .top a {
+        font-weight: 750;
+        color: #204b50;
+        text-decoration: none;
+    }
+    .top button {
+        width: 44px;
+        padding: 0;
+        font-size: 22px;
+    }
+    button,
+    select,
+    input {
+        font: inherit;
+    }
+    button,
+    select {
+        min-height: 42px;
+        border: 1px solid #b7ced0;
+        border-radius: 12px;
+        background: #fff;
+        color: #234b50;
+        padding: 8px 15px;
+        cursor: pointer;
+    }
+    button:hover {
+        background: #ddefec;
+    }
+    button:focus-visible,
+    select:focus-visible,
+    input:focus-visible,
+    a:focus-visible {
+        outline: 3px solid #e8954b;
+        outline-offset: 3px;
+    }
+    .heading {
+        padding: 26px 5vw 0;
+        max-width: 1100px;
+        margin: auto;
+    }
+    .eyebrow {
+        font-size: 12px;
+        letter-spacing: 0.12em;
+        color: #46666a;
+    }
+    h1 {
+        font-size: clamp(24px, 3.5vw, 42px);
+        margin: 8px 0;
+    }
+    h2 {
+        font-size: 20px;
+    }
+    p {
+        line-height: 1.65;
+    }
+    .lead {
+        color: #577176;
+        margin: 8px 0;
+    }
+    .scene {
+        width: min(1120px, 94vw);
+        margin: 14px auto 0;
+        position: relative;
+    }
+    .scene svg,
+    .scene canvas {
+        display: block;
+        width: 100%;
+        height: auto;
+        min-height: 250px;
+        max-height: 58vh;
+    }
+    .scene svg text {
+        font-family: inherit;
+        fill: #24474c;
+    }
+    .scene canvas {
+        height: 53vh;
+        max-height: 600px;
+        min-height: 320px;
+        border-radius: 20px;
+    }
+    .results {
+        display: flex;
+        gap: 12px;
+        flex-wrap: wrap;
+        max-width: 1080px;
+        margin: 10px auto;
+        padding: 0 20px;
+    }
+    .card {
+        background: #ffffffbd;
+        border: 1px solid #d4e0e2;
+        border-radius: 15px;
+        padding: 14px 18px;
+        flex: 1;
+        min-width: 180px;
+    }
+    .card strong {
+        display: block;
+        font-size: 18px;
+        margin: 4px 0;
+    }
+    .card span {
+        font-size: 13px;
+        color: #587177;
+    }
+    .controls {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 10px;
+        padding: 10px 20px 24px;
+    }
+    .primary {
+        background: #146f72;
+        color: white;
+        border-color: #146f72;
+    }
+    .controls label {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+    .controls input {
+        width: 160px;
+        min-height: 40px;
+        accent-color: #11797b;
+    }
+    .settings {
+        position: fixed;
+        left: 16px;
+        top: 78px;
+        bottom: 16px;
+        overflow: auto;
+        width: min(320px, calc(100vw - 32px));
+        box-sizing: border-box;
+        padding: 22px;
+        background: #fafdfd;
+        box-shadow: 0 12px 60px #31585b38;
+        border: 1px solid #bdced1;
+        border-radius: 20px;
+        z-index: 5;
+    }
+    .settings[hidden] {
+        display: none;
+    }
+    .settings header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+    .settings header h2 {
+        margin: 0;
+    }
+    .settings label {
+        display: block;
+        font-size: 14px;
+        margin: 19px 0 7px;
+    }
+    .settings input[type='range'] {
+        width: 100%;
+        accent-color: #14797b;
+        min-height: 40px;
+    }
+    .settings input[type='checkbox'] {
+        accent-color: #14797b;
+        width: 20px;
+        height: 20px;
+        vertical-align: middle;
+        margin-right: 8px;
+    }
+    .settings select {
+        width: 100%;
+    }
+    .settings output {
+        float: right;
+        font-variant-numeric: tabular-nums;
+    }
+    .settings .row {
+        display: flex;
+        gap: 6px;
+        flex-wrap: wrap;
+        margin-top: 16px;
+    }
+    .hint {
+        max-width: 1000px;
+        margin: 8px auto;
+        text-align: center;
+        color: #46666a;
+        font-size: 13px;
+        padding: 0 20px;
+    }
+    .teal {
+        color: #087d7a;
+    }
+    .orange {
+        color: #cb713c;
+    }
+    dialog {
+        border: 1px solid #b8ced0;
+        border-radius: 22px;
+        max-width: 650px;
+        width: calc(100vw - 56px);
+        max-height: 80dvh;
+        padding: 25px;
+        box-sizing: border-box;
+        color: #24474c;
+        background: #f9fcfc;
+    }
+    dialog::backdrop {
+        background: #24444777;
+    }
+    dialog h2 {
+        margin-top: 0;
+    }
+    dialog h3 {
+        font-size: 16px;
+        margin-bottom: 4px;
+    }
+    dialog p {
+        font-size: 14px;
+        margin-top: 6px;
+    }
+    dialog a {
+        color: #0b777a;
+    }
+    dialog .close {
+        float: right;
+        margin-left: 12px;
+    }
+    .log {
+        max-width: 1030px;
+        margin: 8px auto 30px;
+        max-height: 135px;
+        overflow: auto;
+        border-radius: 12px;
+        background: white;
+        padding: 14px 20px;
+        font-size: 13px;
+        line-height: 1.6;
+    }
+    .object-list {
+        display: flex;
+        justify-content: center;
+        gap: 6px;
+        flex-wrap: wrap;
+    }
+    .object-list button[aria-pressed='true'] {
+        background: #146f72;
+        color: #fff;
+    }
+    @media (max-width: 600px) {
+        .top {
+            padding: 0 14px;
+            height: 58px;
+        }
+        .heading {
+            padding-top: 16px;
+        }
+        .lead {
+            font-size: 14px;
+        }
+        .scene {
+            width: 100%;
+            margin-top: 8px;
+        }
+        .scene svg {
+            min-height: 235px;
+            max-height: 44vh;
+        }
+        .results {
+            gap: 7px;
+            padding: 0 12px;
+        }
+        .card {
+            padding: 10px 12px;
+            min-width: 120px;
+        }
+        .card strong {
+            font-size: 15px;
+        }
+        .card span {
+            font-size: 12px;
+        }
+        .controls {
+            padding: 10px 12px 18px;
+            gap: 7px;
+        }
+        .settings {
+            top: 66px;
+        }
+        .hint {
+            font-size: 12px;
+        }
+        .log {
+            margin: 8px 12px 20px;
+        }
+        .scene canvas {
+            height: 42vh;
+            min-height: 290px;
+        }
+    }
+</style>

@@ -1,0 +1,553 @@
+---
+import Page from '../../layouts/Page.astro';
+---
+
+<Page
+    title="명령 성공이 목표 완료는 아닙니다 · 게임 실험실"
+    description="받은 관측과 현재 월드를 나누고, 일부만 실행된 행동의 다음 단계를 확인하세요."
+>
+    <main class="lab">
+        <nav aria-label="실험실 탐색">
+            <button id="menu" aria-label="설정 메뉴 열기" aria-controls="settings" aria-expanded="false">
+                ☰
+            </button>
+            <a href="/">게임 실험실</a>
+            <button id="help" aria-label="원인과 해결 설명 열기">
+                ?
+            </button>
+        </nav>
+        <header>
+            <p class="eyebrow">게임 AI / 관측과 실행</p>
+            <h1>명령 성공이 목표 완료는 아닙니다</h1>
+            <p>받은 관측과 현재 월드를 나누고, 일부만 실행된 행동의 다음 단계를 확인하세요.</p>
+        </header>
+        <section class="stage" aria-label="실험 장면">
+            <canvas
+                id="scene"
+                aria-label="명령 성공이 목표 완료는 아닙니다 관찰 그림"
+                aria-describedby="summary"
+            ></canvas>
+        </section>
+        <section class="readouts" aria-label="관찰값">
+            <div class="metric">
+                <span>관측 나이 / 실행 명령</span>
+                <strong id="metric-0">—</strong>
+            </div>
+            <div class="metric">
+                <span>실제 완료 상태</span>
+                <strong id="metric-1">—</strong>
+            </div>
+            <div class="metric">
+                <span>에이전트의 보고</span>
+                <strong id="metric-2">—</strong>
+            </div>
+        </section>
+        <div class="toolbar" role="group" aria-label="실험 조작">
+            <button id="cycle" class="primary">
+                관측 → 행동 한 사이클
+            </button>
+            <button id="resolve">전투 종료</button>
+            <button id="restock">자원 +4</button>
+            <button id="concurrent">다른 작업이 3번 칸 변경</button>
+            <button id="rollback">이번 작업 되돌리기</button>
+            <button id="reset">초기화</button>
+        </div>
+        <p id="summary" class="summary" role="status"></p>
+        <section class="extra">
+            <p id="result-detail" role="status">
+                관측을 캡처하고 한정된 행동을 실행합니다.
+            </p>
+            <div id="events" class="log"></div>
+        </section>
+        <div id="backdrop" class="backdrop" hidden></div>
+        <div id="settings" class="settings" role="dialog" aria-modal="true" aria-label="실험 설정" hidden>
+            <h2>
+                실험 설정
+                <button id="close-menu" aria-label="설정 메뉴 닫기">
+                    ×
+                </button>
+            </h2>
+            <div class="control">
+                <label for="scenario">실험 상황</label>
+                <select id="scenario">
+                    <option value="move">소포 전달 · 관측 중 전투 진입</option>
+                    <option value="build">벽 10칸 · 부분 성공과 복원</option>
+                </select>
+            </div>
+            <div class="control">
+                <label for="policy">실행 결과 처리</label>
+                <select id="policy">
+                    <option value="unsafe">명령 응답만 믿기 / 전체 재시도</option>
+                    <option value="verified">맵·완료 조건 확인 / 변경분 재시도</option>
+                </select>
+            </div>
+            <div class="control">
+                <label for="delay">
+                    관측 후 판단 지연 (틱)<output id="delay-value"></output>
+                </label>
+                <input id="delay" type="range" min="0" max="6" value="3" step="1" />
+            </div>
+            <div class="control">
+                <label for="burst">
+                    한 번에 요청할 이동 (칸)<output id="burst-value"></output>
+                </label>
+                <input id="burst" type="range" min="1" max="7" value="5" step="1" />
+            </div>
+            <label class="check">
+                <input id="interrupt" type="checkbox" checked />
+                3틱째 전투로 전환
+            </label>
+            <p class="note">
+                실제 상태와 받은 관측은 같은 시계로 기록합니다. 전투에서는 이동 명령을 수신해도 좌표는 바뀌지
+                않습니다. 벽 작업은 한 번에 최대 6명령, 자원은 처음 6개입니다.
+            </p>
+        </div>
+        <noscript>실험을 조작하려면 JavaScript를 켜주세요.</noscript>
+    </main>
+    <dialog id="explanation" aria-labelledby="explanation-title">
+        <div class="dialog-top">
+            <span>원인과 해결</span>
+            <button id="close-help" aria-label="설명 닫기">
+                ×
+            </button>
+        </div>
+        <h2 id="explanation-title">명령 성공이 목표 완료는 아닙니다</h2>
+        <p class="guide">
+            기본 설정에서 한 사이클을 실행하세요. 전투로 바뀌었는데 명령 수신만 확인하면 잘못된 완료 보고가
+            나옵니다. 설정의 검증 정책으로 비교하세요.
+        </p>
+        <h3>문제 · 서로 다른 세 가지 성공</h3>
+        <p>
+            명령 전달 성공, 월드의 실제 변화, 목표 완료는 별개의 사건입니다. 캡처 시각을 가진 관측은 판단하는
+            동안 낡습니다. 여기서는 3틱째 전투가 시작되고 전투 맵에서 이동 입력은 좌표를 바꾸지 않습니다.
+        </p>
+        <h3>해결 · 관측과 실행 결과 연결</h3>
+        <p>
+            검증 정책은 요청 직전 맵을 확인하고 이동 중 맵 전환에도 중단합니다. x=8에 도착한 실제 상태로 소포
+            전달을 판정합니다. 완료 후에는 이전 이동을 반복하지 않습니다. 관측 나이는 판단 시각−캡처 시각이며
+            지연 슬라이더가 이 차이를 만듭니다.
+        </p>
+        <h3>부분 성공과 동시 작업</h3>
+        <p>
+            벽은 처음에 6개만 놓입니다. 자원 +4 후 전체 목록을 재시도하면 처음 6개의 중복 명령이 실행 예산을
+            소모합니다. 변경분 재시도는 남은 4개를 놓습니다. 되돌리기는 작업 직후의 값과 버전이 현재와 같은지
+            확인해 다른 작업의 나무를 보호합니다.
+        </p>
+        <h3>대가와 범위</h3>
+        <p>
+            짧은 행동은 중간 변화에 대응하기 쉽지만 관측·계획 호출이 늘어납니다. 이 실험은 결정적 격자
+            실행기와 상태 모델이며 LLM을 호출하지 않습니다. 월드 내부 상태를 읽으므로 외부 게임의 화면 인식과
+            같은 완료 보장으로 해석하지 않습니다.
+        </p>
+        <a href="https://github.com/sesang06/pokemon_red_ai" target="_blank" rel="noopener noreferrer">
+            Pokemon Red AI 제작자 · 계획과 결정적 실행 구조 ↗
+        </a>
+        <a href="https://github.com/mindcraft-bots/mindcraft" target="_blank" rel="noopener noreferrer">
+            Mindcraft · 계획과 게임 실행 구성 ↗
+        </a>
+    </dialog>
+    <script>
+        import '../../experiments/observation-action-loop/client';
+    </script>
+</Page>
+<style>
+    .lab {
+        min-height: 100svh;
+        padding: 18px 28px 28px;
+        background: radial-gradient(ellipse at 50% 30%, #fff, #edf2f3 75%);
+        color: #283f49;
+    }
+    nav {
+        display: flex;
+        gap: 14px;
+        align-items: center;
+        max-width: 1450px;
+        margin: auto;
+    }
+    nav a {
+        font-weight: 750;
+        color: inherit;
+        text-decoration: none;
+    }
+    button,
+    select {
+        min-height: 44px;
+        border: 1px solid #cbd8db;
+        border-radius: 12px;
+        padding: 9px 14px;
+        background: #fff;
+        color: #2c4650;
+        font: inherit;
+        cursor: pointer;
+    }
+    button:hover {
+        background: #e7f1ef;
+    }
+    nav button {
+        font-size: 21px;
+        width: 44px;
+        padding: 0;
+    }
+    nav button:last-child {
+        margin-left: auto;
+    }
+    header {
+        text-align: center;
+        margin: 28px 0 23px;
+    }
+    header h1 {
+        word-break: keep-all;
+        font-size: clamp(25px, 3.1vw, 40px);
+        letter-spacing: -0.055em;
+        margin: 8px 0 12px;
+    }
+    header p {
+        font-size: 13px;
+        color: #526b75;
+        margin: 0;
+        line-height: 1.7;
+    }
+    .eyebrow {
+        font-size: 11px !important;
+        color: #197d76 !important;
+        letter-spacing: 0.12em;
+    }
+    .stage {
+        max-width: 1240px;
+        margin: auto;
+        border: 1px solid #d0dce0;
+        border-radius: 22px;
+        overflow: hidden;
+        background: linear-gradient(#f3f7f7, #eaf0f2);
+    }
+    canvas {
+        display: block;
+        width: 100%;
+        height: 385px;
+    }
+    .readouts {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 16px;
+        max-width: 1150px;
+        margin: 18px auto;
+    }
+    .metric {
+        padding: 6px 12px;
+        min-width: 0;
+        border-left: 2px solid #bdd9d4;
+    }
+    .metric span {
+        display: block;
+        font-size: 11px;
+        color: #526b75;
+    }
+    .metric strong {
+        word-break: keep-all;
+        display: block;
+        font-size: clamp(16px, 2.2vw, 25px);
+        letter-spacing: -0.04em;
+        margin-top: 6px;
+        overflow-wrap: anywhere;
+    }
+    .metric small {
+        font-size: 12px;
+    }
+    .toolbar {
+        display: flex;
+        justify-content: center;
+        flex-wrap: wrap;
+        gap: 9px;
+        margin: 18px auto;
+    }
+    .primary {
+        background: #187e76;
+        color: white;
+        border-color: #187e76;
+    }
+    .primary:hover {
+        background: #146860;
+    }
+    .summary {
+        text-align: center;
+        max-width: 1040px;
+        font-size: 12px;
+        line-height: 1.8;
+        color: #526b75;
+        margin: 16px auto;
+    }
+    .extra {
+        max-width: 1150px;
+        margin: 14px auto;
+        border-top: 1px solid #d0dedf;
+        padding-top: 15px;
+    }
+    .extra p {
+        font-size: 12px;
+        line-height: 1.7;
+        margin: 6px 0;
+    }
+    .extra strong {
+        color: #157b74;
+    }
+    .log {
+        font-size: 11px;
+        line-height: 1.8;
+        color: #576e76;
+        min-height: 44px;
+        max-height: 100px;
+        overflow: auto;
+    }
+    .backdrop {
+        position: fixed;
+        inset: 0;
+        z-index: 3;
+        background: #263f4833;
+    }
+    .settings {
+        position: fixed;
+        top: 12px;
+        left: 12px;
+        bottom: 12px;
+        width: 312px;
+        max-width: calc(100vw - 24px);
+        overflow: auto;
+        padding: 21px;
+        z-index: 4;
+        background: #f9fbfc;
+        border: 1px solid #ccdbdd;
+        border-radius: 20px;
+        box-shadow: 0 20px 80px #283e4628;
+    }
+    .settings h2 {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        font-size: 18px;
+        margin: 0 0 20px;
+    }
+    .settings h2 button {
+        font-size: 23px;
+        width: 44px;
+        padding: 0;
+    }
+    .control {
+        margin-top: 19px;
+    }
+    .control label {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        font-size: 12px;
+        font-weight: 650;
+        margin-bottom: 9px;
+    }
+    .control input[type='range'] {
+        width: 100%;
+        height: 32px;
+        accent-color: #177c73;
+        margin: 0;
+    }
+    .control input[type='number'] {
+        width: 100%;
+        height: 42px;
+        border: 1px solid #c5d8db;
+        border-radius: 9px;
+        padding: 6px 10px;
+        background: #fff;
+    }
+    .control select {
+        width: 100%;
+        font-size: 12px;
+        padding: 10px;
+    }
+    .control output {
+        color: #187c74;
+    }
+    .check {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        font-size: 12px;
+        min-height: 44px;
+        margin-top: 8px;
+    }
+    .check input {
+        width: 18px;
+        height: 18px;
+        accent-color: #187f76;
+    }
+    .note {
+        font-size: 11px;
+        line-height: 1.75;
+        color: #536a74;
+    }
+    .settings .wide {
+        width: 100%;
+        margin-top: 12px;
+        font-size: 12px;
+    }
+    .settings hr {
+        border: 0;
+        border-top: 1px solid #d7e1e3;
+        margin: 22px 0;
+    }
+    .settings h3 {
+        font-size: 13px;
+        color: #197b75;
+    }
+    .settings :disabled {
+        opacity: 0.55;
+    }
+    .mini-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 8px;
+    }
+    .mini-grid .control {
+        margin-top: 8px;
+    }
+    .mini-grid input {
+        min-width: 0;
+    }
+    dialog {
+        width: min(670px, calc(100vw - 28px));
+        max-height: calc(100svh - 40px);
+        overflow: auto;
+        border: 1px solid #cddbdd;
+        border-radius: 22px;
+        padding: 25px 30px;
+        background: #fbfcfc;
+        color: #2b444c;
+    }
+    dialog::backdrop {
+        background: #263e4777;
+        backdrop-filter: blur(4px);
+    }
+    dialog h2 {
+        font-size: 26px;
+        letter-spacing: -0.045em;
+        margin: 20px 0;
+    }
+    dialog h3 {
+        font-size: 16px;
+        margin: 24px 0 8px;
+    }
+    dialog p {
+        font-size: 13px;
+        line-height: 1.85;
+        color: #5c717a;
+    }
+    dialog a {
+        font-size: 12px;
+        color: #137c75;
+        line-height: 1.9;
+        display: block;
+        margin-top: 10px;
+    }
+    .dialog-top {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        color: #1a7d75;
+        font-size: 12px;
+    }
+    .dialog-top button {
+        font-size: 22px;
+        width: 44px;
+        padding: 0;
+    }
+    dialog .guide {
+        color: #405b65;
+        padding: 14px;
+        background: #e2efec;
+        border-radius: 12px;
+    }
+    .tabular {
+        font-variant-numeric: tabular-nums;
+    }
+    .reward-table {
+        width: 100%;
+        font-size: 12px;
+        border-collapse: collapse;
+    }
+    .reward-table th,
+    .reward-table td {
+        text-align: left;
+        padding: 8px;
+        border-bottom: 1px solid #d9e4e4;
+    }
+    .route {
+        font-size: 12px;
+    }
+    .tag {
+        border-radius: 5px;
+        padding: 3px 6px;
+        background: #e0efec;
+    }
+    @media (max-width: 700px) {
+        .lab {
+            padding: 12px 14px 22px;
+        }
+        header {
+            margin: 24px 0 18px;
+        }
+        header h1 {
+            word-break: keep-all;
+            font-size: 27px;
+            line-height: 1.25;
+        }
+        header p {
+            font-size: 11px;
+        }
+        canvas {
+            height: 390px;
+        }
+        .stage {
+            border-radius: 16px;
+        }
+        .readouts {
+            gap: 6px;
+            margin: 15px 0;
+        }
+        .metric {
+            padding: 3px 8px;
+        }
+        .metric span {
+            font-size: 10px;
+        }
+        .metric strong {
+            font-size: 16px;
+            line-height: 1.4;
+        }
+        .toolbar {
+            gap: 7px;
+        }
+        .toolbar button {
+            font-size: 12px;
+            padding: 9px 12px;
+        }
+        .summary {
+            font-size: 11px;
+        }
+        .extra {
+            padding-top: 10px;
+        }
+        .reward-table {
+            font-size: 10px;
+        }
+        .reward-table th,
+        .reward-table td {
+            padding: 7px 4px;
+        }
+        dialog {
+            padding: 20px;
+        }
+        dialog h2 {
+            font-size: 23px;
+        }
+        .log {
+            font-size: 10px;
+        }
+    }
+</style>
