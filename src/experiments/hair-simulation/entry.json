@@ -2,7 +2,7 @@
     "id": "hair-simulation",
     "title": "촘촘한 머리카락도 몸을 뚫는다",
     "description": "가이드·세그먼트·표현 가닥을 따로 조절하며 변형과 충돌을 관찰합니다.",
-    "tags": ["애니메이션·효과", "가이드 물리", "표현 밀도"],
+    "tags": ["애니메이션·효과", "가이드 물리", "표현 밀도", "Rise of the Tomb Raider", "Dragon Age: The Veilguard"],
     "thumbnail": "/images/hair-simulation.svg",
     "href": "/experiments/hair-simulation/"
 }

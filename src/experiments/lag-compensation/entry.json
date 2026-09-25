@@ -2,7 +2,7 @@
     "id": "lag-compensation",
     "title": "엄폐한 뒤에 맞는 이유",
     "description": "편도 지연과 화면 보간량을 바꾸고, 표적과 문을 어느 시각으로 검사하는지 비교하세요.",
-    "tags": ["네트워크와 저장", "지연 보상"],
+    "tags": ["네트워크와 저장", "지연 보상", "VALORANT"],
     "thumbnail": "/images/lag-compensation.svg",
     "href": "/experiments/lag-compensation/"
 }

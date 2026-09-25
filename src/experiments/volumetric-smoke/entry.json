@@ -2,7 +2,7 @@
     "id": "volumetric-smoke",
     "title": "같은 연막, 다른 시야",
     "description": "샘플 수와 누적 방식, 공유된 구멍을 바꾸며 두 시점의 투과율을 비교합니다.",
-    "tags": ["렌더링·재질", "볼륨", "시야·밀도"],
+    "tags": ["렌더링·재질", "볼륨", "시야·밀도", "Counter-Strike 2"],
     "thumbnail": "/images/volumetric-smoke.svg",
     "href": "/experiments/volumetric-smoke/"
 }

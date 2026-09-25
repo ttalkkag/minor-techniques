@@ -33,7 +33,7 @@ const catalog = [...experiments].sort((first, second) => first.order - second.or
                             <span class="category">{experiment.tags[0]}</span>
                             <h2 id={`${experiment.id}-title`}>{experiment.title}</h2>
                             <p id={`${experiment.id}-description`}>{experiment.description}</p>
-                            <ul class="tags" aria-label="분류와 관찰 방식">
+                            <ul class="tags" aria-label="분류, 관찰 방식과 관련 게임">
                                 {experiment.tags.map((tag, tagIndex) => <li class:list={{ 'category-tag': tagIndex === 0 }}>{tag}</li>)}
                             </ul>
                             <span class="open-experiment">실험 열기 <span aria-hidden="true">→</span></span>

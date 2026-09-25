@@ -15,7 +15,6 @@
     "preview": "astro preview",
     "check": "astro check",
     "test": "node --experimental-strip-types --test src/experiments/*/*.test.ts",
-    "verify:experiments": "node scripts/verify-experiments.mjs",
     "prepare": "husky"
   },
   "dependencies": {

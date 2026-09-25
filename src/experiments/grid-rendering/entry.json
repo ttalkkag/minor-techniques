@@ -5,7 +5,8 @@
     "tags": [
         "렌더링·가시성",
         "격자 광선",
-        "투영 비교"
+        "투영 비교",
+        "Wolfenstein 3D"
     ],
     "thumbnail": "/images/grid-rendering.svg",
     "href": "/experiments/grid-rendering/"

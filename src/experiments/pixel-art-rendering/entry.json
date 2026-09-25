@@ -2,7 +2,7 @@
     "id": "pixel-art-rendering",
     "title": "같은 픽셀, 다른 화면 격자",
     "description": "확대율·필터·표시 스냅과 색 기반 움직임·디더링의 차이를 관찰합니다.",
-    "tags": ["실행 자원·데이터", "픽셀 격자", "표시 좌표"],
+    "tags": ["실행 자원·데이터", "픽셀 격자", "표시 좌표", "Shovel Knight"],
     "thumbnail": "/images/pixel-art-rendering.svg",
     "href": "/experiments/pixel-art-rendering/"
 }

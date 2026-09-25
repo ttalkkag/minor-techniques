@@ -2,7 +2,7 @@
     "id": "gerstner-waves",
     "title": "봉우리를 모으다가 파도가 접힌다",
     "description": "높이와 수평 변위를 함께 조절하고 법선·접힘·기준점 궤적을 관찰합니다.",
-    "tags": ["세계 생성", "파도", "좌표 변형"],
+    "tags": ["세계 생성", "파도", "좌표 변형", "Uru: Ages Beyond Myst"],
     "thumbnail": "/images/gerstner-waves.svg",
     "href": "/experiments/gerstner-waves/"
 }

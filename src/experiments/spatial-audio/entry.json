@@ -2,7 +2,7 @@
     "id": "spatial-audio",
     "title": "벽 뒤의 소리와 지나가는 소리는 다릅니다",
     "description": "거리·벽·전달·반사·이동 속도를 하나씩 바꾸어 신호 경로를 비교하세요.",
-    "tags": ["오디오", "상태 비교"],
+    "tags": ["오디오", "상태 비교", "Half-Life: Alyx"],
     "thumbnail": "/images/spatial-audio.svg",
     "href": "/experiments/spatial-audio/"
 }

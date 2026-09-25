@@ -2,7 +2,7 @@
     "id": "compact-game-data",
     "title": "같은 내용을 더 짧게 저장하기",
     "description": "공통 레벨과 비트 평면 배치를 편집해 저장 바이트와 복원 결과를 비교합니다.",
-    "tags": ["실행 자원·데이터", "바이트 압축", "무손실 복원"],
+    "tags": ["실행 자원·데이터", "바이트 압축", "무손실 복원", "Pokémon Red", "Pokémon Blue"],
     "thumbnail": "/images/compact-game-data.svg",
     "href": "/experiments/compact-game-data/"
 }

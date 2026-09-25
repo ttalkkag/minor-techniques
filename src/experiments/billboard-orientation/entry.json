@@ -2,7 +2,7 @@
     "id": "billboard-orientation",
     "title": "상공에서 얇아지는 빌보드",
     "description": "정렬 카메라와 관찰 시점을 바꾸며 세 가지 평면 기저를 비교합니다.",
-    "tags": ["렌더링·가시성", "기저", "상공 시점"],
+    "tags": ["렌더링·가시성", "기저", "상공 시점", "Quake"],
     "thumbnail": "/images/billboard-orientation.svg",
     "href": "/experiments/billboard-orientation/"
 }

@@ -2,7 +2,7 @@
     "id": "audio-channel-budget",
     "title": "효과음이 리듬 채널을 빌려 갈 때",
     "description": "4개 음원의 소유권과 곡 시계, 시퀀스·PCM 저장량을 따로 비교하세요.",
-    "tags": ["오디오", "상태 비교"],
+    "tags": ["오디오", "상태 비교", "Pokémon Gold", "Pokémon Silver"],
     "thumbnail": "/images/audio-channel-budget.svg",
     "href": "/experiments/audio-channel-budget/"
 }

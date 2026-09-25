@@ -2,7 +2,7 @@
     "id": "randomness-distributions",
     "title": "25% 추첨에도 긴 실패가 생긴다",
     "description": "독립 추첨·천장·셔플백·누적 확률과 정보 공개 시점을 비교합니다.",
-    "tags": ["게임 규칙", "분포", "실패 보장"],
+    "tags": ["게임 규칙", "분포", "실패 보장", "Dota 2"],
     "thumbnail": "/images/randomness-distributions.svg",
     "href": "/experiments/randomness-distributions/"
 }

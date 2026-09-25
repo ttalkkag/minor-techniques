@@ -2,7 +2,7 @@
     "id": "indexed-reuse",
     "title": "원본 하나, 달라지는 모든 칸",
     "description": "팔레트와 타일 원본을 바꾸며 공유 편집과 전체 저장 비용을 비교합니다.",
-    "tags": ["실행 자원·데이터", "공유 참조", "메모리 표현"],
+    "tags": ["실행 자원·데이터", "공유 참조", "메모리 표현", "DOOM"],
     "thumbnail": "/images/indexed-reuse.svg",
     "href": "/experiments/indexed-reuse/"
 }

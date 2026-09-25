@@ -2,7 +2,7 @@
     "id": "save-systems",
     "title": "저장 중 꺼져도 남는 한 벌",
     "description": "본문을 쓰는 도중 끊어 보고, 이전 정상본과 지원 버전을 기준으로 복원하세요.",
-    "tags": ["네트워크와 저장", "저장 복구"],
+    "tags": ["네트워크와 저장", "저장 복구", "Pokémon Emerald"],
     "thumbnail": "/images/save-systems.svg",
     "href": "/experiments/save-systems/"
 }

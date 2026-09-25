@@ -2,7 +2,7 @@
     "id": "pathfinding",
     "title": "더 짧은 길을 찾았는데도 무시한다",
     "description": "A*의 재개방 반례와 같은 목표를 향하는 비용장을 각각 조작합니다.",
-    "tags": ["세계 생성", "A*", "비용장"],
+    "tags": ["세계 생성", "A*", "비용장", "Factorio"],
     "thumbnail": "/images/pathfinding.svg",
     "href": "/experiments/pathfinding/"
 }

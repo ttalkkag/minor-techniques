@@ -2,7 +2,7 @@
     "id": "rollback-netcode",
     "title": "늦은 입력이 현재를 다시 만든다",
     "description": "상대 입력을 늦게 배달하고, 같은 틱을 다시 계산한 결과와 효과 요청을 살펴보세요.",
-    "tags": ["네트워크와 저장", "롤백"],
+    "tags": ["네트워크와 저장", "롤백", "Guilty Gear -Strive-"],
     "thumbnail": "/images/rollback-netcode.svg",
     "href": "/experiments/rollback-netcode/"
 }

@@ -2,7 +2,7 @@
     "id": "dungeon-connectivity",
     "title": "통로는 이어졌는데 출구에 갈 수 없다",
     "description": "열쇠의 위치와 문 규칙을 바꾸며 위치 탐색과 상태 탐색의 차이를 확인합니다.",
-    "tags": ["세계 생성", "연결성", "상태 탐색"],
+    "tags": ["세계 생성", "연결성", "상태 탐색", "Dead Cells"],
     "thumbnail": "/images/dungeon-connectivity.svg",
     "href": "/experiments/dungeon-connectivity/"
 }

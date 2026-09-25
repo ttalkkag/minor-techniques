@@ -2,7 +2,7 @@
     "id": "mode7-projection",
     "title": "평면 지도가 멀어지는 도로로 보일 때",
     "description": "한 장의 지도를 전역 아핀·행별 투영·3D 광선 교차로 읽고, 선택한 행이 지도에서 가져오는 선을 비교하세요.",
-    "tags": ["렌더링 정밀도", "행별 바닥 투영"],
+    "tags": ["렌더링 정밀도", "행별 바닥 투영", "Super Mario Kart", "F-Zero"],
     "thumbnail": "/images/mode7-projection.svg",
     "href": "/experiments/mode7-projection/"
 }

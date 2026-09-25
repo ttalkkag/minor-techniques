@@ -2,7 +2,7 @@
     "id": "staged-learning",
     "title": "안전하게 배우고, 다음 틈에 도전한다",
     "description": "단계 배치와 제동·점프 버튼 유지 시간을 바꾸어 직접 플레이하세요.",
-    "tags": ["카메라·레벨", "학습", "조작"],
+    "tags": ["카메라·레벨", "학습", "조작", "Super Mario Bros."],
     "thumbnail": "/images/staged-learning.svg",
     "href": "/experiments/staged-learning/"
 }

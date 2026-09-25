@@ -2,7 +2,7 @@
     "id": "texture-interpolation",
     "title": "비스듬한 바닥의 무늬가 휘는 이유",
     "description": "바닥 기울기와 분할 공간을 바꾸며 아핀 보간의 UV 오차를 확인하세요.",
-    "tags": ["렌더링 정밀도", "3D 투영", "텍스처 보간"],
+    "tags": ["렌더링 정밀도", "3D 투영", "텍스처 보간", "Quake"],
     "thumbnail": "/images/texture-interpolation.svg",
     "href": "/experiments/texture-interpolation/"
 }

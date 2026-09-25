@@ -2,7 +2,7 @@
     "id": "dynamic-difficulty",
     "title": "실패 한 번마다 난이도가 흔들린다",
     "description": "평균화, 두 임계값과 유지 시간을 조절해 동일 관측 기록을 비교합니다.",
-    "tags": ["게임 규칙", "피드백", "히스테리시스"],
+    "tags": ["게임 규칙", "피드백", "히스테리시스", "Crash Bandicoot N. Sane Trilogy"],
     "thumbnail": "/images/dynamic-difficulty.svg",
     "href": "/experiments/dynamic-difficulty/"
 }

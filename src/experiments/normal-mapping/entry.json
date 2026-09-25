@@ -2,7 +2,7 @@
     "id": "normal-mapping",
     "title": "빛만 울퉁불퉁한 평면",
     "description": "빛과 시점을 움직이며 노멀맵의 방향 오류와 변하지 않는 실루엣을 비교합니다.",
-    "tags": ["렌더링·재질", "방향 벡터", "조명"],
+    "tags": ["렌더링·재질", "방향 벡터", "조명", "Dead Cells"],
     "thumbnail": "/images/normal-mapping.svg",
     "href": "/experiments/normal-mapping/"
 }
