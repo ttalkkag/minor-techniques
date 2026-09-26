@@ -1,0 +1,22 @@
+---
+import '../styles/app-header.css';
+
+interface Props {
+    settingsId?: string;
+    menuId?: string;
+}
+
+const { settingsId, menuId = 'menu' } = Astro.props;
+---
+
+<header class="app-header" data-experiment-region={settingsId ? 'header' : undefined}>
+    <nav class="app-navigation" aria-label="실험실 탐색">
+        {settingsId && (
+            <button id={menuId} class="app-menu-button" data-settings-toggle type="button" aria-label="설정 메뉴 열기" aria-controls={settingsId} aria-expanded="false">
+                <span aria-hidden="true"></span><span aria-hidden="true"></span><span aria-hidden="true"></span>
+            </button>
+        )}
+        <a class="app-brand" href="/" aria-label="Game lab 목록으로">Game lab</a>
+    </nav>
+    <div class="app-header-actions"><slot /></div>
+</header>

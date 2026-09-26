@@ -1,0 +1,54 @@
+.catalog {
+    --catalog-background: #edf1f3;
+    --catalog-surface: #fbfcfc;
+    --catalog-thumbnail: #e8eef0;
+    --catalog-text: #263340;
+    --catalog-muted: #526b77;
+    --catalog-accent: #2f706c;
+    --catalog-accent-soft: #e7f0ee;
+    --catalog-border: #dce3e6;
+    --catalog-radius: 12px;
+    min-height: 100svh;
+    color: var(--catalog-text);
+    background: var(--catalog-background);
+}
+.catalog a { color: inherit; text-decoration: none; }
+.catalog-main { width: min(1120px, calc(100% - 64px)); margin: 32px auto 0; padding-bottom: 48px; }
+.catalog .experiments, .catalog .tags { padding: 0; margin: 0; list-style: none; }
+.catalog .experiments { display: grid; gap: 12px; }
+.catalog .experiment { display: grid; grid-template-columns: 280px minmax(0, 1fr); min-width: 0; overflow: hidden; border: 1px solid var(--catalog-border); border-radius: var(--catalog-radius); background: var(--catalog-surface); transition: border-color .15s; }
+.catalog .experiment:hover { border-color: #8caeaa; }
+.catalog .experiment:focus-visible { outline: 3px solid var(--catalog-accent); outline-offset: 3px; }
+.catalog .number { display: none; }
+.catalog .preview { display: grid; place-items: center; min-width: 0; min-height: 176px; border-right: 1px solid var(--catalog-border); background: var(--catalog-thumbnail); }
+.catalog .preview img { display: block; width: 100%; max-width: 288px; height: auto; aspect-ratio: 8 / 5; object-fit: contain; }
+.catalog .experiment-content { display: flex; flex-direction: column; align-items: flex-start; min-width: 0; padding: 20px 24px; }
+.catalog h2 { margin: 0; font-size: 24px; font-weight: 600; line-height: 1.4; letter-spacing: -.6px; word-break: keep-all; overflow-wrap: anywhere; }
+.catalog .experiment-content p { margin: 8px 0 0; color: var(--catalog-muted); font-size: 14px; line-height: 1.65; word-break: keep-all; overflow-wrap: anywhere; }
+.catalog .experiment-footer { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; width: 100%; margin-top: auto; padding-top: 16px; }
+.catalog .tags { display: flex; flex: 1; flex-wrap: wrap; gap: 6px; min-width: 0; }
+.catalog .tags li { padding: 3px 8px; border: 1px solid var(--catalog-border); border-radius: 5px; color: var(--catalog-muted); font-size: 11px; font-weight: 500; line-height: 1.5; }
+.catalog .tags .category-tag { border-color: transparent; color: var(--catalog-accent); background: var(--catalog-accent-soft); }
+.catalog .open-experiment { display: grid; place-items: center; flex-shrink: 0; width: 24px; height: 24px; margin-left: auto; color: var(--catalog-accent); }
+.catalog .open-experiment svg { width: 20px; height: 20px; }
+.catalog .experiments[data-view='compact'] .experiment { grid-template-columns: 32px minmax(0, 1fr); align-items: center; gap: 12px; min-height: 68px; padding: 16px 20px; }
+.catalog .experiments[data-view='compact'] .number { display: block; align-self: start; color: var(--catalog-muted); font-size: 13px; line-height: 26px; font-variant-numeric: tabular-nums; }
+.catalog .experiments[data-view='compact'] :is(.preview, .experiment-content p, .open-experiment) { display: none; }
+.catalog .experiments[data-view='compact'] .experiment-content { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 12px 20px; padding: 0; }
+.catalog .experiments[data-view='compact'] h2 { font-size: 16px; font-weight: 500; line-height: 1.6; letter-spacing: -.3px; }
+.catalog .experiments[data-view='compact'] .experiment-footer { width: auto; margin: 0; padding: 0; }
+.catalog .experiments[data-view='compact'] .tags { justify-content: flex-end; max-width: 340px; }
+@media (max-width: 800px) {
+    .catalog-main { width: calc(100% - 32px); }
+    .catalog-main { margin-top: 24px; padding-bottom: 32px; }
+    .catalog .experiment { grid-template-columns: minmax(0, 1fr); }
+    .catalog .preview { min-height: 180px; border-right: 0; border-bottom: 1px solid var(--catalog-border); }
+    .catalog .experiment-content { padding: 16px 20px; }
+    .catalog h2 { font-size: 22px; }
+    .catalog .experiments[data-view='compact'] .experiment { padding: 14px 16px; }
+    .catalog .experiments[data-view='compact'] .experiment-content { grid-template-columns: minmax(0, 1fr); gap: 8px; }
+    .catalog .experiments[data-view='compact'] .experiment-footer { justify-self: end; }
+}
+@media (prefers-reduced-motion: reduce) {
+    .catalog .experiment { transition: none; }
+}
