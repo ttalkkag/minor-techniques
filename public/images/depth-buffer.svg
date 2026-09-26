@@ -1,1 +1,15 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 220" role="img" aria-label="겹친 두 판이 같은 깊이가 될 때"><rect width="400" height="220" rx="18" fill="#edf2f3"/><path d="M60 76 258 38 327 131 119 174Z" fill="#e19458"/><path d="M60 61 258 23 327 116 119 159Z" fill="#187e7b" fill-opacity=".75"/><path d="M45 188H352M45 184v8m50-8v8m35-8v8m25-8v8m18-8v8m12-8v8m9-8v8m7-8v8m5-8v8" stroke="#385362" stroke-width="3"/></svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 400" role="img" aria-label="깊이가 겹쳐 섞인 픽셀과 분리된 픽셀">
+    <defs>
+        <pattern id="pixels" width="52" height="52" patternUnits="userSpaceOnUse">
+            <rect width="52" height="52" fill="#187e7b"/>
+            <path d="M0 0H26V26H0ZM26 26H52V52H26Z" fill="#e19458"/>
+        </pattern>
+    </defs>
+    <rect width="640" height="400" fill="#e8eef0"/><g transform="translate(0 24) scale(1.6)">
+    <rect x="44" y="50" width="130" height="104" fill="url(#pixels)"/>
+    <rect x="226" y="50" width="130" height="104" fill="#187e7b"/>
+    <g font-family="-apple-system,BlinkMacSystemFont,Apple SD Gothic Neo,Malgun Gothic,sans-serif" font-size="16" text-anchor="middle" fill="#385362">
+        <text x="109" y="187">같은 깊이</text>
+        <text x="291" y="187">다른 깊이</text>
+    </g>
+</g></svg>

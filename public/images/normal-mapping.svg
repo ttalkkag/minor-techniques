@@ -1,1 +1,15 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 400"><defs><radialGradient id="b" cx="30%" cy="25%"><stop stop-color="#dcf9e0"/><stop offset=".55" stop-color="#6caf9e"/><stop offset="1" stop-color="#1b5654"/></radialGradient><linearGradient id="n"><stop stop-color="#dc84ea"/><stop offset="1" stop-color="#65b3ef"/></linearGradient></defs><rect width="640" height="400" fill="#eaf0f0"/><rect x="65" y="93" width="245" height="235" rx="5" fill="#7caba0"/><circle cx="130" cy="166" r="38" fill="url(#b)"/><circle cx="235" cy="222" r="50" fill="url(#b)"/><circle cx="140" cy="275" r="30" fill="url(#b)"/><rect x="376" y="125" width="175" height="170" rx="4" fill="#8888ff"/><circle cx="425" cy="177" r="28" fill="url(#n)"/><circle cx="499" cy="220" r="35" fill="url(#n)"/><circle cx="430" cy="260" r="24" fill="url(#n)"/><path d="M128 166L101 105M234 222L254 160M140 275L113 234" stroke="#f4f8ee" stroke-width="4"/><circle cx="65" cy="55" r="16" fill="#e99556"/><path d="M82 72L143 126M92 55L218 108" stroke="#e99556" stroke-width="3" stroke-dasharray="8 7"/><path d="M60 350H315" stroke="#e0844c" stroke-width="5"/></svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 400">
+    <rect width="640" height="400" fill="#e8eef0"/>
+    <circle cx="85" cy="85" r="17" fill="#e99556"/>
+    <path d="M100 103L205 205M191 202L205 205L202 191" fill="none" stroke="#e99556" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M55 270H315" stroke="#1b5654" stroke-width="7"/>
+    <path d="M100 270L76 188M71 201L76 188L88 195M180 270V175M172 186L180 175L188 186M260 270L285 188M273 195L285 188L290 201" fill="none" stroke="#6caf9e" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+    <circle cx="100" cy="270" r="7" fill="#1b5654"/>
+    <circle cx="180" cy="270" r="7" fill="#1b5654"/>
+    <circle cx="260" cy="270" r="7" fill="#1b5654"/>
+    <path d="M350 235H380M371 226L380 235L371 244" fill="none" stroke="#7caba0" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+    <rect x="415" y="140" width="170" height="170" rx="5" fill="#8888ff"/>
+    <rect x="435" y="160" width="48" height="48" fill="#dc84ea"/>
+    <rect x="517" y="200" width="48" height="48" fill="#65b3ef"/>
+    <rect x="455" y="245" width="48" height="45" fill="#dc84ea"/>
+</svg>

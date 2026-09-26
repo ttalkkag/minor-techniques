@@ -1,1 +1,14 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 400"><rect width="640" height="400" rx="24" fill="#e8eff1"/><rect x="34" y="30" width="572" height="94" rx="15" fill="#f9fbfc"/><rect x="34" y="146" width="572" height="94" rx="15" fill="#f9fbfc"/><path d="M80 78h464M80 194h464" stroke="#d0e0e4" stroke-width="3" stroke-dasharray="7 7"/><circle cx="245" cy="78" r="22" fill="#238f80"/><circle cx="402" cy="194" r="22" fill="#8ba7ae"/><path d="M245 43v185" stroke="#d48647" stroke-width="4" stroke-dasharray="7 6"/><path d="M96 221h436" stroke="#7b969f" stroke-width="10"/><path d="M401 184Q358 93 265 82" fill="none" stroke="#399788" stroke-width="5"/><path d="m276 65-20 15 24 10" fill="none" stroke="#399788" stroke-width="5"/><path d="M72 314h488" stroke="#8bbdb5" stroke-width="10"/><path d="M130 299v30m90-30v30m90-30v30m90-30v30m90-30v30" stroke="#599e95" stroke-width="3"/><circle cx="245" cy="314" r="13" fill="#d99051"/><text x="160" y="366" font-family="sans-serif" font-size="24" fill="#42666e">q = now − delay</text></svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 400" width="640" height="400">
+    <rect width="640" height="400" fill="#e8eef0"/>
+    <path d="M124 274L472 130" stroke="#b8c8ce" stroke-width="2" stroke-dasharray="6 6"/>
+    <rect x="368" y="160" width="32" height="160" fill="#b8c8ce"/>
+    <path d="M124 274L278 130" stroke="#c67a4e" stroke-width="3" stroke-linecap="round"/>
+    <circle cx="108" cy="286" r="16" fill="#526b77"/>
+    <circle cx="292" cy="118" r="18" fill="none" stroke="#c67a4e" stroke-width="3" stroke-dasharray="5 5"/>
+    <path d="M326 118H452M440 108L452 118L440 128" fill="none" stroke="#2f706c" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+    <circle cx="488" cy="118" r="18" fill="#2f706c"/>
+    <g font-family="-apple-system,BlinkMacSystemFont,Apple SD Gothic Neo,Malgun Gothic,sans-serif" font-size="24" font-weight="500" fill="#526b77" text-anchor="middle">
+        <text x="292" y="78">발사 때</text>
+        <text x="488" y="78">지금</text>
+    </g>
+</svg>
