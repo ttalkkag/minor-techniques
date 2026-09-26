@@ -1,58 +1,12 @@
+import { setPlaybackState } from '../../components/experiment-playback';
 import { sample, safeWaves, strength } from './model';
 import type { Wave } from './model';
 const get = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 const canvas = get<HTMLCanvasElement>('scene'),
     ctx = canvas.getContext('2d')!;
-const menu = get<HTMLButtonElement>('menu'),
-    settings = get<HTMLElement>('settings'),
-    info = get<HTMLDialogElement>('info');
-const background = [
-    ...document.querySelectorAll<HTMLElement>(
-        'main > :not(nav):not(#settings):not(dialog), nav > :not(#menu)',
-    ),
-];
-function menuOpen(open: boolean) {
-    settings.hidden = !open;
-    settings.setAttribute('role', 'dialog');
-    settings.setAttribute('aria-modal', String(open));
-    menu.setAttribute('aria-expanded', String(open));
-    menu.setAttribute('aria-label', open ? '설정 메뉴 닫기' : '설정 메뉴 열기');
-    menu.tabIndex = open ? -1 : 0;
-    background.forEach((element) => {
-        element.inert = open;
-    });
-    if (open) {
-        settings.scrollTop = 0;
-        get('close-menu').focus();
-    } else menu.focus();
-}
-menu.addEventListener('click', () => menuOpen(Boolean(settings.hidden)));
-get('close-menu').addEventListener('click', () => menuOpen(false));
+const info = get<HTMLDialogElement>('info');
 get('explain').addEventListener('click', () => info.showModal());
 get('close-info').addEventListener('click', () => info.close());
-document.addEventListener('keydown', (e) => {
-    if (settings.hidden || info.open) return;
-    if (e.key === 'Escape') {
-        e.preventDefault();
-        menuOpen(false);
-    } else if (e.key === 'Tab') {
-        const controls = [...settings.querySelectorAll<HTMLElement>('button, input, select, a[href]')].filter(
-            (element) => !element.hasAttribute('disabled') && element.getClientRects().length,
-        );
-        const first = controls[0],
-            last = controls[controls.length - 1];
-        if (e.shiftKey && (document.activeElement === first || !settings.contains(document.activeElement))) {
-            e.preventDefault();
-            last.focus();
-        } else if (
-            !e.shiftKey &&
-            (document.activeElement === last || !settings.contains(document.activeElement))
-        ) {
-            e.preventDefault();
-            first.focus();
-        }
-    }
-});
 function surface() {
     const r = canvas.getBoundingClientRect(),
         dpr = Math.min(devicePixelRatio, 2);
@@ -218,15 +172,23 @@ function animate(now: number) {
 }
 get('play').addEventListener('click', () => {
     playing = !playing;
-    get('play').textContent = playing ? '일시 정지' : '재생';
+    setPlaybackState('play', playing);
     if (playing) {
         clockTime = Number(get<HTMLInputElement>('time').value);
         last = performance.now();
         frame = requestAnimationFrame(animate);
     } else cancelAnimationFrame(frame);
 });
+get('step').addEventListener('click', () => {
+    playing = false;
+    cancelAnimationFrame(frame);
+    setPlaybackState('play', false);
+    clockTime = (Number(get<HTMLInputElement>('time').value) + 0.1) % 10;
+    get<HTMLInputElement>('time').value = String(clockTime);
+    draw();
+});
 document
-    .querySelectorAll<HTMLInputElement | HTMLSelectElement>('#settings input,#settings select')
+    .querySelectorAll<HTMLInputElement | HTMLSelectElement>('#settings input,#settings select,#time')
     .forEach((c) => {
         const update = () => {
             if (c.id === 'time') {
@@ -242,7 +204,7 @@ get('reset').addEventListener('click', () => {
     playing = false;
     cancelAnimationFrame(frame);
     clockTime = 0;
-    get('play').textContent = '재생';
+    setPlaybackState('play', false);
     for (const [id, value] of Object.entries({
         amplitude: '1',
         wavelength: '10',
@@ -262,7 +224,7 @@ const observer = new ResizeObserver(draw);
 observer.observe(canvas);
 window.addEventListener('pagehide', () => {
     playing = false;
-    get('play').textContent = '재생';
+    setPlaybackState('play', false);
     cancelAnimationFrame(frame);
     observer.disconnect();
 });

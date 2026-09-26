@@ -1,12 +1,12 @@
 import { beatPosition, requestTransition, type Mood, type Reservation } from './model';
+import { setPlaybackState } from '../../components/experiment-playback';
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 const value = (id: string) => Number($<HTMLInputElement>(id).value);
 const choice = (id: string) => $<HTMLSelectElement>(id).value;
 const checked = (id: string) => $<HTMLInputElement>(id).checked;
 const canvas = $<HTMLCanvasElement>('scene'),
     draw = canvas.getContext('2d')!;
-const panel = $('settings'),
-    dialog = $<HTMLDialogElement>('explanation');
+const dialog = $<HTMLDialogElement>('explanation');
 let audio: AudioContext | null = null,
     master: GainNode | null = null,
     origin = 0,
@@ -32,7 +32,7 @@ function stateAt(t: number) {
     return [...segments, ...(pending ? [pending] : [])].filter((s) => s.at <= t + 1e-7).at(-1) ?? segments[0];
 }
 function sync() {
-    if (running && audio) time = Math.max(0, audio.currentTime - origin);
+    if (running && audio) time = Math.max(time, audio.currentTime - origin);
     if (pending && time >= pending.at) {
         segments.push(pending);
         log(`예약 #${pending.id} 실행 · ${label(pending.target)} @ ${pending.at.toFixed(2)}s`);
@@ -142,6 +142,7 @@ function request(target: Mood) {
     paint();
 }
 function stop(resetClock = true) {
+    sync();
     running = false;
     clearInterval(timer);
     cancelAnimationFrame(frame);
@@ -157,13 +158,12 @@ function stop(resetClock = true) {
         pending = null;
         segments = [{ id: 0, at: 0, target: 'calm' }];
     }
-    $('play').textContent = '소리 켜고 재생';
-    $<HTMLButtonElement>('step').disabled = false;
+    setPlaybackState('play', false);
     paint();
 }
 async function play() {
     if (audio) {
-        stop();
+        stop(false);
         return;
     }
     let context: AudioContext | null = null;
@@ -177,8 +177,7 @@ async function play() {
         master.connect(audio.destination);
         origin = audio.currentTime + 0.04 - time;
         running = true;
-        $('play').textContent = '소리 정지';
-        $<HTMLButtonElement>('step').disabled = true;
+        setPlaybackState('play', true);
         timer = window.setInterval(scheduler, 25);
         scheduler();
         animate(0);
@@ -276,49 +275,14 @@ function animate(stamp: number) {
     }
     frame = requestAnimationFrame(animate);
 }
-function menu(open: boolean) {
-    const wasOpen = !panel.hidden;
-    panel.hidden = !open;
-    $('backdrop').hidden = !open;
-    $('menu').setAttribute('aria-expanded', String(open));
-    for (const sibling of panel.parentElement!.children) {
-        if (sibling instanceof HTMLElement && sibling !== panel && sibling.id !== 'backdrop')
-            sibling.inert = open;
-    }
-    if (open) {
-        panel.scrollTop = 0;
-        $('close-menu').focus();
-    } else if (wasOpen) $('menu').focus();
-}
-$('menu').onclick = () => menu(true);
-$('close-menu').onclick = () => menu(false);
-$('backdrop').onclick = () => menu(false);
 $('help').onclick = () => dialog.showModal();
 $('close-help').onclick = () => dialog.close();
-document.addEventListener('keydown', (e) => {
-    if (panel.hidden || dialog.open) return;
-    if (e.key === 'Escape') {
-        e.preventDefault();
-        menu(false);
-    } else if (e.key === 'Tab') {
-        const controls = [...panel.querySelectorAll<HTMLElement>('button,input,select,a[href],[tabindex]')].filter(
-            (element) => !element.hasAttribute('disabled') && element.tabIndex >= 0 && element.getClientRects().length,
-        );
-        const first = controls[0],
-            last = controls.at(-1)!;
-        if (e.shiftKey && document.activeElement === first) {
-            e.preventDefault();
-            last.focus();
-        } else if (!e.shiftKey && document.activeElement === last) {
-            e.preventDefault();
-            first.focus();
-        }
-    }
-});
+
 $('play').onclick = () => void play();
 $('calm').onclick = () => request('calm');
 $('combat').onclick = () => request('combat');
 $('step').onclick = () => {
+    stop(false);
     time += 60 / value('bpm') / 4;
     paint();
 };
@@ -354,8 +318,7 @@ for (const key of ['lead', 'volume', 'timing', 'visual', 'cancel', 'stinger']) {
 const resize = new ResizeObserver(paint);
 resize.observe(canvas);
 window.addEventListener('pagehide', () => {
-    menu(false);
-    stop();
+    stop(false);
     resize.disconnect();
 });
 window.addEventListener('pageshow', () => {

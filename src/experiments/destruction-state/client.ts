@@ -1,3 +1,5 @@
+import { setPlaybackState } from '../../components/experiment-playback';
+
 const get = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 const input = (id: string) => get<HTMLInputElement>(id);
 const number = (id: string) => Number(input(id).value);
@@ -5,68 +7,25 @@ const text = (id: string, value: string) => {
     const element = get(id);
     if (element.textContent !== value) element.textContent = value;
 };
-const settings = get('settings');
-const menu = get<HTMLButtonElement>('menu');
 const dialog = get<HTMLDialogElement>('explanation');
-const background = [
-    ...Array.from(settings.parentElement!.children).filter(
-        (element) => element !== settings && element !== menu.parentElement && element !== dialog,
-    ),
-    ...Array.from(menu.parentElement!.children).filter((element) => element !== menu),
-] as HTMLElement[];
-function closeMenu(returnFocus = true) {
-    if (settings.hidden) return;
-    settings.hidden = true;
-    menu.setAttribute('aria-expanded', 'false');
-    menu.setAttribute('aria-label', '설정 메뉴 열기');
-    background.forEach((element) => (element.inert = false));
-    document.body.style.overflow = '';
-    if (returnFocus) menu.focus();
-}
-menu.addEventListener('click', () => {
-    if (!settings.hidden) return closeMenu();
-    settings.hidden = false;
-    settings.scrollTop = 0;
-    menu.setAttribute('aria-expanded', 'true');
-    menu.setAttribute('aria-label', '설정 메뉴 닫기');
-    background.forEach((element) => (element.inert = true));
-    document.body.style.overflow = 'hidden';
-    get('close-menu').focus();
-});
-get('close-menu').addEventListener('click', () => closeMenu());
 get('explain').addEventListener('click', () => dialog.showModal());
 get('close-explain').addEventListener('click', () => dialog.close());
-window.addEventListener('keydown', (event) => {
-    if (settings.hidden || dialog.open) return;
-    if (event.key === 'Escape') {
-        event.preventDefault();
-        closeMenu();
-    } else if (event.key === 'Tab') {
-        const controls = Array.from(
-            settings.querySelectorAll<HTMLElement>('button, input, select, a[href]'),
-        ).filter((element) => !element.hasAttribute('disabled') && element.getClientRects().length);
-        const first = controls[0],
-            last = controls[controls.length - 1];
-        if (event.shiftKey && (document.activeElement === first || !settings.contains(document.activeElement))) {
-            event.preventDefault();
-            last.focus();
-        } else if (!event.shiftKey && (document.activeElement === last || !settings.contains(document.activeElement))) {
-            event.preventDefault();
-            first.focus();
-        }
-    }
-});
 import { initialWall, blocked, strike, tickWall, type Span } from './model';
 const scene = document.getElementById('scene') as unknown as SVGSVGElement;
 let wall = initialWall(),
     ticks = 0,
     actorPassed = false,
     actorTried = false,
-    frame = 0;
+    frame = 0,
+    playing = false,
+    sceneTime = 0,
+    previous = 0,
+    elapsed = 0,
+    demoStep = 0;
 let particles: { x: number; y: number; vx: number; vy: number; born: number }[] = [];
 const projected = (span: Span, y: number, color: string, outline = false) =>
     `<rect x="${210 + span.a * 670}" y="${y}" width="${(span.b - span.a) * 670}" height="50" rx="3" fill="${outline ? 'none' : color}" stroke="${color}" stroke-width="${outline ? 3 : 1}" ${outline ? 'stroke-dasharray="7 5"' : ''}/>`;
-function draw(now = performance.now()) {
+function draw(now = sceneTime) {
     const lane = number('lane'),
         hit = number('hit-position');
     text('hit-out', `${(hit * 100).toFixed(0)}%`);
@@ -114,13 +73,11 @@ function draw(now = performance.now()) {
         html += `<rect x="${x}" y="${y}" width="9" height="9" transform="rotate(${t * p.vx} ${x} ${y})" fill="#91a6a9" opacity="${Math.max(0, 1 - t / 1.8)}"/>`;
     }
     scene.innerHTML = html;
-    if (particles.length) frame = requestAnimationFrame(draw);
 }
 function update() {
-    cancelAnimationFrame(frame);
     draw();
 }
-get('strike').addEventListener('click', () => {
+function strikeWall() {
     const x = number('hit-position'),
         cut = strike(
             wall,
@@ -138,21 +95,87 @@ get('strike').addEventListener('click', () => {
                 y: 105,
                 vx: (i - 2.5) * 30 + (x - 0.5) * 90,
                 vy: -70 - (i % 3) * 20,
-                born: performance.now(),
+                born: sceneTime,
             });
     update();
-});
-get('walk').addEventListener('click', () => {
+}
+function walk() {
     actorTried = true;
     actorPassed = !blocked([...wall.collision, ...wall.debris], number('lane'));
     update();
-});
-get('tick').addEventListener('click', () => {
+}
+function nextTick() {
     ticks++;
     tickWall(wall);
     update();
+}
+function clearWall() {
+    wall = initialWall();
+    ticks = 0;
+    particles = [];
+    actorTried = false;
+    actorPassed = false;
+}
+function advanceDemo() {
+    if (demoStep === 5) demoStep = 0;
+    if (demoStep === 0) {
+        clearWall();
+        strikeWall();
+    } else if (demoStep === 1 || demoStep === 4) walk();
+    else nextTick();
+    const labels = ['타격', '이동 시도', 'AI 갱신 1틱', 'AI 갱신 2틱', '다시 이동 시도'];
+    text('playback-status', `${demoStep + 1}/5 · ${labels[demoStep]}`);
+    demoStep++;
+    return demoStep < 5;
+}
+function setPlaying(next: boolean) {
+    playing = next;
+    cancelAnimationFrame(frame);
+    setPlaybackState('play', playing);
+}
+function animate(now: number) {
+    if (!playing) return;
+    const delta = Math.min(100, now - previous);
+    previous = now;
+    if (!dialog.open) {
+        sceneTime += delta;
+        elapsed += delta;
+        if (elapsed >= 900) {
+            elapsed -= 900;
+            if (!advanceDemo()) setPlaying(false);
+        }
+        draw();
+    }
+    if (playing) frame = requestAnimationFrame(animate);
+}
+get('play').addEventListener('click', () => {
+    if (playing) {
+        setPlaying(false);
+        return;
+    }
+    if (demoStep === 0 || demoStep === 5) advanceDemo();
+    setPlaying(true);
+    previous = performance.now();
+    elapsed = 0;
+    frame = requestAnimationFrame(animate);
 });
+get('step').addEventListener('click', () => {
+    setPlaying(false);
+    sceneTime += 900;
+    advanceDemo();
+    draw();
+});
+for (const [id, action] of [['strike', strikeWall], ['walk', walk], ['tick', nextTick]] as const)
+    get(id).addEventListener('click', () => {
+        setPlaying(false);
+        demoStep = 0;
+        if (id === 'tick') sceneTime += 900;
+        action();
+        text('playback-status', '수동 조작 · 재생하면 새 벽에서 순서를 시작합니다.');
+    });
 get('clear').addEventListener('click', () => {
+    setPlaying(false);
+    demoStep = 0;
     wall.debris = [];
     particles = [];
     actorTried = false;
@@ -165,17 +188,16 @@ for (const id of ['hit-position', 'power', 'lane', 'overlay', 'debris'])
     });
 for (const id of ['method', 'policy'])
     get(id).addEventListener('change', () => {
-        wall = initialWall();
-        ticks = 0;
-        particles = [];
-        actorTried = false;
+        setPlaying(false);
+        demoStep = 0;
+        clearWall();
         update();
     });
 get('reset').addEventListener('click', () => {
-    wall = initialWall();
-    ticks = 0;
-    particles = [];
-    actorTried = false;
+    setPlaying(false);
+    sceneTime = 0;
+    demoStep = 0;
+    clearWall();
     input('method').value = 'fracture';
     input('policy').value = 'sync';
     input('hit-position').value = '.5';
@@ -183,13 +205,14 @@ get('reset').addEventListener('click', () => {
     input('lane').value = '.5';
     input('debris').checked = false;
     input('overlay').checked = true;
+    text('playback-status', '타격 → 이동 시도 → 2틱 갱신 → 다시 이동');
     update();
 });
 window.addEventListener('pagehide', () => {
-    cancelAnimationFrame(frame);
-    closeMenu(false);
+    setPlaying(false);
 });
 window.addEventListener('pageshow', (event) => {
     if (event.persisted) update();
 });
+setPlaybackState('play', playing);
 update();

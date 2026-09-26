@@ -1,5 +1,6 @@
 import { evaluate, defaults, doorClosed } from './model';
 import type { Options } from './model';
+import { createPlayback } from '../../components/experiment-playback';
 const el = (id: string) => document.getElementById(id)!;
 const input = (id: string) => el(id) as HTMLInputElement;
 const select = (id: string) => el(id) as HTMLSelectElement;
@@ -37,57 +38,9 @@ const dot = (x: number, y: number, radius: number, color: string) => {
     ctx.arc(x, y, radius, 0, Math.PI * 2);
     ctx.fill();
 };
-function menu(open: boolean) {
-    const panel = el('settings');
-    panel.hidden = !open;
-    el('backdrop').hidden = !open;
-    el('menu').setAttribute('aria-expanded', String(open));
-    for (const sibling of panel.parentElement!.children) {
-        if (
-            sibling instanceof HTMLElement &&
-            !['settings', 'backdrop', 'explanation'].includes(sibling.id)
-        )
-            sibling.inert = open;
-    }
-    document.body.style.overflow = open ? 'hidden' : '';
-    (open ? el('close') : el('menu')).focus();
-}
 function boot(draw: () => void) {
-    on('menu', 'click', () => menu(Boolean(el('settings').hidden)));
-    on('close', 'click', () => menu(false));
-    on('backdrop', 'click', () => menu(false));
     on('help', 'click', () => (el('explanation') as HTMLDialogElement).showModal());
     on('explain-close', 'click', () => (el('explanation') as HTMLDialogElement).close());
-    document.addEventListener(
-        'keydown',
-        (event) => {
-            const panel = el('settings');
-            if (panel.hidden || (el('explanation') as HTMLDialogElement).open) return;
-            if (event.key === 'Escape') {
-                event.preventDefault();
-                menu(false);
-            } else if (event.key === 'Tab') {
-                const controls = Array.from(
-                    panel.querySelectorAll<HTMLElement>(
-                        'button:not(:disabled), input:not(:disabled), select:not(:disabled), a[href]',
-                    ),
-                ).filter((control) => control.getClientRects().length > 0);
-                const first = controls[0]!,
-                    last = controls.at(-1)!;
-                if (
-                    !panel.contains(document.activeElement) ||
-                    (event.shiftKey && document.activeElement === first)
-                ) {
-                    event.preventDefault();
-                    (event.shiftKey ? last : first).focus();
-                } else if (!event.shiftKey && document.activeElement === last) {
-                    event.preventDefault();
-                    first.focus();
-                }
-            }
-        },
-        { signal: abort.signal },
-    );
     const resize = () => {
         const bounds = canvas.getBoundingClientRect();
         w = bounds.width;
@@ -204,6 +157,7 @@ function draw() {
     text('현재 1000ms', w - 104, h - 20, '#7a929a', 10);
 }
 function reset() {
+    playback.pause();
     for (const [key, value] of Object.entries(defaults)) {
         if (typeof value === 'boolean') input(key).checked = value;
         else input(key).value = String(value);
@@ -215,16 +169,19 @@ function reset() {
 }
 for (const [key, value] of Object.entries(defaults))
     on(key, typeof value === 'number' ? 'input' : 'change', () => {
+        playback.pause();
         lastMessage = '';
         draw();
     });
 on('fire', 'click', () => {
+    playback.pause();
     const result = evaluate(options());
     lastAccepted = !result.reason;
     lastMessage = `명령 #${++sequence} · ${result.outcome} · 현재 상태는 이동시키지 않고 조회했습니다.`;
     draw();
 });
 on('duplicate', 'click', () => {
+    playback.pause();
     lastMessage =
         sequence && lastAccepted
             ? `명령 #${sequence} · ${evaluate(options(), true).reason} 피해를 다시 적용하지 않았습니다.`
@@ -232,4 +189,14 @@ on('duplicate', 'click', () => {
     draw();
 });
 on('reset', 'click', reset);
+const playback = createPlayback({
+    interval: 500,
+    advance: () => {
+        const delay = input('up');
+        const next = Number(delay.value) + Number(delay.step);
+        delay.value = String(next > Number(delay.max) ? Number(delay.min) : next);
+        lastMessage = '';
+        draw();
+    },
+});
 boot(draw);

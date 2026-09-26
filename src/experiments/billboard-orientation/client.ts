@@ -1,59 +1,15 @@
 import { add, sub, scale, dot, basis, camera, type V3, type Basis } from './model';
+import { syncViewControls } from '../../layouts/experiment-layout';
+import { createPlayback } from '../../components/experiment-playback';
 const el = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 const canvas = el<HTMLCanvasElement>('canvas'),
     ctx = canvas.getContext('2d')!;
 const controls = ['azimuth', 'elevation', 'observer-azimuth', 'observer-elevation'];
 const value = (id: string) => Number(el<HTMLInputElement>(id).value);
 const select = (id: string) => el<HTMLSelectElement>(id).value;
-const menu = el<HTMLButtonElement>('menu'),
-    settings = el<HTMLElement>('settings'),
-    dialog = el<HTMLDialogElement>('explanation');
-const menuMedia = matchMedia('(max-width: 750px)');
-const menuBackground = Array.from(document.querySelectorAll<HTMLElement>('.stage, .lab > header > a'));
-function menuControls() {
-    return Array.from(settings.querySelectorAll<HTMLElement>('button, input, select, a[href]'))
-        .filter((control) => control.getClientRects().length && !control.hasAttribute('disabled'));
-}
-function syncMenu() {
-    const modal = !settings.hidden && menuMedia.matches;
-    for (const element of menuBackground) element.inert = modal;
-    settings.setAttribute('role', modal ? 'dialog' : 'complementary');
-    if (modal) settings.setAttribute('aria-modal', 'true');
-    else settings.removeAttribute('aria-modal');
-}
-function trapMenu(event: KeyboardEvent) {
-    if (dialog.open || settings.hidden || !menuMedia.matches || event.key !== 'Tab') return;
-    const controls = menuControls(), first = controls[0], last = controls.at(-1);
-    if (!first || !last) return;
-    if (!settings.contains(document.activeElement) || (event.shiftKey ? document.activeElement === first : document.activeElement === last)) {
-        event.preventDefault();
-        (event.shiftKey ? last : first).focus();
-    }
-}
-menuMedia.addEventListener('change', () => {
-    syncMenu();
-    if (!settings.hidden && menuMedia.matches && !dialog.open) menuControls()[0]?.focus();
-});
-function setMenu(open: boolean, focus = true) {
-    settings.hidden = !open;
-    menu.setAttribute('aria-expanded', String(open));
-    syncMenu();
-    if (focus) (open ? menuControls()[0] : menu)?.focus();
-}
-setMenu(!menuMedia.matches, false);
-menu.addEventListener('click', () => setMenu(Boolean(settings.hidden)));
-el('close-menu').addEventListener('click', () => setMenu(false));
+const dialog = el<HTMLDialogElement>('explanation');
 el('explain').addEventListener('click', () => dialog.showModal());
 el('close-dialog').addEventListener('click', () => dialog.close());
-const onKey = (e: KeyboardEvent) => {
-    if (dialog.open) return;
-    if (e.key === 'Escape' && !settings.hidden) {
-        e.preventDefault();
-        setMenu(false);
-    }
-    trapMenu(e);
-};
-document.addEventListener('keydown', onKey);
 let last: V3[] = [
         [0, 0, 1],
         [0, 0, 1],
@@ -218,7 +174,9 @@ function render() {
 }
 function resize() {
     const rect = canvas.parentElement!.getBoundingClientRect();
-    canvas.parentElement!.style.minHeight = rect.width < 620 ? '690px' : '410px';
+    canvas.closest<HTMLElement>('[data-experiment-layout]')!.style.setProperty(
+        '--experiment-graphics-min-height', rect.width < 620 ? '690px' : '410px',
+    );
     const updated = canvas.parentElement!.getBoundingClientRect();
     width = updated.width;
     height = updated.height;
@@ -228,13 +186,26 @@ function resize() {
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     render();
 }
+let elevationDirection = 1;
+const playback = createPlayback({
+    interval: 120,
+    advance: () => {
+        const elevation = value('elevation');
+        if (elevation >= 90) elevationDirection = -1;
+        else if (elevation <= 0) elevationDirection = 1;
+        el<HTMLInputElement>('elevation').value = String(elevation + elevationDirection);
+        render();
+    },
+});
 for (const id of [...controls, 'projection', 'observer', 'preserve'])
     el(id).addEventListener('input', render);
 el('overhead').addEventListener('click', () => {
+    playback.pause();
     el<HTMLInputElement>('elevation').value = '90';
     render();
 });
 el('reset').addEventListener('click', () => {
+    elevationDirection = 1;
     for (const [id, v] of Object.entries({
         azimuth: '25',
         elevation: '25',
@@ -250,6 +221,7 @@ el('reset').addEventListener('click', () => {
         [0, 0, 1],
         [0, 0, 1],
     ];
+    syncViewControls();
     render();
 });
 let resizeFrame = 0;
@@ -258,14 +230,12 @@ const observer = new ResizeObserver(() => {
     resizeFrame = requestAnimationFrame(resize);
 });
 observer.observe(canvas.parentElement!);
-window.addEventListener('pagehide', (event) => {
+window.addEventListener('pagehide', () => {
     cancelAnimationFrame(resizeFrame);
     observer.disconnect();
-    if (!event.persisted) document.removeEventListener('keydown', onKey);
 });
 window.addEventListener('pageshow', () => {
     observer.observe(canvas.parentElement!);
-    syncMenu();
     resize();
 });
 resize();

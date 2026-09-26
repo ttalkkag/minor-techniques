@@ -1,33 +1,28 @@
 ---
-import Page from '../../layouts/Page.astro';
+import ExperimentLayout from '../../layouts/ExperimentLayout.astro';
+import ExperimentPlayback from '../../components/ExperimentPlayback.astro';
 ---
 
-<Page
+<ExperimentLayout
+    helpId="help"
+    class="lab"
+    backdropId="backdrop"
     title="점수는 높은데 도착하지 않는 정책 · 게임 실험실"
     description="왕복·위험한 지름길·안전한 우회에 같은 보상식을 적용해 보세요."
 >
-    <main class="lab">
-        <nav aria-label="실험실 탐색">
-            <button id="menu" aria-label="설정 메뉴 열기" aria-controls="settings" aria-expanded="false">
-                ☰
-            </button>
-            <a href="/">게임 실험실</a>
-            <button id="help" aria-label="원인과 해결 설명 열기">
-                ?
-            </button>
-        </nav>
-        <header>
-            <p class="eyebrow">게임 AI / 보상과 종료</p>
-            <h1>점수는 높은데 도착하지 않는 정책</h1>
-            <p>왕복·위험한 지름길·안전한 우회에 같은 보상식을 적용해 보세요.</p>
-        </header>
-        <section class="stage" aria-label="실험 장면">
-            <canvas
-                id="scene"
-                aria-label="점수는 높은데 도착하지 않는 정책 관찰 그림"
-                aria-describedby="summary"
-            ></canvas>
-        </section>
+    <Fragment slot="body-header">
+        <p class="eyebrow">게임 AI / 보상과 종료</p>
+        <h1>점수는 높은데 도착하지 않는 정책</h1>
+        <p>왕복·위험한 지름길·안전한 우회에 같은 보상식을 적용해 보세요.</p>
+    </Fragment>
+    <section slot="graphics" class="stage" aria-label="실험 장면">
+        <canvas
+            id="scene"
+            aria-label="점수는 높은데 도착하지 않는 정책 관찰 그림"
+            aria-describedby="summary"
+        ></canvas>
+    </section>
+    <Fragment slot="description">
         <section class="readouts" aria-label="관찰값">
             <div class="metric">
                 <span>선택된 후보 정책</span>
@@ -42,14 +37,7 @@ import Page from '../../layouts/Page.astro';
                 <strong id="metric-2">—</strong>
             </div>
         </section>
-        <div class="toolbar" role="group" aria-label="실험 조작">
-            <button id="play" class="primary">
-                정책 재생
-            </button>
-            <button id="step">한 행동</button>
-            <button id="fix">목표 중심 보상 예시</button>
-            <button id="reset">초기화</button>
-        </div>
+
         <p id="summary" class="summary" role="status"></p>
         <section class="extra">
             <table class="reward-table">
@@ -65,100 +53,96 @@ import Page from '../../layouts/Page.astro';
             </table>
             <p id="transition-detail" role="status"></p>
         </section>
-        <div id="backdrop" class="backdrop" hidden></div>
-        <div id="settings" class="settings" role="dialog" aria-modal="true" aria-label="실험 설정" hidden>
-            <h2>
-                실험 설정
-                <button id="close-menu" aria-label="설정 메뉴 닫기">
-                    ×
-                </button>
-            </h2>
+    </Fragment>
+    <div slot="controls" class="toolbar" role="group" aria-label="실험 조작">
+        <ExperimentPlayback>선택한 후보 정책을 한 행동씩 실행합니다.</ExperimentPlayback>
+        <button id="fix">목표 중심 보상 예시</button>
+    </div>
+    <div slot="settings" class="settings-fields">
+        <div class="control">
+            <label for="reward">진행 보상의 정의</label>
+            <select id="reward">
+                <option value="move">이동할 때마다 +1</option>
+                <option value="progress">가로 위치 변화 Δx</option>
+                <option value="novelty">처음 방문한 칸만 +1</option>
+            </select>
+        </div>
+        <div class="control">
+            <label for="bonus">
+                도착 보상<output id="bonus-value"></output>
+            </label>
+            <input id="bonus" type="range" min="0" max="20" value="0" step="1" />
+        </div>
+        <div class="control">
+            <label for="death">
+                실패 벌점<output id="death-value"></output>
+            </label>
+            <input id="death" type="range" min="0" max="15" value="0" step="1" />
+        </div>
+        <div class="control">
+            <label for="cost">
+                스텝당 비용<output id="cost-value"></output>
+            </label>
+            <input id="cost" type="range" min="0" max="1" value="0" step="0.1" />
+        </div>
+        <div class="control">
+            <label for="limit">
+                스텝 제한<output id="limit-value"></output>
+            </label>
+            <input id="limit" type="range" min="2" max="14" value="8" step="1" />
+        </div>
+        <div class="control">
+            <label for="timeout">제한의 의미</label>
+            <select id="timeout">
+                <option value="external">외부 수집 중단 · truncated</option>
+                <option value="finite">시간 내 도착이 규칙 · terminated</option>
+            </select>
+        </div>
+        <div class="control">
+            <label for="gamma">
+                할인율 γ<output id="gamma-value"></output>
+            </label>
+            <input id="gamma" type="range" min="0.5" max="1" value="0.9" step="0.05" />
+        </div>
+        <div class="control">
+            <label for="route">따라갈 후보 정책</label>
+            <select id="route">
+                <option value="auto">세 후보 중 할인 보상 최대</option>
+                <option value="loop">왕복 반복</option>
+                <option value="direct">위험한 지름길</option>
+                <option value="safe">안전한 우회</option>
+            </select>
+        </div>
+        <hr />
+        <h3>다음 상태의 가치 예제</h3>
+        <div class="control">
+            <label for="target-method">타깃 계산</label>
+            <select id="target-method">
+                <option value="double">Double DQN · 선택과 평가 분리</option>
+                <option value="dqn">DQN · 타깃 값의 최댓값</option>
+            </select>
+        </div>
+        <p id="value-error" class="note value-error" role="status" hidden>네 가치에 -20부터 20까지의 유한한 숫자를 입력하세요. 잘못된 값은 계산에 적용하지 않습니다.</p>
+        <div class="mini-grid">
             <div class="control">
-                <label for="reward">진행 보상의 정의</label>
-                <select id="reward">
-                    <option value="move">이동할 때마다 +1</option>
-                    <option value="progress">가로 위치 변화 Δx</option>
-                    <option value="novelty">처음 방문한 칸만 +1</option>
-                </select>
+                <label for="online-left">온라인 왼쪽</label>
+                <input id="online-left" aria-describedby="value-error" required type="number" step="any" min="-20" max="20" value="8" />
             </div>
             <div class="control">
-                <label for="bonus">
-                    도착 보상<output id="bonus-value"></output>
-                </label>
-                <input id="bonus" type="range" min="0" max="20" value="0" step="1" />
+                <label for="online-right">온라인 오른쪽</label>
+                <input id="online-right" aria-describedby="value-error" required type="number" step="any" min="-20" max="20" value="7" />
             </div>
             <div class="control">
-                <label for="death">
-                    실패 벌점<output id="death-value"></output>
-                </label>
-                <input id="death" type="range" min="0" max="15" value="0" step="1" />
+                <label for="target-left">타깃 왼쪽</label>
+                <input id="target-left" aria-describedby="value-error" required type="number" step="any" min="-20" max="20" value="4" />
             </div>
             <div class="control">
-                <label for="cost">
-                    스텝당 비용<output id="cost-value"></output>
-                </label>
-                <input id="cost" type="range" min="0" max="1" value="0" step="0.1" />
-            </div>
-            <div class="control">
-                <label for="limit">
-                    스텝 제한<output id="limit-value"></output>
-                </label>
-                <input id="limit" type="range" min="2" max="14" value="8" step="1" />
-            </div>
-            <div class="control">
-                <label for="timeout">제한의 의미</label>
-                <select id="timeout">
-                    <option value="external">외부 수집 중단 · truncated</option>
-                    <option value="finite">시간 내 도착이 규칙 · terminated</option>
-                </select>
-            </div>
-            <div class="control">
-                <label for="gamma">
-                    할인율 γ<output id="gamma-value"></output>
-                </label>
-                <input id="gamma" type="range" min="0.5" max="1" value="0.9" step="0.05" />
-            </div>
-            <div class="control">
-                <label for="route">따라갈 후보 정책</label>
-                <select id="route">
-                    <option value="auto">세 후보 중 할인 보상 최대</option>
-                    <option value="loop">왕복 반복</option>
-                    <option value="direct">위험한 지름길</option>
-                    <option value="safe">안전한 우회</option>
-                </select>
-            </div>
-            <hr />
-            <h3>다음 상태의 가치 예제</h3>
-            <div class="control">
-                <label for="target-method">타깃 계산</label>
-                <select id="target-method">
-                    <option value="double">Double DQN · 선택과 평가 분리</option>
-                    <option value="dqn">DQN · 타깃 값의 최댓값</option>
-                </select>
-            </div>
-            <p id="value-error" class="note value-error" role="status" hidden>네 가치에 -20부터 20까지의 유한한 숫자를 입력하세요. 잘못된 값은 계산에 적용하지 않습니다.</p>
-            <div class="mini-grid">
-                <div class="control">
-                    <label for="online-left">온라인 왼쪽</label>
-                    <input id="online-left" aria-describedby="value-error" required type="number" step="any" min="-20" max="20" value="8" />
-                </div>
-                <div class="control">
-                    <label for="online-right">온라인 오른쪽</label>
-                    <input id="online-right" aria-describedby="value-error" required type="number" step="any" min="-20" max="20" value="7" />
-                </div>
-                <div class="control">
-                    <label for="target-left">타깃 왼쪽</label>
-                    <input id="target-left" aria-describedby="value-error" required type="number" step="any" min="-20" max="20" value="4" />
-                </div>
-                <div class="control">
-                    <label for="target-right">타깃 오른쪽</label>
-                    <input id="target-right" aria-describedby="value-error" required type="number" step="any" min="-20" max="20" value="9" />
-                </div>
+                <label for="target-right">타깃 오른쪽</label>
+                <input id="target-right" aria-describedby="value-error" required type="number" step="any" min="-20" max="20" value="9" />
             </div>
         </div>
-        <noscript>실험을 조작하려면 JavaScript를 켜주세요.</noscript>
-    </main>
-    <dialog id="explanation" aria-labelledby="explanation-title">
+    </div>
+    <dialog slot="overlays" id="explanation" aria-labelledby="explanation-title">
         <div class="dialog-top">
             <span>원인과 해결</span>
             <button id="close-help" aria-label="설명 닫기">
@@ -207,26 +191,8 @@ import Page from '../../layouts/Page.astro';
     <script>
         import '../../experiments/reward-design/client';
     </script>
-</Page>
+</ExperimentLayout>
 <style>
-    .lab {
-        min-height: 100svh;
-        padding: 18px 28px 28px;
-        background: radial-gradient(ellipse at 50% 30%, #fff, #edf2f3 75%);
-        color: #283f49;
-    }
-    nav {
-        display: flex;
-        gap: 14px;
-        align-items: center;
-        max-width: 1450px;
-        margin: auto;
-    }
-    nav a {
-        font-weight: 750;
-        color: inherit;
-        text-decoration: none;
-    }
     button,
     select {
         min-height: 44px;
@@ -241,54 +207,37 @@ import Page from '../../layouts/Page.astro';
     button:hover {
         background: #e7f1ef;
     }
-    nav button {
-        font-size: 21px;
-        width: 44px;
-        padding: 0;
-    }
-    nav button:last-child {
-        margin-left: auto;
-    }
-    header {
-        text-align: center;
-        margin: 28px 0 23px;
-    }
-    header h1 {
-        word-break: keep-all;
-        font-size: clamp(25px, 3.1vw, 40px);
-        letter-spacing: -0.055em;
-        margin: 8px 0 12px;
-    }
-    header p {
-        font-size: 13px;
-        color: #526b75;
-        margin: 0;
-        line-height: 1.7;
-    }
     .eyebrow {
         font-size: 11px !important;
         color: #197d76 !important;
         letter-spacing: 0.12em;
     }
+    :global(.experiment-shell.lab) {
+        --experiment-graphics-min-height: 385px;
+    }
     .stage {
-        max-width: 1240px;
-        margin: auto;
+        position: relative;
+        min-height: 385px;
+        width: 100%;
+        height: 100%;
         border: 1px solid #d0dce0;
         border-radius: 22px;
         overflow: hidden;
         background: linear-gradient(#f3f7f7, #eaf0f2);
     }
     canvas {
+        position: absolute;
+        inset: 0;
         display: block;
         width: 100%;
-        height: 385px;
+        height: 100%;
     }
     .readouts {
         display: grid;
         grid-template-columns: repeat(3, 1fr);
         gap: 16px;
         max-width: 1150px;
-        margin: 18px auto;
+        margin: 0 auto;
     }
     .metric {
         padding: 6px 12px;
@@ -312,19 +261,16 @@ import Page from '../../layouts/Page.astro';
         font-size: 12px;
     }
     .toolbar {
-        display: flex;
-        justify-content: center;
-        flex-wrap: wrap;
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
         gap: 9px;
-        margin: 18px auto;
+        width: 100%;
     }
-    .primary {
-        background: #187e76;
-        color: white;
-        border-color: #187e76;
-    }
-    .primary:hover {
-        background: #146860;
+    .toolbar button {
+        min-width: 0;
+        width: 100%;
+        white-space: normal;
+        overflow-wrap: anywhere;
     }
     .summary {
         text-align: center;
@@ -355,39 +301,6 @@ import Page from '../../layouts/Page.astro';
         min-height: 44px;
         max-height: 100px;
         overflow: auto;
-    }
-    .backdrop {
-        position: fixed;
-        inset: 0;
-        z-index: 3;
-        background: #263f4833;
-    }
-    .settings {
-        position: fixed;
-        top: 12px;
-        left: 12px;
-        bottom: 12px;
-        width: 312px;
-        max-width: calc(100vw - 24px);
-        overflow: auto;
-        padding: 21px;
-        z-index: 4;
-        background: #f9fbfc;
-        border: 1px solid #ccdbdd;
-        border-radius: 20px;
-        box-shadow: 0 20px 80px #283e4628;
-    }
-    .settings h2 {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        font-size: 18px;
-        margin: 0 0 20px;
-    }
-    .settings h2 button {
-        font-size: 23px;
-        width: 44px;
-        padding: 0;
     }
     .control {
         margin-top: 19px;
@@ -440,21 +353,21 @@ import Page from '../../layouts/Page.astro';
         line-height: 1.75;
         color: #536a74;
     }
-    .settings .wide {
+    .settings-fields .wide {
         width: 100%;
         margin-top: 12px;
         font-size: 12px;
     }
-    .settings hr {
+    .settings-fields hr {
         border: 0;
         border-top: 1px solid #d7e1e3;
         margin: 22px 0;
     }
-    .settings h3 {
+    .settings-fields h3 {
         font-size: 13px;
         color: #197b75;
     }
-    .settings :disabled {
+    .settings-fields :disabled {
         opacity: 0.55;
     }
     .value-error {
@@ -551,29 +464,12 @@ import Page from '../../layouts/Page.astro';
         background: #e0efec;
     }
     @media (max-width: 700px) {
-        .lab {
-            padding: 12px 14px 22px;
-        }
-        header {
-            margin: 24px 0 18px;
-        }
-        header h1 {
-            word-break: keep-all;
-            font-size: 27px;
-            line-height: 1.25;
-        }
-        header p {
-            font-size: 11px;
-        }
-        canvas {
-            height: 390px;
-        }
         .stage {
             border-radius: 16px;
         }
         .readouts {
             gap: 6px;
-            margin: 15px 0;
+            margin: 0;
         }
         .metric {
             padding: 3px 8px;

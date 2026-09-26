@@ -1,51 +1,11 @@
+import { setPlaybackState } from '../../components/experiment-playback';
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 const canvas = $<HTMLCanvasElement>('scene');
 const ctx = canvas.getContext('2d')!;
-const menu = $<HTMLButtonElement>('menu'),
-    settings = $<HTMLElement>('settings');
-function setMenuOpen(open: boolean) {
-    settings.hidden = !open;
-    $('menu-backdrop').hidden = !open;
-    menu.setAttribute('aria-expanded', String(open));
-    for (const region of document.querySelectorAll<HTMLElement>(
-        'main > :not(nav):not(#settings):not(#menu-backdrop), nav > :not(#menu)',
-    )) region.inert = open;
-    if (open) {
-        keys.clear();
-        if (!automatic) release();
-        $('close-menu').focus();
-    }
-    else menu.focus();
-}
-function closeMenu() {
-    setMenuOpen(false);
-}
-menu.onclick = () => setMenuOpen(Boolean(settings.hidden));
-$<HTMLButtonElement>('close-menu').onclick = closeMenu;
-$('menu-backdrop').onclick = closeMenu;
+const settings = $<HTMLElement>('settings');
 const dialog = $<HTMLDialogElement>('explanation');
 $<HTMLButtonElement>('explain').onclick = () => dialog.showModal();
 $<HTMLButtonElement>('close-explanation').onclick = () => dialog.close();
-document.addEventListener('keydown', (e) => {
-    if (dialog.open || settings.hidden) return;
-    if (e.key === 'Escape') {
-        e.preventDefault();
-        closeMenu();
-    }
-    if (e.key === 'Tab') {
-        const controls = [...settings.querySelectorAll<HTMLElement>(
-            'button:not(:disabled), input:not(:disabled), select:not(:disabled), a[href]',
-        )];
-        const first = controls[0]!, last = controls[controls.length - 1]!;
-        if (!settings.contains(document.activeElement) || (e.shiftKey && document.activeElement === first)) {
-            e.preventDefault();
-            (e.shiftKey ? last : first).focus();
-        } else if (!e.shiftKey && document.activeElement === last) {
-            e.preventDefault();
-            first.focus();
-        }
-    }
-});
 let width = 900,
     height = 450;
 function resize() {
@@ -105,7 +65,7 @@ function landingTime() {
 }
 function reset() {
     playing = false;
-    $('play').textContent = '예시 재생';
+    setPlaybackState('play', playing);
     time = 0;
     tick = 0;
     pressed = false;
@@ -202,7 +162,7 @@ function step() {
     });
     if (time >= 2.1 && scenario() !== 'manual') {
         playing = false;
-        $('play').textContent = '다시 재생';
+        setPlaybackState('play', playing);
     }
     $('log').textContent =
         `${tick} 틱 · ${Math.round(time * 1000)}ms · 입력 적용 ${pressed ? Math.round(actors[0].memory.lastPress * 1000) + 'ms' : '대기'} · B ${actors[1].memory.groundAvailable ? '접지 자격 있음' : '접지 자격 소비됨'}`;
@@ -263,11 +223,11 @@ function frame(now: number) {
 $('play').onclick = () => {
     if (time >= 2.1 && scenario() !== 'manual') reset();
     playing = !playing;
-    $('play').textContent = playing ? '일시 정지' : '예시 재생';
+    setPlaybackState('play', playing);
 };
 $('step').onclick = () => {
     playing = false;
-    $('play').textContent = '예시 재생';
+    setPlaybackState('play', playing);
     step();
 };
 $('reset').onclick = reset;
@@ -275,7 +235,7 @@ function directPress() {
     automatic = false;
     press(time + 1 / number('hz'));
     playing = true;
-    $('play').textContent = '일시 정지';
+    setPlaybackState('play', playing);
     draw();
 }
 $('jump').onpointerdown = (e) => {
@@ -298,7 +258,7 @@ function move(direction: number) {
 $('left').onclick = () => move(-1);
 $('right').onclick = () => move(1);
 document.addEventListener('keydown', (e) => {
-    if (dialog.open || !settings.hidden || ['INPUT', 'SELECT', 'BUTTON'].includes((e.target as HTMLElement).tagName)) return;
+    if (dialog.open || settings.getAttribute('aria-modal') === 'true' || ['INPUT', 'SELECT', 'BUTTON'].includes((e.target as HTMLElement).tagName)) return;
     if (e.code === 'Space') {
         e.preventDefault();
         if (!e.repeat) directPress();
@@ -307,7 +267,7 @@ document.addEventListener('keydown', (e) => {
         e.preventDefault();
         keys.add(e.key);
         playing = true;
-        $('play').textContent = '일시 정지';
+        setPlaybackState('play', playing);
     }
 });
 document.addEventListener('keyup', (e) => {
@@ -341,4 +301,10 @@ reset();
 raf = requestAnimationFrame((now) => {
     last = now;
     frame(now);
+});
+
+document.addEventListener('experiment:layoutchange', () => {
+    if (settings.hidden) return;
+    keys.clear();
+    if (!automatic) release();
 });

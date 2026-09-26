@@ -1,5 +1,6 @@
 import { shoot, defaults } from './model';
 import type { Options, Point } from './model';
+import { createPlayback } from '../../components/experiment-playback';
 const el = (id: string) => document.getElementById(id)!;
 const input = (id: string) => el(id) as HTMLInputElement;
 const select = (id: string) => el(id) as HTMLSelectElement;
@@ -37,57 +38,9 @@ const dot = (x: number, y: number, radius: number, color: string) => {
     ctx.arc(x, y, radius, 0, Math.PI * 2);
     ctx.fill();
 };
-function menu(open: boolean) {
-    const panel = el('settings');
-    panel.hidden = !open;
-    el('backdrop').hidden = !open;
-    el('menu').setAttribute('aria-expanded', String(open));
-    for (const sibling of panel.parentElement!.children) {
-        if (
-            sibling instanceof HTMLElement &&
-            !['settings', 'backdrop', 'explanation'].includes(sibling.id)
-        )
-            sibling.inert = open;
-    }
-    document.body.style.overflow = open ? 'hidden' : '';
-    (open ? el('close') : el('menu')).focus();
-}
 function boot(draw: () => void) {
-    on('menu', 'click', () => menu(Boolean(el('settings').hidden)));
-    on('close', 'click', () => menu(false));
-    on('backdrop', 'click', () => menu(false));
     on('help', 'click', () => (el('explanation') as HTMLDialogElement).showModal());
     on('explain-close', 'click', () => (el('explanation') as HTMLDialogElement).close());
-    document.addEventListener(
-        'keydown',
-        (event) => {
-            const panel = el('settings');
-            if (panel.hidden || (el('explanation') as HTMLDialogElement).open) return;
-            if (event.key === 'Escape') {
-                event.preventDefault();
-                menu(false);
-            } else if (event.key === 'Tab') {
-                const controls = Array.from(
-                    panel.querySelectorAll<HTMLElement>(
-                        'button:not(:disabled), input:not(:disabled), select:not(:disabled), a[href]',
-                    ),
-                ).filter((control) => control.getClientRects().length > 0);
-                const first = controls[0]!,
-                    last = controls.at(-1)!;
-                if (
-                    !panel.contains(document.activeElement) ||
-                    (event.shiftKey && document.activeElement === first)
-                ) {
-                    event.preventDefault();
-                    (event.shiftKey ? last : first).focus();
-                } else if (!event.shiftKey && document.activeElement === last) {
-                    event.preventDefault();
-                    first.focus();
-                }
-            }
-        },
-        { signal: abort.signal },
-    );
     const resize = () => {
         const bounds = canvas.getBoundingClientRect();
         w = bounds.width;
@@ -114,6 +67,8 @@ function boot(draw: () => void) {
 }
 let shots = 0;
 let lastShot = '';
+let phase = 0;
+const phases = ['장면 준비', '카메라 광선 검사', '조준점 선택', '총구 경로 검사', '첫 충돌 확정'];
 function options(): Options {
     return {
         cameraY: +input('cameraY').value,
@@ -131,15 +86,19 @@ function draw() {
     const o = options(),
         shot = shoot(o),
         method = select('method').value;
+    canvas.dataset.phase = String(phase);
     for (const key of ['cameraY', 'muzzleY', 'muzzleX', 'cover', 'targetX', 'search', 'range'] as const)
         el(`${key}-value`).textContent = `${o[key].toFixed(key === 'muzzleX' ? 2 : 1)}m`;
     shot.results.forEach((value, i) => {
         el(`metric-${i}`).textContent = value;
     });
     const outcome = shot.results[method === 'camera' ? 0 : method === 'parallel' ? 1 : 2]!;
-    el('summary').textContent =
-        lastShot ||
-        `미리 보기: ${outcome}. 청록 점선은 카메라가 고른 목표, 굵은 선은 선택한 판정의 최종 경로입니다.`;
+    const phaseLabel = method === 'two'
+        ? phases[phase]
+        : phase === 3
+          ? method === 'camera' ? '카메라 경로 채택' : '총구에서 평행 경로 검사'
+          : phases[phase];
+    el('summary').textContent = `${phase}/4 · ${phaseLabel}. ${lastShot || `미리 보기: ${outcome}. 청록 점선은 카메라가 고른 목표입니다.`}`;
     ctx.clearRect(0, 0, w, h);
     const maxX = Math.max(12, o.targetX + 2),
         ground = h * 0.73;
@@ -147,6 +106,7 @@ function draw() {
         sy = (y: number) => ground - (y / 3) * (h * 0.56);
     rect(12, 12, w - 24, h - 24, '#f5f9fa', 15);
     text('세로 단면 · 높이를 확대해 표시', 25, 36, '#456671', w < 500 ? 11 : 13);
+    text(`${phase}/4 · ${phaseLabel}`, 25, 55, '#117f72', 11, w - 50);
     for (let y = 0; y <= 3; y++) {
         line(24, sy(y), w - 24, sy(y), '#dce6e8', true, 1);
         if (y) text(`${y}m`, 26, sy(y) - 6, '#8ba1a8', 10);
@@ -181,7 +141,8 @@ function draw() {
     ctx.beginPath();
     ctx.rect(24, 45, w - 48, ground - 45);
     ctx.clip();
-    path(shot.camera, shot.aim, '#209b8b', true);
+    if (phase >= 1)
+        path(shot.camera, phase === 1 ? shot.searchEnd : shot.aim, '#209b8b', true);
     const start = method === 'camera' ? shot.camera : shot.muzzle;
     const end =
         method === 'camera'
@@ -189,16 +150,18 @@ function draw() {
             : method === 'parallel'
               ? (shot.parallelHit?.point ?? shot.parallelEnd)
               : shot.end;
-    path(start, end, outcome === '표적' ? '#117f72' : '#d28449', false, 3);
-    dot(sx(end.x), sy(end.y), 5, outcome === '표적' ? '#117f72' : '#d28449');
+    if (phase >= 3) path(start, end, outcome === '표적' ? '#117f72' : '#d28449', false, 3);
+    if (phase >= 4) dot(sx(end.x), sy(end.y), 5, outcome === '표적' ? '#117f72' : '#d28449');
     ctx.restore();
     dot(sx(shot.camera.x), sy(shot.camera.y), 6, '#198d80');
     dot(sx(shot.muzzle.x), sy(shot.muzzle.y), 5, '#d28449');
     text('C', sx(shot.camera.x) - 16, sy(shot.camera.y) - 12, '#137e73', 13);
     text('M', sx(shot.muzzle.x) + 8, sy(shot.muzzle.y) + 17, '#ac6938', 13);
     const aimX = Math.min(w - 28, sx(shot.aim.x));
-    line(aimX - 7, sy(shot.aim.y), aimX + 7, sy(shot.aim.y), '#1e746b');
-    line(aimX, sy(shot.aim.y) - 7, aimX, sy(shot.aim.y) + 7, '#1e746b');
+    if (phase >= 2) {
+        line(aimX - 7, sy(shot.aim.y), aimX + 7, sy(shot.aim.y), '#1e746b');
+        line(aimX, sy(shot.aim.y) - 7, aimX, sy(shot.aim.y) + 7, '#1e746b');
+    }
     text('C 카메라 → 목표 P', 26, h - 49, '#18897a', 12);
     text(
         method === 'two'
@@ -213,6 +176,7 @@ function draw() {
     );
 }
 function reset() {
+    playback.pause();
     for (const [key, value] of Object.entries(defaults)) {
         if (typeof value === 'boolean') input(key).checked = value;
         else input(key).value = String(value);
@@ -220,18 +184,25 @@ function reset() {
     select('method').value = 'two';
     shots = 0;
     lastShot = '';
+    phase = 0;
     draw();
 }
 for (const id of Object.keys(defaults))
     on(id, 'input', () => {
+        playback.pause();
+        phase = 0;
         lastShot = '';
         draw();
     });
 on('method', 'change', () => {
+    playback.pause();
+    phase = 0;
     lastShot = '';
     draw();
 });
 on('fire', 'click', () => {
+    playback.pause();
+    phase = 4;
     const shot = shoot(options()),
         method = select('method').value,
         index = method === 'camera' ? 0 : method === 'parallel' ? 1 : 2;
@@ -251,4 +222,16 @@ on('inside', 'click', () => {
     draw();
 });
 on('reset', 'click', reset);
+const playback = createPlayback({
+    interval: 650,
+    advance: () => {
+        if (phase === 4) {
+            phase = 0;
+            lastShot = '';
+        }
+        phase++;
+        draw();
+        return phase < 4;
+    },
+});
 boot(draw);

@@ -1,4 +1,5 @@
 import { simulate, learningTarget, parseValueEstimate, type Config, type Route, type RewardMode, type Step } from './model';
+import { setPlaybackState } from '../../components/experiment-playback';
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 const value = (id: string) => Number($<HTMLInputElement>(id).value),
     choice = (id: string) => $<HTMLSelectElement>(id).value;
@@ -37,7 +38,7 @@ function selected() {
 function stop() {
     running = false;
     clearInterval(timer);
-    $('play').textContent = '정책 재생';
+    setPlaybackState('play', false);
 }
 function step() {
     const steps = selected().steps;
@@ -180,46 +181,16 @@ function reset(all: boolean) {
     }
     paint();
 }
-function menu(open: boolean) {
-    const wasOpen = !panel.hidden;
-    panel.hidden = !open;
-    $('backdrop').hidden = !open;
-    $('menu').setAttribute('aria-expanded', String(open));
-    for (const sibling of panel.parentElement!.children) {
-        if (sibling instanceof HTMLElement && sibling !== panel && sibling.id !== 'backdrop')
-            sibling.inert = open;
-    }
-    if (open) {
-        panel.scrollTop = 0;
-        $('close-menu').focus();
-    } else if (wasOpen) $('menu').focus();
-}
-$('menu').onclick = () => menu(true);
-$('close-menu').onclick = () => menu(false);
-$('backdrop').onclick = () => menu(false);
-$('help').onclick = () => dialog.showModal();
+$('help').onclick = () => {
+    stop();
+    dialog.showModal();
+};
 $('close-help').onclick = () => dialog.close();
-document.addEventListener('keydown', (e) => {
-    if (panel.hidden || dialog.open) return;
-    if (e.key === 'Escape') {
-        e.preventDefault();
-        menu(false);
-    } else if (e.key === 'Tab') {
-        const controls = [...panel.querySelectorAll<HTMLElement>('button,input,select,a[href],[tabindex]')].filter(
-            (element) => !element.hasAttribute('disabled') && element.tabIndex >= 0 && element.getClientRects().length,
-        );
-        const first = controls[0],
-            last = controls.at(-1)!;
-        if (e.shiftKey && document.activeElement === first) {
-            e.preventDefault();
-            last.focus();
-        } else if (!e.shiftKey && document.activeElement === last) {
-            e.preventDefault();
-            first.focus();
-        }
-    }
-});
-$('step').onclick = step;
+
+$('step').onclick = () => {
+    stop();
+    step();
+};
 $('play').onclick = () => {
     if (running) {
         stop();
@@ -227,7 +198,7 @@ $('play').onclick = () => {
     }
     if (index >= selected().steps.length - 1) index = -1;
     running = true;
-    $('play').textContent = '일시 정지';
+    setPlaybackState('play', true);
     timer = window.setInterval(step, 550);
     step();
 };
@@ -247,7 +218,6 @@ for (const input of panel.querySelectorAll('input,select')) {
 const resize = new ResizeObserver(paint);
 resize.observe(canvas);
 window.addEventListener('pagehide', () => {
-    menu(false);
     stop();
     resize.disconnect();
 });

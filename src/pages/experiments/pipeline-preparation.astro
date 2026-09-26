@@ -1,203 +1,184 @@
 ---
-import Page from '../../layouts/Page.astro';
+import ExperimentLayout from '../../layouts/ExperimentLayout.astro';
+import ExperimentPlayback from '../../components/ExperimentPlayback.astro';
 ---
 
-<Page
+<ExperimentLayout
     title="요청했지만 아직 준비되지 않았다 · 게임 실험실"
     description="같은 조합의 요청, 작업 시작, 준비 완료, 최초 사용 시각을 나눠 보세요."
+    class="lab pipeline-preparation-lab"
 >
-    <main id="lab" class="lab">
-        <nav aria-label="실험실 탐색">
-            <button id="menu" aria-label="설정 메뉴 열기" aria-controls="settings" aria-expanded="false">
-                ☰
-            </button>
-            <a href="/">게임 실험실</a>
-            <button id="help" aria-label="원인과 해결 설명 열기">
-                ?
-            </button>
-        </nav>
-        <header>
-            <p>준비 요청 · 작업 대기열 · 첫 사용</p>
-            <h1>요청했지만 아직 준비되지 않았다</h1>
-            <span>같은 조합의 요청, 작업 시작, 준비 완료, 최초 사용 시각을 나눠 보세요.</span>
-        </header>
-        <div id="settings" role="complementary" hidden aria-label="실험 설정">
-            <div class="panel-title">
-                <h2>조건을 바꿔 보세요</h2>
-                <button id="close-menu" aria-label="설정 메뉴 닫기">
-                    ×
-                </button>
-            </div>
-            <div class="presets">
-                <button id="late-preset">10ms 늦음</button>
-                <button id="miss-preset">수집 누락</button>
-                <button id="ready-preset">미리 완료</button>
-            </div>
-            <label for="coverage">미리 수집한 조합</label>
-            <select id="coverage">
-                <option value="needed">사용할 3개 수집</option>
-                <option value="observed">플레이 기록 1개만 수집</option>
-                <option value="all">유효 후보 10개 모두</option>
-                <option value="none">사전 수집 없음</option>
-            </select>
-            <label for="selected">관찰하는 조합</label>
-            <select id="selected">
-                <option value="0">#0 · 본체</option>
-                <option value="5">#5 · 그림자</option>
-                <option value="9">#9 · 반투명 효과</option>
-            </select>
-            <label for="request">
-                사전 요청 시각 (ms)<output id="request-value"></output>
-            </label>
-            <input id="request" type="range" min="0" max="100" step="5" value="0" />
-            <label for="queue">
-                기존 작업이 끝나는 시각 (ms)<output id="queue-value"></output>
-            </label>
-            <input id="queue" type="range" min="0" max="100" step="5" value="20" />
-            <label for="duration">
-                조합당 준비 시간 (ms)<output id="duration-value"></output>
-            </label>
-            <input id="duration" type="range" min="10" max="80" step="5" value="40" />
-            <label for="workers">
-                동시 작업 슬롯<output id="workers-value"></output>
-            </label>
-            <input id="workers" type="range" min="1" max="4" step="1" value="1" />
-            <label for="need">
-                첫 조합 필요 시각 (ms)<output id="need-value"></output>
-            </label>
-            <input id="need" type="range" min="30" max="150" step="5" value="50" />
-            <label for="policy">미준비 상태 표시</label>
-            <select id="policy">
-                <option value="wait">프레임을 기다리게</option>
-                <option value="hide">효과 표시 보류</option>
-                <option value="fallback">기본 재질 먼저 표시</option>
-                <option value="loading">게임 시작 전에 대기</option>
-            </select>
-            <label class="check">
-                <input id="failure" type="checkbox" />
-                #5 준비 작업 실패
-            </label>
-            <button id="reset" class="wide">
-                초기화
-            </button>
+    <Fragment slot="settings">
+        <div class="presets">
+            <button id="late-preset">10ms 늦음</button>
+            <button id="miss-preset">수집 누락</button>
+            <button id="ready-preset">미리 완료</button>
         </div>
-        <section class="scene-area">
-            <div class="canvas-wrap">
-                <canvas
-                    id="scene"
-                    aria-label="요청했지만 아직 준비되지 않았다 수치 모델 장면"
-                    aria-describedby="summary"
-                ></canvas>
-            </div>
-            <div class="stats">
-                <article>
-                    <span>요청 → 시작</span>
-                    <strong id="metric-0"></strong>
-                    <small id="detail-0">작업 대기 포함</small>
-                </article>
-                <article>
-                    <span>완료 / 최초 필요</span>
-                    <strong id="metric-1"></strong>
-                    <small id="detail-1">완료와 성공을 구분</small>
-                </article>
-                <article>
-                    <span>필수 조합 지연</span>
-                    <strong id="metric-2"></strong>
-                    <small id="detail-2">성공 시 ready − need</small>
-                </article>
-                <article>
-                    <span>준비된 상주량</span>
-                    <strong id="metric-3"></strong>
-                    <small id="detail-3">성공한 조합당 2MB 모형</small>
-                </article>
-            </div>
-            <div class="toolbar">
-                <button id="play" aria-pressed="false">
-                    느리게 재생
-                </button>
-                <label for="time">
-                    모의 시각
-                    <input id="time" type="range" min="0" max="1000" step="1" value="55" />
-                </label>
-                <output id="time-value"></output>
-            </div>
-            <p id="summary" role="status" aria-live="polite"></p>
-            <p class="note">고정 지연을 사용하는 작업 일정 모형 · 재생 1초 = 모의 50ms</p>
-            <div id="log" class="log" role="region" aria-label="최근 상태 기록"></div>
-        </section>
-    </main>
-    <dialog id="explanation" aria-labelledby="explanation-title">
-        <button id="close-dialog" class="dialog-close" aria-label="설명 닫기">
-            ×
-        </button>
-        <p class="eyebrow">문제 · 원인 · 해결 · 대가</p>
-        <h2 id="explanation-title">요청했지만 아직 준비되지 않았다</h2>
-        <h3>문제와 원인</h3>
-        <p>
-            0ms 요청, 20ms 시작, 40ms 준비라면 완료는 60ms입니다. 50ms에 필요하면 10ms 늦습니다. 누락된 조합은
-            필요할 때 처음 요청하므로 「요청했지만 늦음」과 원인이 다릅니다. 같은 셰이더도 정점
-            형식·블렌딩·패스가 다르면 다른 조합일 수 있습니다.
-        </p>
-        <h3>해결과 대가</h3>
-        <p>
-            먼저 요청하거나 필요한 조합을 빠짐없이 수집합니다. 후보를 모두 준비하면 사용하지 않는 작업과
-            메모리가 늘 수 있습니다. 이 모형은 24개 조합 가능성 중 유효한 10개, 실제 쓰는 #0·#5·#9 세 개를
-            사용하며 각각 40ms 간격으로 필요해집니다. 작업 슬롯을 늘리면 병렬 준비가 가능하지만 실제 환경의
-            CPU·메모리 경쟁까지 해결된다는 뜻은 아닙니다.
-        </p>
-        <h3>무엇을 보여줄까요?</h3>
-        <p>
-            프레임 대기는 움직이는 점까지 멈춥니다. 표시 보류는 효과를 늦추고, 기본 재질은 회색 효과를 먼저
-            보여줍니다. 시작 전 대기는 필요한 세 작업의 완료까지 시작 시각을 뒤로 옮깁니다. 작업 실패는
-            완료돼도 사용 가능한 ready 시각이 없으므로 오류 대체 표시를 유지합니다.
-        </p>
-        <h3>계산 범위</h3>
-        <p>
-            화면의 움직임은 선택한 조합 하나의 지연만 반영합니다. CPU·GPU·드라이버 캐시 재조회와 실제 WebGL
-            컴파일은 측정하지 않습니다. KHR_parallel_shader_compile의 완료 조회와 성공 확인도 별개이며 WebGL
-            프로그램과 PSO는 동일한 객체가 아닙니다.
-        </p>
-        <p class="sources">
-            <a
-                href="https://dev.epicgames.com/documentation/en-us/unreal-engine/pso-precaching-for-unreal-engine"
-                target="_blank"
-                rel="noreferrer"
-            >
-                Epic PSO Precaching
-            </a>{' '}
-            ·{' '}
-            <a
-                href="https://registry.khronos.org/webgl/extensions/KHR_parallel_shader_compile/"
-                target="_blank"
-                rel="noreferrer"
-            >
-                Khronos 확장 사양
-            </a>
-        </p>
-    </dialog>
+        <label for="coverage">미리 수집한 조합</label>
+        <select id="coverage">
+            <option value="needed">사용할 3개 수집</option>
+            <option value="observed">플레이 기록 1개만 수집</option>
+            <option value="all">유효 후보 10개 모두</option>
+            <option value="none">사전 수집 없음</option>
+        </select>
+        <label for="selected">관찰하는 조합</label>
+        <select id="selected">
+            <option value="0">#0 · 본체</option>
+            <option value="5">#5 · 그림자</option>
+            <option value="9">#9 · 반투명 효과</option>
+        </select>
+        <label for="request">
+            사전 요청 시각 (ms)
+            <output id="request-value"></output>
+        </label>
+        <input id="request" type="range" min="0" max="100" step="5" value="0" />
+        <label for="queue">
+            기존 작업이 끝나는 시각 (ms)
+            <output id="queue-value"></output>
+        </label>
+        <input id="queue" type="range" min="0" max="100" step="5" value="20" />
+        <label for="duration">
+            조합당 준비 시간 (ms)
+            <output id="duration-value"></output>
+        </label>
+        <input id="duration" type="range" min="10" max="80" step="5" value="40" />
+        <label for="workers">
+            동시 작업 슬롯
+            <output id="workers-value"></output>
+        </label>
+        <input id="workers" type="range" min="1" max="4" step="1" value="1" />
+        <label for="need">
+            첫 조합 필요 시각 (ms)
+            <output id="need-value"></output>
+        </label>
+        <input id="need" type="range" min="30" max="150" step="5" value="50" />
+        <label for="policy">미준비 상태 표시</label>
+        <select id="policy">
+            <option value="wait">프레임을 기다리게</option>
+            <option value="hide">효과 표시 보류</option>
+            <option value="fallback">기본 재질 먼저 표시</option>
+            <option value="loading">게임 시작 전에 대기</option>
+        </select>
+        <label class="check">
+            <input id="failure" type="checkbox" />
+            #5 준비 작업 실패
+        </label>
+    </Fragment>
+    <Fragment slot="body-header">
+        <p class="eyebrow">준비 요청 · 작업 대기열 · 첫 사용</p>
+        <h1>요청했지만 아직 준비되지 않았다</h1>
+        <p>같은 조합의 요청, 작업 시작, 준비 완료, 최초 사용 시각을 나눠 보세요.</p>
+    </Fragment>
+    <Fragment slot="graphics">
+        <div class="canvas-wrap">
+            <canvas
+                id="scene"
+                aria-label="요청했지만 아직 준비되지 않았다 수치 모델 장면"
+                aria-describedby="summary"
+            ></canvas>
+        </div>
+    </Fragment>
+    <Fragment slot="description">
+        <div class="stats">
+            <article>
+                <span>요청 → 시작</span>
+                <strong id="metric-0"></strong>
+                <small id="detail-0">작업 대기 포함</small>
+            </article>
+            <article>
+                <span>완료 / 최초 필요</span>
+                <strong id="metric-1"></strong>
+                <small id="detail-1">완료와 성공을 구분</small>
+            </article>
+            <article>
+                <span>필수 조합 지연</span>
+                <strong id="metric-2"></strong>
+                <small id="detail-2">성공 시 ready − need</small>
+            </article>
+            <article>
+                <span>준비된 상주량</span>
+                <strong id="metric-3"></strong>
+                <small id="detail-3">성공한 조합당 2MB 모형</small>
+            </article>
+        </div>
+
+        <p id="summary" role="status" aria-live="polite"></p>
+        <p class="note">고정 지연을 사용하는 작업 일정 모형 · 재생 1초 = 모의 50ms</p>
+        <div id="log" class="log" role="region" aria-label="최근 상태 기록"></div>
+    </Fragment>
+    <Fragment slot="controls">
+        <ExperimentPlayback>
+            <span>요청 → 작업 → 첫 사용을 재생합니다. 한 단계는 10ms입니다.</span>
+        </ExperimentPlayback>
+        <div class="toolbar">
+            <label for="time">
+                모의 시각
+                <input id="time" type="range" min="0" max="1000" step="1" value="55" />
+            </label>
+            <output id="time-value"></output>
+        </div>
+    </Fragment>
+    <Fragment slot="overlays">
+        <dialog id="explanation" aria-labelledby="explanation-title">
+            <button id="close-dialog" class="dialog-close" aria-label="설명 닫기">×</button>
+            <p class="eyebrow">문제 · 원인 · 해결 · 대가</p>
+            <h2 id="explanation-title">요청했지만 아직 준비되지 않았다</h2>
+            <h3>문제와 원인</h3>
+            <p>
+                0ms 요청, 20ms 시작, 40ms 준비라면 완료는 60ms입니다. 50ms에 필요하면 10ms 늦습니다. 누락된
+                조합은 필요할 때 처음 요청하므로 「요청했지만 늦음」과 원인이 다릅니다. 같은 셰이더도 정점
+                형식·블렌딩·패스가 다르면 다른 조합일 수 있습니다.
+            </p>
+            <h3>해결과 대가</h3>
+            <p>
+                먼저 요청하거나 필요한 조합을 빠짐없이 수집합니다. 후보를 모두 준비하면 사용하지 않는 작업과
+                메모리가 늘 수 있습니다. 이 모형은 24개 조합 가능성 중 유효한 10개, 실제 쓰는 #0·#5·#9 세 개를
+                사용하며 각각 40ms 간격으로 필요해집니다. 작업 슬롯을 늘리면 병렬 준비가 가능하지만 실제
+                환경의 CPU·메모리 경쟁까지 해결된다는 뜻은 아닙니다.
+            </p>
+            <h3>무엇을 보여줄까요?</h3>
+            <p>
+                프레임 대기는 움직이는 점까지 멈춥니다. 표시 보류는 효과를 늦추고, 기본 재질은 회색 효과를
+                먼저 보여줍니다. 시작 전 대기는 필요한 세 작업의 완료까지 시작 시각을 뒤로 옮깁니다. 작업
+                실패는 완료돼도 사용 가능한 ready 시각이 없으므로 오류 대체 표시를 유지합니다.
+            </p>
+            <h3>계산 범위</h3>
+            <p>
+                화면의 움직임은 선택한 조합 하나의 지연만 반영합니다. CPU·GPU·드라이버 캐시 재조회와 실제
+                WebGL 컴파일은 측정하지 않습니다. KHR_parallel_shader_compile의 완료 조회와 성공 확인도
+                별개이며 WebGL 프로그램과 PSO는 동일한 객체가 아닙니다.
+            </p>
+            <p class="sources">
+                <a
+                    href="https://dev.epicgames.com/documentation/en-us/unreal-engine/pso-precaching-for-unreal-engine"
+                    target="_blank"
+                    rel="noreferrer"
+                >
+                    Epic PSO Precaching
+                </a>
+                {' '} ·{' '}
+                <a
+                    href="https://registry.khronos.org/webgl/extensions/KHR_parallel_shader_compile/"
+                    target="_blank"
+                    rel="noreferrer"
+                >
+                    Khronos 확장 사양
+                </a>
+            </p>
+        </dialog>
+    </Fragment>
     <script>
         import '../../experiments/pipeline-preparation/client';
     </script>
-</Page>
+</ExperimentLayout>
 <style>
-    .lab {
-        min-height: 100svh;
-        padding: 18px 28px 30px;
-        color: #263b43;
-        position: relative;
+    :global(.experiment-shell.pipeline-preparation-lab) {
+        --experiment-graphics-min-height: 420px;
     }
-    nav {
-        display: flex;
-        align-items: center;
-        gap: 14px;
-    }
-    nav a {
-        font-weight: 750;
-        color: inherit;
-        text-decoration: none;
-    }
-    nav button:last-child {
-        margin-left: auto;
+    @media (max-width: 700px) {
+        :global(.experiment-shell.pipeline-preparation-lab) {
+            --experiment-graphics-min-height: 440px;
+        }
     }
     button {
         min-height: 42px;
@@ -211,65 +192,11 @@ import Page from '../../layouts/Page.astro';
     button:hover {
         background: #e2efed;
     }
-    nav button {
-        width: 44px;
-        padding: 0;
-        font-size: 23px;
-    }
-    header {
-        padding: 24px 0 20px;
-    }
-    header p,
     .eyebrow {
         font-size: 12px;
         letter-spacing: 0.08em;
         color: #0f706b;
         font-weight: 750;
-    }
-    h1 {
-        margin: 7px 0 10px;
-        font-size: clamp(26px, 3.4vw, 42px);
-        letter-spacing: -0.055em;
-        word-break: keep-all;
-    }
-    header span {
-        font-size: 14px;
-        color: #52676e;
-    }
-    .scene-area {
-        transition: margin 0.15s;
-    }
-    .open .scene-area {
-        margin-left: 300px;
-    }
-    #settings {
-        position: absolute;
-        z-index: 5;
-        top: 210px;
-        left: 28px;
-        width: 276px;
-        padding: 18px;
-        background: #f9fbfb;
-        border: 1px solid #d3dfe0;
-        border-radius: 18px;
-        box-shadow: 0 12px 40px #25434b0b;
-        max-height: calc(100svh - 230px);
-        overflow: auto;
-    }
-    .panel-title {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-    }
-    .panel-title h2 {
-        font-size: 16px;
-        margin: 0;
-    }
-    .panel-title button {
-        border: 0;
-        font-size: 23px;
-        padding: 0;
-        min-width: 40px;
     }
     .presets {
         display: flex;
@@ -323,12 +250,8 @@ import Page from '../../layouts/Page.astro';
         accent-color: #0f706b;
         flex-shrink: 0;
     }
-    .wide {
-        width: 100%;
-        margin-top: 13px;
-    }
     .canvas-wrap {
-        height: clamp(370px, 51vh, 540px);
+        height: 100%;
     }
     canvas {
         display: block;
@@ -339,7 +262,7 @@ import Page from '../../layouts/Page.astro';
         display: grid;
         grid-template-columns: repeat(4, minmax(0, 1fr));
         gap: 8px;
-        margin: 12px auto 0;
+        margin: 0 auto;
         max-width: 1100px;
     }
     .stats article {
@@ -369,12 +292,14 @@ import Page from '../../layouts/Page.astro';
         line-height: 1.6;
     }
     .toolbar {
-        display: flex;
+        display: grid;
+        width: 100%;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
         align-items: center;
         justify-content: center;
         gap: 9px;
         flex-wrap: wrap;
-        margin-top: 18px;
+        margin-top: 0;
     }
     .toolbar button:first-child {
         background: #187f78;
@@ -383,11 +308,16 @@ import Page from '../../layouts/Page.astro';
     }
     .toolbar label {
         margin: 0;
-        align-items: center;
-        white-space: nowrap;
+        display: grid;
+        grid-column: 1 / -1;
+        grid-template-columns: minmax(0, 1fr);
+        gap: 4px;
+        min-width: 0;
+        white-space: normal;
     }
     .toolbar input {
-        width: 150px;
+        width: 100%;
+        min-width: 0;
     }
     .toolbar output {
         font-size: 12px;
@@ -410,7 +340,7 @@ import Page from '../../layouts/Page.astro';
         line-height: 1.8;
         color: #52676e;
         max-width: 750px;
-        margin: 12px auto 0;
+        margin: 0 auto;
         display: grid;
         grid-template-columns: 1fr 1fr;
         gap: 3px 16px;
@@ -463,34 +393,6 @@ import Page from '../../layouts/Page.astro';
         color: #52676e;
     }
     @media (max-width: 700px) {
-        .lab {
-            padding: 14px 16px 24px;
-        }
-        header {
-            padding-top: 18px;
-        }
-        h1 {
-            font-size: 28px;
-        }
-        header span {
-            font-size: 12px;
-            line-height: 1.6;
-            display: block;
-        }
-        .open .scene-area {
-            margin-left: 0;
-        }
-        #settings {
-            position: fixed;
-            top: 75px;
-            left: 12px;
-            width: min(300px, calc(100% - 24px));
-            max-height: calc(100svh - 92px);
-            box-shadow: 0 10px 80px #183c4260;
-        }
-        .canvas-wrap {
-            height: 440px;
-        }
         .stats {
             grid-template-columns: repeat(2, minmax(0, 1fr));
         }
@@ -505,7 +407,7 @@ import Page from '../../layouts/Page.astro';
             font-size: 11px;
         }
         .toolbar input {
-            width: 100px;
+            width: 100%;
         }
         .toolbar output {
             font-size: 11px;

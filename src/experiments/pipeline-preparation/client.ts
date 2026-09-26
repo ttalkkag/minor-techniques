@@ -1,9 +1,8 @@
+import { setPlaybackState } from '../../components/experiment-playback';
 import { defaults, presentation, type PreparationOptions } from './model';
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 const canvas = $<HTMLCanvasElement>('scene'),
     ctx = canvas.getContext('2d')!,
-    panel = $('settings'),
-    menu = $('menu'),
     dialog = $<HTMLDialogElement>('explanation');
 let options: PreparationOptions = { ...defaults },
     time = 55,
@@ -11,52 +10,8 @@ let options: PreparationOptions = { ...defaults },
     playing = false,
     frame = 0,
     last = 0;
-const menuMedia = matchMedia('(max-width: 700px)');
-function overlayMenu() {
-    return menuMedia.matches;
-}
-function setMenu(open: boolean, moveFocus = true) {
-    panel.hidden = !open;
-    $('lab').classList.toggle('open', open);
-    menu.setAttribute('aria-expanded', String(open));
-    menu.setAttribute('aria-label', open ? '설정 메뉴 닫기' : '설정 메뉴 열기');
-    const modal = open && overlayMenu();
-    panel.setAttribute('role', modal ? 'dialog' : 'complementary');
-    if (modal) panel.setAttribute('aria-modal', 'true');
-    else panel.removeAttribute('aria-modal');
-    for (const child of Array.from(panel.parentElement!.children)) {
-        if (child instanceof HTMLElement && child !== panel && child.tagName !== 'NAV')
-            child.inert = modal;
-    }
-    for (const child of Array.from(menu.parentElement!.children))
-        if (child instanceof HTMLElement && child !== menu) child.inert = modal;
-    if (moveFocus) (open ? $('close-menu') : menu).focus();
-    requestAnimationFrame(draw);
-}
-menu.addEventListener('click', () => setMenu(Boolean(panel.hidden)));
-$('close-menu').addEventListener('click', () => setMenu(false));
 $('help').addEventListener('click', () => dialog.showModal());
 $('close-dialog').addEventListener('click', () => dialog.close());
-document.addEventListener('keydown', (event) => {
-    if (dialog.open || panel.hidden) return;
-    if (event.key === 'Escape') {
-        event.preventDefault();
-        setMenu(false);
-    } else if (event.key === 'Tab' && overlayMenu()) {
-        const controls = Array.from(panel.querySelectorAll<HTMLElement>(
-            'button:not([disabled]), input:not([disabled]), select:not([disabled]), a[href]',
-        )).filter((control) => control.getClientRects().length > 0);
-        const first = controls[0]!, last = controls[controls.length - 1]!;
-        if (event.shiftKey && (document.activeElement === first || !panel.contains(document.activeElement))) {
-            event.preventDefault();
-            last.focus();
-        } else if (!event.shiftKey && (document.activeElement === last || !panel.contains(document.activeElement))) {
-            event.preventDefault();
-            first.focus();
-        }
-    }
-});
-menuMedia.addEventListener('change', () => setMenu(!panel.hidden, !panel.hidden && overlayMenu()));
 const numeric = ['request', 'queue', 'duration', 'workers', 'need'] as const;
 for (const key of numeric)
     $(key).addEventListener('input', () => {
@@ -83,8 +38,7 @@ $('failure').addEventListener('change', () => {
 function stop() {
     playing = false;
     cancelAnimationFrame(frame);
-    $('play').textContent = '느리게 재생';
-    $('play').setAttribute('aria-pressed', 'false');
+    setPlaybackState('play', false);
 }
 function reset() {
     stop();
@@ -111,6 +65,11 @@ $('time').addEventListener('input', () => {
     time = Number($<HTMLInputElement>('time').value);
     update();
 });
+$('step').addEventListener('click', () => {
+    stop();
+    time = Math.min(1000, time + 10);
+    update();
+});
 function animate(stamp: number) {
     if (!playing) return;
     time = Math.min(1000, time + Math.min((stamp - last) / 1000, 0.05) * 50);
@@ -132,8 +91,7 @@ $('play').addEventListener('click', () => {
     if (time >= 1000) time = 0;
     playing = true;
     last = performance.now();
-    $('play').textContent = '일시 정지';
-    $('play').setAttribute('aria-pressed', 'true');
+    setPlaybackState('play', true);
     frame = requestAnimationFrame(animate);
 });
 function update(announce = true) {
@@ -294,14 +252,11 @@ function draw() {
 }
 const observer = new ResizeObserver(draw);
 observer.observe(canvas);
-setMenu(!menuMedia.matches, false);
+
 update();
 const visibility = () => {
     if (document.hidden) stop();
 };
 document.addEventListener('visibilitychange', visibility);
 window.addEventListener('pagehide', stop);
-window.addEventListener('pageshow', () => {
-    setMenu(!panel.hidden, false);
-    draw();
-});
+window.addEventListener('pageshow', draw);

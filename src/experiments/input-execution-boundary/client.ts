@@ -1,72 +1,34 @@
 import { createMachine, writeInput, movePc, step, run, guards, commands, type Guard } from './model';
+import { createPlayback } from '../../components/experiment-playback';
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 const canvas = $<HTMLCanvasElement>('scene'),
     ctx = canvas.getContext('2d')!,
-    panel = $('settings'),
-    menu = $('menu'),
     dialog = $<HTMLDialogElement>('explanation');
 let machine = createMachine(),
     guard: Guard = { ...guards };
-const menuMedia = matchMedia('(max-width: 700px)');
-function overlayMenu() {
-    return menuMedia.matches;
-}
-function setMenu(open: boolean, moveFocus = true) {
-    panel.hidden = !open;
-    $('lab').classList.toggle('open', open);
-    menu.setAttribute('aria-expanded', String(open));
-    menu.setAttribute('aria-label', open ? '설정 메뉴 닫기' : '설정 메뉴 열기');
-    const modal = open && overlayMenu();
-    panel.setAttribute('role', modal ? 'dialog' : 'complementary');
-    if (modal) panel.setAttribute('aria-modal', 'true');
-    else panel.removeAttribute('aria-modal');
-    for (const child of Array.from(panel.parentElement!.children)) {
-        if (child instanceof HTMLElement && child !== panel && child.tagName !== 'NAV')
-            child.inert = modal;
-    }
-    for (const child of Array.from(menu.parentElement!.children))
-        if (child instanceof HTMLElement && child !== menu) child.inert = modal;
-    if (moveFocus) (open ? $('close-menu') : menu).focus();
-    requestAnimationFrame(draw);
-}
-menu.addEventListener('click', () => setMenu(Boolean(panel.hidden)));
-$('close-menu').addEventListener('click', () => setMenu(false));
+const playback = createPlayback({
+    interval: 600,
+    advance: () => {
+        machine = step(machine, guard);
+        update();
+        return !machine.halted;
+    },
+});
 $('help').addEventListener('click', () => dialog.showModal());
 $('close-dialog').addEventListener('click', () => dialog.close());
-document.addEventListener('keydown', (event) => {
-    if (dialog.open || panel.hidden) return;
-    if (event.key === 'Escape') {
-        event.preventDefault();
-        setMenu(false);
-    } else if (event.key === 'Tab' && overlayMenu()) {
-        const controls = Array.from(panel.querySelectorAll<HTMLElement>(
-            'button:not([disabled]), input:not([disabled]), select:not([disabled]), a[href]',
-        )).filter((control) => control.getClientRects().length > 0);
-        const first = controls[0]!, last = controls[controls.length - 1]!;
-        if (event.shiftKey && (document.activeElement === first || !panel.contains(document.activeElement))) {
-            event.preventDefault();
-            last.focus();
-        } else if (!event.shiftKey && (document.activeElement === last || !panel.contains(document.activeElement))) {
-            event.preventDefault();
-            first.focus();
-        }
-    }
-});
-menuMedia.addEventListener('change', () => setMenu(!panel.hidden, !panel.hidden && overlayMenu()));
 const value = (id: string) => Number($<HTMLSelectElement>(id).value);
 $('write').addEventListener('click', () => {
+    playback.pause();
     machine = writeInput(machine, value('address'), value('input-value'), guard);
     update();
 });
 $('jump').addEventListener('click', () => {
+    playback.pause();
     machine = movePc(machine, value('target'), guard);
     update();
 });
-$('step').addEventListener('click', () => {
-    machine = step(machine, guard);
-    update();
-});
 $('run').addEventListener('click', () => {
+    playback.pause();
     machine = run(machine, guard);
     update();
 });
@@ -85,6 +47,7 @@ $('budget').addEventListener('input', () => {
 });
 for (const id of ['input-value', 'address', 'target']) $(id).addEventListener('change', draw);
 function reset() {
+    playback.pause();
     machine = createMachine();
     guard = { ...guards };
     $<HTMLSelectElement>('input-value').value = '3';
@@ -225,9 +188,6 @@ function draw() {
 }
 const observer = new ResizeObserver(draw);
 observer.observe(canvas);
-setMenu(!menuMedia.matches, false);
+
 update();
-window.addEventListener('pageshow', () => {
-    setMenu(!panel.hidden, false);
-    draw();
-});
+window.addEventListener('pageshow', draw);

@@ -1,3 +1,5 @@
+import { setSettingsOpen } from '../../layouts/experiment-layout';
+import { createPlayback } from '../../components/experiment-playback';
 import { MemorySave, initial, copy, recover, validate, packFlags, reverseCompletion } from './model';
 const el = (id: string) => document.getElementById(id)!;
 const input = (id: string) => el(id) as HTMLInputElement;
@@ -36,57 +38,9 @@ const dot = (x: number, y: number, radius: number, color: string) => {
     ctx.arc(x, y, radius, 0, Math.PI * 2);
     ctx.fill();
 };
-function menu(open: boolean) {
-    const panel = el('settings');
-    panel.hidden = !open;
-    el('backdrop').hidden = !open;
-    el('menu').setAttribute('aria-expanded', String(open));
-    for (const sibling of panel.parentElement!.children) {
-        if (
-            sibling instanceof HTMLElement &&
-            !['settings', 'backdrop', 'explanation'].includes(sibling.id)
-        )
-            sibling.inert = open;
-    }
-    document.body.style.overflow = open ? 'hidden' : '';
-    (open ? el('close') : el('menu')).focus();
-}
 function boot(draw: () => void) {
-    on('menu', 'click', () => menu(Boolean(el('settings').hidden)));
-    on('close', 'click', () => menu(false));
-    on('backdrop', 'click', () => menu(false));
     on('help', 'click', () => (el('explanation') as HTMLDialogElement).showModal());
     on('explain-close', 'click', () => (el('explanation') as HTMLDialogElement).close());
-    document.addEventListener(
-        'keydown',
-        (event) => {
-            const panel = el('settings');
-            if (panel.hidden || (el('explanation') as HTMLDialogElement).open) return;
-            if (event.key === 'Escape') {
-                event.preventDefault();
-                menu(false);
-            } else if (event.key === 'Tab') {
-                const controls = Array.from(
-                    panel.querySelectorAll<HTMLElement>(
-                        'button:not(:disabled), input:not(:disabled), select:not(:disabled), a[href]',
-                    ),
-                ).filter((control) => control.getClientRects().length > 0);
-                const first = controls[0]!,
-                    last = controls.at(-1)!;
-                if (
-                    !panel.contains(document.activeElement) ||
-                    (event.shiftKey && document.activeElement === first)
-                ) {
-                    event.preventDefault();
-                    (event.shiftKey ? last : first).focus();
-                } else if (!event.shiftKey && document.activeElement === last) {
-                    event.preventDefault();
-                    first.focus();
-                }
-            }
-        },
-        { signal: abort.signal },
-    );
     const resize = () => {
         const bounds = canvas.getBoundingClientRect();
         w = bounds.width;
@@ -127,7 +81,9 @@ function draw() {
     const flags = packFlags(game.flags);
     el('save-info').textContent =
         `현재 이벤트 바이트 ${flags.map((byte) => byte.toString(2).padStart(8, '0')).join(' ')} = ${flags.join(', ')} · 2B. 동일 16개 0/1 배열의 JSON은 ${new TextEncoder().encode(JSON.stringify(Array.from({ length: 16 }, (_, i) => (game.flags >>> i) & 1))).length}B. RNG ${game.rng}.`;
-    (el('step') as HTMLButtonElement).disabled = !machine.job;
+    el('playback-status').textContent = machine.job
+        ? `${machine.job.slot} · ${machine.job.phase} / 5단계`
+        : '진행 중인 저장 없음';
     ctx.clearRect(0, 0, w, h);
     rect(12, 12, w - 24, 88, '#f8fbfc', 13);
     text('플레이 중인 상태 · 저장 요청 순간 복사', 25, 35, '#446b74', w < 500 ? 11 : 13);
@@ -188,6 +144,7 @@ function draw() {
     }
 }
 function reset() {
+    playback.pause();
     machine = new MemorySave();
     game = initial();
     select('version').value = '2';
@@ -216,24 +173,34 @@ on('gate', 'click', () => {
     machine.log = `문을 ${game.flags & 8 ? '열었습니다' : '닫았습니다'}.`;
     draw();
 });
-on('request', 'click', () => {
+function request() {
     const snapshot = copy(game);
     if (!input('consistent').checked && snapshot.flags & 1)
         snapshot.items = snapshot.items.filter((item) => item !== '보석');
     machine.request(snapshot, +select('version').value);
-    draw();
+}
+const playback = createPlayback({
+    interval: 750,
+    advance: () => {
+        if (!machine.job) request();
+        machine.step();
+        draw();
+        return machine.job !== null;
+    },
 });
-on('step', 'click', () => {
-    machine.step();
+on('request', 'click', () => {
+    request();
     draw();
 });
 on('recover', 'click', () => {
+    playback.pause();
     const result = machine.interrupt(+select('reader').value);
     if (result.selected) game = copy(result.selected.result.value.game);
     draw();
 });
 on('reader', 'change', draw);
 on('corrupt', 'click', () => {
+    playback.pause();
     machine.job = null;
     machine.queue = [];
     const fault = select('fault').value;
@@ -252,12 +219,13 @@ on('corrupt', 'click', () => {
                 : raw.slice(0, -1) + (raw.endsWith('0') ? '1' : '0');
     }
     machine.log = '손상을 적용했습니다. 중단 후 복구로 남은 정상본을 확인하세요.';
-    menu(false);
+    setSettingsOpen(false);
     draw();
 });
 on('race', 'click', () => {
+    playback.pause();
     machine = reverseCompletion(input('queued').checked, game);
-    menu(false);
+    setSettingsOpen(false);
     draw();
 });
 on('reset', 'click', reset);

@@ -38,6 +38,12 @@ test('a hit stops the rest of the accumulated ticks and resumes only after the s
         cancelAnimationFrame() {},
     });
     const source = readFileSync(new URL('./client.ts', import.meta.url), 'utf8');
+    const playbackSource = ts.transpileModule(
+        readFileSync(new URL('../../components/experiment-playback.ts', import.meta.url), 'utf8'),
+        { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } },
+    ).outputText;
+    const playback = runInContext(`(() => { const exports = {}; ${playbackSource}; return exports; })()`, context);
+    context.require = (id: string) => id.includes('experiment-playback') ? playback : model;
     runInContext(
         ts.transpileModule(source, {
             compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
@@ -45,6 +51,15 @@ test('a hit stops the rest of the accumulated ticks and resumes only after the s
         context,
     );
     frame(0);
+    assert.equal(runInContext('running', context), false);
+    element('play').onclick();
+    assert.equal(runInContext('tick', context), 0);
+    assert.equal(runInContext('running', context), true);
+    element('play').onclick();
+    assert.equal(runInContext('running', context), false);
+    element('reset').onclick();
+    assert.equal(runInContext('tick', context), -1);
+    assert.equal(runInContext('running', context), false);
     for (let i = 0; i < 5; i++) element('step').onclick();
     element('play').onclick();
     frame(100);

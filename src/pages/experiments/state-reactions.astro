@@ -1,33 +1,16 @@
 ---
-import Page from '../../layouts/Page.astro';
+import ExperimentLayout from '../../layouts/ExperimentLayout.astro';
+import ExperimentPlayback from '../../components/ExperimentPlayback.astro';
 ---
 
-<Page
+<ExperimentLayout
+    helpId="explain"
     title="같은 불과 물, 다른 결과 · 게임 실험실"
     description="접촉 사건을 큐에 모으고 처리 순서·전파·중복 알림의 차이를 확인합니다."
+    class="lab"
 >
-    <main class="lab">
-        <nav class="top" aria-label="실험실 탐색">
-            <button id="menu" aria-label="설정 메뉴 열기" aria-controls="settings" aria-expanded="false">
-                ☰
-            </button>
-            <a href="/">게임 실험실</a>
-            <button id="explain" aria-label="원인과 해결 설명 열기">
-                ?
-            </button>
-        </nav>
-        <header class="heading">
-            <p class="eyebrow">움직임의 조건을 바꾸다</p>
-            <h1>같은 불과 물, 다른 결과</h1>
-            <p class="lead">접촉 사건을 큐에 모으고 처리 순서·전파·중복 알림의 차이를 확인합니다.</p>
-        </header>
-        <div id="settings" class="settings" role="dialog" aria-modal="true" aria-labelledby="settings-title" hidden>
-            <header>
-                <h2 id="settings-title">실험 설정</h2>
-                <button id="close-menu" aria-label="설정 메뉴 닫기">
-                    ×
-                </button>
-            </header>
+    <Fragment slot="settings">
+        <div class="settings-inputs">
             <label for="policy">동시 사건 처리</label>
             <select id="policy">
                 <option value="water">물 우선 · 중복 전환 억제</option>
@@ -55,9 +38,15 @@ import Page from '../../layouts/Page.astro';
                 <option value="wood">나무 · 가연성</option>
                 <option value="stone">돌 · 불연성</option>
             </select>
-            <button id="ring">원형 배치로 초기화</button>
             <p>물체를 눌러 대상을 고르세요. 상한 초과 사건은 다음 틱으로 미룹니다.</p>
         </div>
+    </Fragment>
+    <Fragment slot="body-header">
+        <p class="eyebrow">움직임의 조건을 바꾸다</p>
+        <h1>같은 불과 물, 다른 결과</h1>
+        <p class="lead">접촉 사건을 큐에 모으고 처리 순서·전파·중복 알림의 차이를 확인합니다.</p>
+    </Fragment>
+    <Fragment slot="graphics">
         <div class="scene">
             <svg
                 id="scene"
@@ -67,6 +56,8 @@ import Page from '../../layouts/Page.astro';
                 aria-describedby="summary"
             ></svg>
         </div>
+    </Fragment>
+    <Fragment slot="description">
         <section class="results" aria-label="관찰 결과">
             <article class="card">
                 <span>틱 / 다음 입력 큐</span>
@@ -82,19 +73,18 @@ import Page from '../../layouts/Page.astro';
             </article>
         </section>
         <p class="hint" id="summary" role="status"></p>
-        <div id="object-list" class="object-list" role="group" aria-label="대상 물체 선택"></div>
-        <div class="controls">
-            <button id="fire">불 접촉 추가</button>
-            <button id="water">물 접촉 추가</button>
-            <button id="both">동시에 불·물 추가</button>
-            <button id="step" class="primary">
-                한 틱 실행
-            </button>
-            <button id="play">자동 실행</button>
-            <button id="remove">선택 물체 삭제</button>
-            <button id="reset">초기화</button>
-        </div>
         <div class="log" id="log" role="log" aria-label="상태 반응 사건 기록"></div>
+    </Fragment>
+    <div slot="controls" class="controls">
+        <ExperimentPlayback>한 스텝은 사건 큐 한 틱입니다. 첫 입력이 비어 있으면 첫 나무에 불 접촉 예제를 넣습니다.</ExperimentPlayback>
+        <div id="object-list" class="object-list" role="group" aria-label="대상 물체 선택"></div>
+        <button id="fire">불 접촉 추가</button>
+        <button id="water">물 접촉 추가</button>
+        <button id="both">동시에 불·물 추가</button>
+        <button id="remove">선택 물체 삭제</button>
+        <button id="ring">원형 배치로 초기화</button>
+    </div>
+    <Fragment slot="overlays">
         <dialog id="explanation" aria-labelledby="explanation-title">
             <button class="close" id="close-explain" aria-label="설명 닫기">
                 ×
@@ -124,39 +114,15 @@ import Page from '../../layouts/Page.astro';
                 </a>
             </p>
         </dialog>
-    </main>
-</Page>
-<script>
-    import '../../experiments/state-reactions/client';
-</script>
+    </Fragment>
+    <script>
+        import '../../experiments/state-reactions/client';
+    </script>
+</ExperimentLayout>
 <style>
-    :global(body) {
-        background: #edf1f3;
-        color: #203d43;
-        margin: 0;
-    }
-    .lab {
-        min-height: 100dvh;
-        overflow: hidden;
-    }
-    .top {
-        height: 66px;
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        padding: 0 24px;
-        border-bottom: 1px solid #d1dfe1;
-    }
-    .top a {
-        font-weight: 750;
-        color: #204b50;
-        text-decoration: none;
-    }
-    .top button {
-        width: 44px;
-        padding: 0;
-        font-size: 22px;
-    }
+    .scene { width: 100%; height: 100%; min-height: 0; }
+    .scene svg { display: block; width: 100%; height: 100%; min-height: 0; }
+
     button,
     select,
     input {
@@ -182,11 +148,6 @@ import Page from '../../layouts/Page.astro';
         outline: 3px solid #e8954b;
         outline-offset: 3px;
     }
-    .heading {
-        padding: 26px 5vw 0;
-        max-width: 1100px;
-        margin: auto;
-    }
     .eyebrow {
         font-size: 12px;
         letter-spacing: 0.12em;
@@ -206,28 +167,9 @@ import Page from '../../layouts/Page.astro';
         color: #577176;
         margin: 8px 0;
     }
-    .scene {
-        width: min(1120px, 94vw);
-        margin: 14px auto 0;
-        position: relative;
-    }
-    .scene svg,
-    .scene canvas {
-        display: block;
-        width: 100%;
-        height: auto;
-        min-height: 250px;
-        max-height: 58vh;
-    }
     .scene svg text {
         font-family: inherit;
         fill: #24474c;
-    }
-    .scene canvas {
-        height: 53vh;
-        max-height: 600px;
-        min-height: 320px;
-        border-radius: 20px;
     }
     .results {
         display: flex;
@@ -254,80 +196,31 @@ import Page from '../../layouts/Page.astro';
         font-size: 13px;
         color: #587177;
     }
-    .controls {
-        display: flex;
-        justify-content: center;
-        align-items: center;
-        flex-wrap: wrap;
-        gap: 10px;
-        padding: 10px 20px 24px;
-    }
-    .primary {
-        background: #146f72;
-        color: white;
-        border-color: #146f72;
-    }
-    .controls label {
-        display: flex;
-        align-items: center;
-        gap: 10px;
-    }
-    .controls input {
-        width: 160px;
-        min-height: 40px;
-        accent-color: #11797b;
-    }
-    .settings {
-        position: fixed;
-        left: 16px;
-        top: 78px;
-        bottom: 16px;
-        overflow: auto;
-        width: min(320px, calc(100vw - 32px));
-        box-sizing: border-box;
-        padding: 22px;
-        background: #fafdfd;
-        box-shadow: 0 12px 60px #31585b38;
-        border: 1px solid #bdced1;
-        border-radius: 20px;
-        z-index: 5;
-    }
-    .settings[hidden] {
-        display: none;
-    }
-    .settings header {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-    }
-    .settings header h2 {
-        margin: 0;
-    }
-    .settings label {
+    .settings-inputs label {
         display: block;
         font-size: 14px;
         margin: 19px 0 7px;
     }
-    .settings input[type='range'] {
+    .settings-inputs input[type='range'] {
         width: 100%;
         accent-color: #14797b;
         min-height: 40px;
     }
-    .settings input[type='checkbox'] {
+    .settings-inputs input[type='checkbox'] {
         accent-color: #14797b;
         width: 20px;
         height: 20px;
         vertical-align: middle;
         margin-right: 8px;
     }
-    .settings select {
+    .settings-inputs select {
         width: 100%;
     }
-    .settings output {
+    .settings-inputs output {
         float: right;
         font-variant-numeric: tabular-nums;
     }
-    .settings .row {
+    .settings-inputs .row {
         display: flex;
         gap: 6px;
         flex-wrap: wrap;
@@ -391,33 +284,32 @@ import Page from '../../layouts/Page.astro';
         line-height: 1.6;
     }
     .object-list {
-        display: flex;
-        justify-content: center;
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        grid-column: 1 / -1;
         gap: 6px;
-        flex-wrap: wrap;
+        min-width: 0;
+    }
+    .controls {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 8px;
+        width: 100%;
+    }
+    .controls button {
+        min-width: 0;
+        width: 100%;
+        white-space: normal;
+        word-break: keep-all;
+        overflow-wrap: anywhere;
     }
     .object-list button[aria-pressed='true'] {
         background: #146f72;
         color: #fff;
     }
     @media (max-width: 600px) {
-        .top {
-            padding: 0 14px;
-            height: 58px;
-        }
-        .heading {
-            padding-top: 16px;
-        }
         .lead {
             font-size: 14px;
-        }
-        .scene {
-            width: 100%;
-            margin-top: 8px;
-        }
-        .scene svg {
-            min-height: 235px;
-            max-height: 44vh;
         }
         .results {
             gap: 7px;
@@ -433,32 +325,24 @@ import Page from '../../layouts/Page.astro';
         .card span {
             font-size: 12px;
         }
-        .controls {
-            padding: 10px 12px 18px;
-            gap: 7px;
-        }
-        .settings {
-            top: 66px;
-        }
         .hint {
             font-size: 12px;
         }
         .log {
             margin: 8px 12px 20px;
         }
-        .scene canvas {
-            height: 42vh;
-            min-height: 290px;
-        }
     }
     .object-list :global(button) {
         font: inherit;
+        font-size: 12px;
+        min-width: 0;
+        width: 100%;
         min-height: 42px;
         border: 1px solid #b7ced0;
         border-radius: 12px;
         background: #fff;
         color: #234b50;
-        padding: 8px 15px;
+        padding: 8px 4px;
         cursor: pointer;
     }
     .object-list :global(button[aria-pressed='true']) {

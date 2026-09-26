@@ -1,47 +1,11 @@
+import { createPlayback } from '../../components/experiment-playback';
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 const canvas = $<HTMLCanvasElement>('scene');
 const ctx = canvas.getContext('2d')!;
-const menu = $<HTMLButtonElement>('menu'),
-    settings = $<HTMLElement>('settings');
-function setMenuOpen(open: boolean) {
-    settings.hidden = !open;
-    $('menu-backdrop').hidden = !open;
-    menu.setAttribute('aria-expanded', String(open));
-    for (const region of document.querySelectorAll<HTMLElement>(
-        'main > :not(nav):not(#settings):not(#menu-backdrop), nav > :not(#menu)',
-    )) region.inert = open;
-    if (open) $('close-menu').focus();
-    else menu.focus();
-}
-function closeMenu() {
-    setMenuOpen(false);
-}
-menu.onclick = () => setMenuOpen(Boolean(settings.hidden));
-$<HTMLButtonElement>('close-menu').onclick = closeMenu;
-$('menu-backdrop').onclick = closeMenu;
+const settings = $<HTMLElement>('settings');
 const dialog = $<HTMLDialogElement>('explanation');
 $<HTMLButtonElement>('explain').onclick = () => dialog.showModal();
 $<HTMLButtonElement>('close-explanation').onclick = () => dialog.close();
-document.addEventListener('keydown', (e) => {
-    if (dialog.open || settings.hidden) return;
-    if (e.key === 'Escape') {
-        e.preventDefault();
-        closeMenu();
-    }
-    if (e.key === 'Tab') {
-        const controls = [...settings.querySelectorAll<HTMLElement>(
-            'button:not(:disabled), input:not(:disabled), select:not(:disabled), a[href]',
-        )];
-        const first = controls[0]!, last = controls[controls.length - 1]!;
-        if (!settings.contains(document.activeElement) || (e.shiftKey && document.activeElement === first)) {
-            e.preventDefault();
-            (e.shiftKey ? last : first).focus();
-        } else if (!e.shiftKey && document.activeElement === last) {
-            e.preventDefault();
-            first.focus();
-        }
-    }
-});
 let width = 900,
     height = 450;
 function resize() {
@@ -69,6 +33,16 @@ let origin = { x: 0, y: 0 },
     scale = 180,
     dragging = false;
 const groundHeight = (x: number) => (x < -0.35 ? 0.98 : x < 0.2 ? 0.78 : x < 0.65 ? 0.57 : 0.36);
+let targetDirection = 1;
+const playback = createPlayback({
+    interval: 100,
+    advance: () => {
+        const next = number('tx') + targetDirection * 0.06;
+        if (next >= 1.2 || next <= -1.2) targetDirection *= -1;
+        $<HTMLInputElement>('tx').value = String(Math.max(-1.2, Math.min(1.2, next)));
+        setup();
+    },
+});
 function setup() {
     for (const id of ['l1', 'l2', 'tx', 'ty']) $(`${id}-value`).textContent = `${number(id).toFixed(2)} m`;
     $('iterations-value').textContent = `${number('iterations')} 회`;
@@ -173,6 +147,7 @@ function draw() {
         `${result.clamped ? '도달 범위 밖 → 목표 제한' : result.error > 0.001 ? '반복 풀이의 잔여 오차' : '목표 도달'} · 실제 뼈 길이 ${distance(root, knee).toFixed(3)} / ${distance(knee, foot).toFixed(3)} m`;
 }
 function targetAt(x: number, y: number) {
+    playback.pause();
     $<HTMLInputElement>('tx').value = String(Math.max(-1.2, Math.min(1.2, (x - origin.x) / scale)));
     $<HTMLInputElement>('ty').value = String(Math.max(-0.5, Math.min(1.3, (y - origin.y) / scale)));
     setup();
@@ -193,12 +168,13 @@ canvas.onpointerup = () => (dragging = false);
 canvas.onpointercancel = () => (dragging = false);
 document.addEventListener('keydown', (e) => {
     if (
-        dialog.open || !settings.hidden ||
+        dialog.open || settings.getAttribute('aria-modal') === 'true' ||
         ['INPUT', 'SELECT'].includes((e.target as HTMLElement).tagName) ||
         !e.key.startsWith('Arrow')
     )
         return;
     e.preventDefault();
+    playback.pause();
     const id = e.key === 'ArrowLeft' || e.key === 'ArrowRight' ? 'tx' : 'ty';
     $<HTMLInputElement>(id).value = String(
         number(id) + (e.key === 'ArrowLeft' || e.key === 'ArrowUp' ? -0.03 : 0.03),
@@ -206,24 +182,32 @@ document.addEventListener('keydown', (e) => {
     setup();
 });
 for (const id of ['solver', 'l1', 'l2', 'tx', 'ty', 'pole', 'iterations', 'weight', 'ground'])
-    $(id).oninput = setup;
+    $(id).oninput = () => {
+        playback.pause();
+        setup();
+    };
 $('near').onclick = () => {
+    playback.pause();
     $<HTMLInputElement>('ground').checked = false;
     $<HTMLInputElement>('tx').value = '0';
     $<HTMLInputElement>('ty').value = '0.02';
     setup();
 };
 $('far').onclick = () => {
+    playback.pause();
     $<HTMLInputElement>('ground').checked = false;
     $<HTMLInputElement>('tx').value = '1.15';
     $<HTMLInputElement>('ty').value = '1.15';
     setup();
 };
 $('flip').onclick = () => {
+    playback.pause();
     $<HTMLSelectElement>('pole').value = String(-number('pole'));
     setup();
 };
 $('reset').onclick = () => {
+    playback.pause();
+    targetDirection = 1;
     for (const [id, value] of Object.entries({
         l1: '.5',
         l2: '.4',
@@ -241,6 +225,7 @@ $('reset').onclick = () => {
 setup();
 
 window.addEventListener('pagehide', (event) => {
+    playback.pause();
     dragging = false;
     if (!event.persisted) observer.disconnect();
 });

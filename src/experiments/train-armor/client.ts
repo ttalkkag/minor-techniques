@@ -1,58 +1,14 @@
+import { syncViewControls } from '../../layouts/experiment-layout';
+import { setPlaybackState } from '../../components/experiment-playback';
+
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 const value = (id: string) => Number($<HTMLInputElement>(id).value);
 const checked = (id: string) => $<HTMLInputElement>(id).checked;
 const choice = (id: string) => $<HTMLSelectElement>(id).value;
-const lab = $('lab'),
-    panel = $('settings'),
-    menu = $('menu'),
+const panel = $('settings'),
     info = $<HTMLDialogElement>('info');
 const keys = new Set<string>();
-const compact = matchMedia('(max-width: 700px)');
-const backdrop = $('menu-backdrop');
-const background = [
-    lab.querySelector<HTMLElement>('.scene')!,
-    lab.querySelector<HTMLElement>('footer')!,
-    lab.querySelector<HTMLElement>('header a')!,
-    $('explain'),
-];
-function menuControls() {
-    return Array.from(panel.querySelectorAll<HTMLElement>('button, input, select, a[href]'))
-        .filter((element) => !element.hasAttribute('disabled') && element.getClientRects().length > 0);
-}
-function syncMenu() {
-    const modal = compact.matches && !panel.hidden;
-    backdrop.hidden = !modal;
-    background.forEach((element) => {
-        element.inert = modal;
-    });
-    if (modal) {
-        panel.setAttribute('role', 'dialog');
-        panel.setAttribute('aria-modal', 'true');
-    } else {
-        panel.setAttribute('role', 'complementary');
-        panel.removeAttribute('aria-modal');
-    }
-}
-function setMenu(open: boolean, focus = true) {
-    panel.hidden = !open;
-    lab.classList.toggle('menu-open', open);
-    menu.setAttribute('aria-expanded', String(open));
-    menu.setAttribute('aria-label', open ? '설정 닫기' : '설정 열기');
-    keys.clear();
-    syncMenu();
-    if (focus) {
-        if (open) menuControls()[0]?.focus();
-        else menu.focus();
-    }
-}
-setMenu(!compact.matches, false);
-menu.onclick = () => setMenu(Boolean(panel.hidden));
-$('close-menu').onclick = () => setMenu(false);
-backdrop.onclick = () => setMenu(false);
-compact.addEventListener('change', () => {
-    syncMenu();
-    if (compact.matches && !panel.hidden && !info.open) menuControls()[0]?.focus();
-});
+document.addEventListener('experiment:layoutchange', () => keys.clear());
 $('explain').onclick = () => {
     keys.clear();
     info.showModal();
@@ -60,23 +16,6 @@ $('explain').onclick = () => {
     info.scrollTop = 0;
 };
 $('close-info').onclick = () => info.close();
-document.addEventListener('keydown', (e) => {
-    if (info.open) return;
-    if (e.key === 'Escape' && !panel.hidden) {
-        e.preventDefault();
-        setMenu(false);
-    } else if (e.key === 'Tab' && compact.matches && !panel.hidden) {
-        const controls = menuControls();
-        const first = controls[0], last = controls[controls.length - 1];
-        if (e.shiftKey && (document.activeElement === first || !panel.contains(document.activeElement))) {
-            e.preventDefault();
-            last?.focus();
-        } else if (!e.shiftKey && (document.activeElement === last || !panel.contains(document.activeElement))) {
-            e.preventDefault();
-            first?.focus();
-        }
-    }
-});
 document.querySelectorAll<HTMLInputElement>('input[type="range"]').forEach((input) =>
     input.addEventListener('input', () => {
         const out = document.getElementById(input.id + '-value');
@@ -86,7 +25,7 @@ document.querySelectorAll<HTMLInputElement>('input[type="range"]').forEach((inpu
 const accepted = ['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'KeyA', 'KeyD', 'KeyW', 'KeyS', 'Space'];
 document.addEventListener('keydown', (e) => {
     if (
-        info.open || (compact.matches && !panel.hidden) ||
+        info.open || panel.getAttribute('aria-modal') === 'true' ||
         (e.target instanceof HTMLElement && e.target.closest('input, select, textarea, button, a'))
     ) return;
     if (accepted.includes(e.code)) {
@@ -128,6 +67,7 @@ function restoreControls() {
         e.dispatchEvent(new Event('input'));
     });
     document.querySelectorAll<HTMLSelectElement>('select').forEach((e) => (e.selectedIndex = 0));
+    syncViewControls();
     keys.clear();
 }
 import * as THREE from 'three';
@@ -329,7 +269,14 @@ function updateTransforms() {
 }
 $('play').onclick = () => {
     playing = !playing;
-    $('play').textContent = playing ? '운행 일시정지' : '운행 시작';
+    setPlaybackState('play', playing);
+};
+$('step').onclick = () => {
+    playing = false;
+    setPlaybackState('play', playing);
+    progress = (progress + 0.02) % 1;
+    $<HTMLInputElement>('progress').value = String(progress * 100);
+    $('progress-value').textContent = (progress * 100).toFixed(0);
 };
 $<HTMLInputElement>('progress').addEventListener('input', () => {
     progress = value('progress') / 100;
@@ -342,7 +289,7 @@ $('reset').onclick = () => {
     locked = true;
     car.position.set(12, 0, 0);
     car.rotation.set(0, 0, 0);
-    $('play').textContent = '운행 시작';
+    setPlaybackState('play', playing);
 };
 function resizeScene() {
     const w = host.clientWidth,
@@ -366,10 +313,11 @@ function frame(now: number) {
     raf = requestAnimationFrame(frame);
 }
 raf = requestAnimationFrame(frame);
+setPlaybackState('play', playing);
 window.addEventListener('pagehide', (e) => {
     keys.clear();
     playing = false;
-    $('play').textContent = '운행 시작';
+    setPlaybackState('play', playing);
     cancelAnimationFrame(raf);
     if (e.persisted) return;
     resize.disconnect();
@@ -386,7 +334,6 @@ window.addEventListener('pagehide', (e) => {
 window.addEventListener('pageshow', (e) => {
     if (!e.persisted) return;
     last = performance.now();
-    syncMenu();
     resize.observe(host);
     resizeScene();
     raf = requestAnimationFrame(frame);

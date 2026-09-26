@@ -1,32 +1,87 @@
 ---
-import Page from '../../layouts/Page.astro';
+import ExperimentLayout from '../../layouts/ExperimentLayout.astro';
+import ExperimentPlayback from '../../components/ExperimentPlayback.astro';
 ---
 
-<Page
+<ExperimentLayout
     title="같은 내용을 더 짧게 저장하기 · 게임 실험실"
     description="공통 레벨과 픽셀의 배치를 바꾸고, 바이트를 다시 펼쳐 비교하세요."
+    class="lab compact-game-data-lab"
 >
-    <main>
-        <nav>
-            <button id="menu" aria-label="설정 메뉴 열기" aria-controls="settings" aria-expanded="false">
-                ☰
-            </button>
-            <a href="/">게임 실험실</a>
-            <button id="help">원리 보기</button>
-        </nav>
-        <header>
-            <p class="eyebrow">COMPACT GAME DATA</p>
-            <h1>같은 내용을 더 짧게 저장하기</h1>
-            <p>공통 레벨과 픽셀의 배치를 바꾸고, 바이트를 다시 펼쳐 비교하세요.</p>
-        </header>
+    <Fragment slot="header-actions">
         <div class="tabs" role="group" aria-label="관찰 주제">
-            <button id="party-mode" aria-pressed="true">
-                공통 레벨 · 예외
-            </button>
-            <button id="image-mode" aria-pressed="false">
-                비트 평면 · RLE
-            </button>
+            <button id="party-mode" aria-pressed="true">공통 레벨 · 예외</button>
+            <button id="image-mode" aria-pressed="false">비트 평면 · RLE</button>
         </div>
+    </Fragment>
+    <Fragment slot="settings">
+        <form id="controls">
+            <div id="party-controls">
+                <label for="count">
+                    파티 인원
+                    <output id="count-out"></output>
+                </label>
+                <input id="count" type="range" min="1" max="6" value="3" />
+                <div id="members"></div>
+                <label for="format">레벨 저장 방식</label>
+                <select id="format">
+                    <option value="auto">같은 레벨이면 공통값</option>
+                    <option value="pairs">항상 개별 레벨·종</option>
+                </select>
+                <label class="check">
+                    <input id="exception" type="checkbox" />
+                    2번 멤버 기술 99 예외 저장
+                </label>
+                <p class="note">
+                    예외는 자체 별도 표 3 B입니다. 원작 기술 테이블의 재현이 아닙니다. 인원이 1이면 1번에
+                    적용합니다.
+                </p>
+                <button id="different" type="button">20 · 22 · 25 레벨 예시</button>
+            </div>
+            <div id="image-controls" hidden>
+                <label for="preset">원본 무늬</label>
+                <select id="preset">
+                    <option value="stripe">문서 예시 · 반복 행</option>
+                    <option value="solid">단색</option>
+                    <option value="noise">고정 시드 잡음</option>
+                </select>
+                <label for="layout">바이트 배치</label>
+                <select id="layout">
+                    <option value="interleaved">행별 교차 · 하위/상위</option>
+                    <option value="planar">평면별 묶음 · 하위 후 상위</option>
+                </select>
+                <label for="paint">칠할 색 번호</label>
+                <select id="paint">
+                    <option value="0">0 · 밝음</option>
+                    <option value="1">1 · 연초록</option>
+                    <option value="2">2 · 청록</option>
+                    <option value="3">3 · 어두움</option>
+                </select>
+                <div class="inline-fields">
+                    <label for="pixel-x">
+                        픽셀 x
+                        <input id="pixel-x" type="number" min="0" max="7" value="0" />
+                    </label>
+                    <label for="pixel-y">
+                        픽셀 y
+                        <input id="pixel-y" type="number" min="0" max="7" value="0" />
+                    </label>
+                </div>
+                <button id="paint-pixel" type="button">선택 픽셀 칠하기</button>
+                <p class="note">
+                    원본 격자를 눌러도 칠할 수 있습니다. 8×8 크기는 포맷 밖에서 알고 있다고 가정하며 A0/A1
+                    배치 바이트를 셉니다.
+                </p>
+            </div>
+        </form>
+    </Fragment>
+    <Fragment slot="body-header">
+        <p class="eyebrow">COMPACT GAME DATA</p>
+        <h1>같은 내용을 더 짧게 저장하기</h1>
+        <p>공통 레벨과 픽셀의 배치를 바꾸고, 바이트를 다시 펼쳐 비교하세요.</p>
+
+    </Fragment>
+    <Fragment slot="graphics">
         <section class="stage" aria-label="데이터와 결과 비교">
             <div id="party-stage">
                 <div class="columns">
@@ -60,6 +115,8 @@ import Page from '../../layouts/Page.astro';
                 </div>
             </div>
         </section>
+    </Fragment>
+    <Fragment slot="description">
         <section class="readout" aria-live="polite">
             <p id="result"></p>
             <p id="detail"></p>
@@ -67,144 +124,75 @@ import Page from '../../layouts/Page.astro';
         <p class="hint">
             설정에서 값을 편집하세요. 원본과 복원 결과를 비교하며 헤더·종료값·예외까지 함께 셉니다.
         </p>
-        <div id="settings" role="complementary" hidden aria-label="실험 설정">
-            <div class="aside-head">
-                <h2>관찰 조건</h2>
-                <button id="close-menu" aria-label="설정 메뉴 닫기">
-                    ×
-                </button>
-            </div>
-            <form id="controls">
-                <div id="party-controls">
-                    <label for="count">
-                        파티 인원 <output id="count-out"></output>
-                    </label>
-                    <input id="count" type="range" min="1" max="6" value="3" />
-                    <div id="members"></div>
-                    <label for="format">레벨 저장 방식</label>
-                    <select id="format">
-                        <option value="auto">같은 레벨이면 공통값</option>
-                        <option value="pairs">항상 개별 레벨·종</option>
-                    </select>
-                    <label class="check">
-                        <input id="exception" type="checkbox" />
-                        2번 멤버 기술 99 예외 저장
-                    </label>
-                    <p class="note">
-                        예외는 자체 별도 표 3 B입니다. 원작 기술 테이블의 재현이 아닙니다. 인원이 1이면 1번에
-                        적용합니다.
-                    </p>
-                    <button id="different" type="button">
-                        20 · 22 · 25 레벨 예시
-                    </button>
-                </div>
-                <div id="image-controls" hidden>
-                    <label for="preset">원본 무늬</label>
-                    <select id="preset">
-                        <option value="stripe">문서 예시 · 반복 행</option>
-                        <option value="solid">단색</option>
-                        <option value="noise">고정 시드 잡음</option>
-                    </select>
-                    <label for="layout">바이트 배치</label>
-                    <select id="layout">
-                        <option value="interleaved">행별 교차 · 하위/상위</option>
-                        <option value="planar">평면별 묶음 · 하위 후 상위</option>
-                    </select>
-                    <label for="paint">칠할 색 번호</label>
-                    <select id="paint">
-                        <option value="0">0 · 밝음</option>
-                        <option value="1">1 · 연초록</option>
-                        <option value="2">2 · 청록</option>
-                        <option value="3">3 · 어두움</option>
-                    </select>
-                    <div class="inline-fields">
-                        <label for="pixel-x">
-                            픽셀 x<input id="pixel-x" type="number" min="0" max="7" value="0" />
-                        </label>
-                        <label for="pixel-y">
-                            픽셀 y<input id="pixel-y" type="number" min="0" max="7" value="0" />
-                        </label>
-                    </div>
-                    <button id="paint-pixel" type="button">
-                        선택 픽셀 칠하기
-                    </button>
-                    <p class="note">
-                        원본 격자를 눌러도 칠할 수 있습니다. 8×8 크기는 포맷 밖에서 알고 있다고 가정하며 A0/A1
-                        배치 바이트를 셉니다.
-                    </p>
-                </div>
-                <button id="reset" type="reset">
-                    처음으로
-                </button>
-            </form>
-        </div>
-    </main>
-    <dialog id="explanation" aria-labelledby="explanation-title">
-        <button id="close-help" aria-label="설명 닫기">
-            ×
-        </button>
-        <p class="eyebrow">원인 · 해결 · 대가</p>
-        <h2 id="explanation-title">같은 내용을 더 짧게 저장하기</h2>
-        <h3>반복되는 의미 · 레벨 한 번, 종 번호 여러 번</h3>
-        <p>
-            같은 레벨의 세 멤버는 [20, A, B, C, 0]의 5 B로 저장합니다. 개별 형식은 [FF, 20, A, 20, B, 20, C,
-            0]의 8 B입니다. 레벨 하나를 바꾸면 개별 형식으로 전환해야 값이 보존됩니다. 형식 구분과 종료값을
-            모두 센 결과입니다.
-        </p>
-        <h3>예외도 복원의 일부</h3>
-        <p>
-            기술 예외를 켜면 자체 표 [대상 위치, 기술 번호, 0]의 3 B를 별도로 붙이고 복원 후 적용합니다. 이
-            교육 모델의 자동 선택은 레벨·종과 이 별도 표만 다룹니다. 실제 pret 재구성 코드에서는 읽기 경로가
-            특수 기술 적용에도 연결되므로, 같은 레벨이라는 이유로 원 게임의 FF를 제거하는 변환 규칙으로 쓰면
-            안 됩니다.
-        </p>
-        <h3>반복되는 배열 · 재배치 다음에 압축</h3>
-        <p>
-            색 번호 0·1·2·3은 하위·상위 비트로 나뉩니다. 0 1 2 3 3 2 1 0 행은 5A 3C이며 8행이 16 B입니다. 행별
-            교차는 반복 16개, 평면별 묶음은 반복 2개라서 [형식 1 B + 반복당 횟수·값 2 B]의 자체 RLE는 33 B와 5
-            B가 됩니다. 분리 자체는 크기를 줄이지 않습니다.
-        </p>
-        <h3>복원과 비용의 범위</h3>
-        <p>
-            실제 배열을 부호화한 뒤 RLE 해제·비트 결합으로 64픽셀을 전수 비교합니다. 잡음과 편집은 압축을
-            불리하게 만들 수 있습니다. 복원 버퍼는 늘 16 B이고 화면 색 배열은 별도입니다. 원 게임 압축의
-            XOR·비트 변환·여러 모드, ROM 포인터, 코드 크기·실행 시간은 이 모델에 없습니다.
-        </p>
-        <p>
-            <a href="https://github.com/pret/pokered/blob/d2704a63c26f9ba046ade877445216b3de0519a4/engine/battle/read_trainer_party.asm">
-                pret · 트레이너 읽기 경로
-            </a>
-            <br />
-            <a href="https://github.com/gbdev/pandocs/blob/0edc96012625b16d275674fea4f36aa6b0bb1d45/src/Tile_Data.md#data-format">
-                Pan Docs · 타일 비트 평면
-            </a>
-            <br />
-            <a href="https://github.com/pret/pokered/blob/d2704a63c26f9ba046ade877445216b3de0519a4/tools/pkmncompress.c">
-                pret · 실제 압축 도구의 별도 알고리즘
-            </a>
-        </p>
-    </dialog>
-</Page>
-<script>
-    import '../../experiments/compact-game-data/client';
-</script>
+    </Fragment>
+    <Fragment slot="controls">
+        <ExperimentPlayback resetForm="controls">
+            <output id="progress-state" aria-live="polite"></output>
+        </ExperimentPlayback>
+    </Fragment>
+    <Fragment slot="overlays">
+        <dialog id="explanation" aria-labelledby="explanation-title">
+            <button id="close-help" aria-label="설명 닫기">×</button>
+            <p class="eyebrow">원인 · 해결 · 대가</p>
+            <h2 id="explanation-title">같은 내용을 더 짧게 저장하기</h2>
+            <h3>반복되는 의미 · 레벨 한 번, 종 번호 여러 번</h3>
+            <p>
+                같은 레벨의 세 멤버는 [20, A, B, C, 0]의 5 B로 저장합니다. 개별 형식은 [FF, 20, A, 20, B, 20,
+                C, 0]의 8 B입니다. 레벨 하나를 바꾸면 개별 형식으로 전환해야 값이 보존됩니다. 형식 구분과
+                종료값을 모두 센 결과입니다.
+            </p>
+            <h3>예외도 복원의 일부</h3>
+            <p>
+                기술 예외를 켜면 자체 표 [대상 위치, 기술 번호, 0]의 3 B를 별도로 붙이고 복원 후 적용합니다.
+                이 교육 모델의 자동 선택은 레벨·종과 이 별도 표만 다룹니다. 실제 pret 재구성 코드에서는 읽기
+                경로가 특수 기술 적용에도 연결되므로, 같은 레벨이라는 이유로 원 게임의 FF를 제거하는 변환
+                규칙으로 쓰면 안 됩니다.
+            </p>
+            <h3>반복되는 배열 · 재배치 다음에 압축</h3>
+            <p>
+                색 번호 0·1·2·3은 하위·상위 비트로 나뉩니다. 0 1 2 3 3 2 1 0 행은 5A 3C이며 8행이 16 B입니다.
+                행별 교차는 반복 16개, 평면별 묶음은 반복 2개라서 [형식 1 B + 반복당 횟수·값 2 B]의 자체 RLE는
+                33 B와 5 B가 됩니다. 분리 자체는 크기를 줄이지 않습니다.
+            </p>
+            <h3>복원과 비용의 범위</h3>
+            <p>
+                실제 배열을 부호화한 뒤 RLE 해제·비트 결합으로 64픽셀을 전수 비교합니다. 잡음과 편집은 압축을
+                불리하게 만들 수 있습니다. 복원 버퍼는 늘 16 B이고 화면 색 배열은 별도입니다. 원 게임 압축의
+                XOR·비트 변환·여러 모드, ROM 포인터, 코드 크기·실행 시간은 이 모델에 없습니다.
+            </p>
+            <p>
+                <a
+                    href="https://github.com/pret/pokered/blob/d2704a63c26f9ba046ade877445216b3de0519a4/engine/battle/read_trainer_party.asm"
+                >
+                    pret · 트레이너 읽기 경로
+                </a>
+                <br />
+                <a
+                    href="https://github.com/gbdev/pandocs/blob/0edc96012625b16d275674fea4f36aa6b0bb1d45/src/Tile_Data.md#data-format"
+                >
+                    Pan Docs · 타일 비트 평면
+                </a>
+                <br />
+                <a
+                    href="https://github.com/pret/pokered/blob/d2704a63c26f9ba046ade877445216b3de0519a4/tools/pkmncompress.c"
+                >
+                    pret · 실제 압축 도구의 별도 알고리즘
+                </a>
+            </p>
+        </dialog>
+    </Fragment>
+    <script>
+        import '../../experiments/compact-game-data/client';
+    </script>
+</ExperimentLayout>
 <style>
-    main {
-        min-height: 100svh;
-        padding: 22px 4vw 28px;
+    :global(.experiment-shell.compact-game-data-lab) {
+        --experiment-graphics-min-height: 490px;
     }
-    nav {
-        display: flex;
-        align-items: center;
-        gap: 16px;
-    }
-    nav a {
-        font-weight: 750;
-        color: #30474f;
-        text-decoration: none;
-    }
-    nav #help {
-        margin-left: auto;
+    @media (max-width: 620px) {
+        :global(.experiment-shell.compact-game-data-lab) {
+            --experiment-graphics-min-height: 540px;
+        }
     }
     button {
         min-height: 42px;
@@ -224,22 +212,12 @@ import Page from '../../layouts/Page.astro';
         color: white;
         border-color: #117e76;
     }
-    header {
-        text-align: center;
-        padding: 20px 0 12px;
-    }
     .eyebrow {
         color: #0e706a;
         font-size: 12px;
         letter-spacing: 0.16em;
         font-weight: 750;
     }
-    h1 {
-        font-size: clamp(25px, 3.6vw, 42px);
-        letter-spacing: -0.05em;
-        margin: 10px 0;
-    }
-    header > p:last-child,
     .hint {
         color: #52676e;
         font-size: 14px;
@@ -250,9 +228,17 @@ import Page from '../../layouts/Page.astro';
         justify-content: center;
         gap: 8px;
         flex-wrap: wrap;
-        margin-bottom: 18px;
+        margin: 0;
+    }
+    .tabs button {
+        min-height: 30px;
+        padding: 4px 9px;
+        font-size: 12px;
     }
     .stage {
+        overflow: auto;
+        width: 100%;
+        height: 100%;
         max-width: 1080px;
         margin: auto;
     }
@@ -264,7 +250,7 @@ import Page from '../../layouts/Page.astro';
     }
     .readout {
         max-width: 1000px;
-        margin: 16px auto 0;
+        margin: 0 auto;
         background: #fff9;
         border: 1px solid #cfdddd;
         border-radius: 16px;
@@ -337,29 +323,6 @@ import Page from '../../layouts/Page.astro';
     .bytes p {
         font-size: 13px;
         margin: 8px 0;
-    }
-    #settings {
-        position: fixed;
-        z-index: 5;
-        left: 16px;
-        top: 78px;
-        bottom: 18px;
-        width: 320px;
-        max-width: calc(100vw - 32px);
-        overflow: auto;
-        padding: 20px;
-        background: #fffef9;
-        box-shadow: 0 16px 60px #20394433;
-        border: 1px solid #c5d3d7;
-        border-radius: 20px;
-    }
-    .aside-head {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-    }
-    .aside-head h2 {
-        font-size: 19px;
     }
     form label {
         display: flex;
@@ -460,16 +423,6 @@ import Page from '../../layouts/Page.astro';
         overflow-wrap: anywhere;
     }
     @media (max-width: 620px) {
-        main {
-            padding: 14px 14px 20px;
-        }
-        header {
-            padding-top: 12px;
-        }
-        header > p:last-child {
-            max-width: 285px;
-            margin: 12px auto;
-        }
         .readout,
         .columns {
             grid-template-columns: 1fr;

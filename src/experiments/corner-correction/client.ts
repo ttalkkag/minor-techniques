@@ -1,47 +1,11 @@
+import { setPlaybackState } from '../../components/experiment-playback';
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 const canvas = $<HTMLCanvasElement>('scene');
 const ctx = canvas.getContext('2d')!;
-const menu = $<HTMLButtonElement>('menu'),
-    settings = $<HTMLElement>('settings');
-function setMenuOpen(open: boolean) {
-    settings.hidden = !open;
-    $('menu-backdrop').hidden = !open;
-    menu.setAttribute('aria-expanded', String(open));
-    for (const region of document.querySelectorAll<HTMLElement>(
-        'main > :not(nav):not(#settings):not(#menu-backdrop), nav > :not(#menu)',
-    )) region.inert = open;
-    if (open) $('close-menu').focus();
-    else menu.focus();
-}
-function closeMenu() {
-    setMenuOpen(false);
-}
-menu.onclick = () => setMenuOpen(Boolean(settings.hidden));
-$<HTMLButtonElement>('close-menu').onclick = closeMenu;
-$('menu-backdrop').onclick = closeMenu;
+const settings = $<HTMLElement>('settings');
 const dialog = $<HTMLDialogElement>('explanation');
 $<HTMLButtonElement>('explain').onclick = () => dialog.showModal();
 $<HTMLButtonElement>('close-explanation').onclick = () => dialog.close();
-document.addEventListener('keydown', (e) => {
-    if (dialog.open || settings.hidden) return;
-    if (e.key === 'Escape') {
-        e.preventDefault();
-        closeMenu();
-    }
-    if (e.key === 'Tab') {
-        const controls = [...settings.querySelectorAll<HTMLElement>(
-            'button:not(:disabled), input:not(:disabled), select:not(:disabled), a[href]',
-        )];
-        const first = controls[0]!, last = controls[controls.length - 1]!;
-        if (!settings.contains(document.activeElement) || (e.shiftKey && document.activeElement === first)) {
-            e.preventDefault();
-            (e.shiftKey ? last : first).focus();
-        } else if (!e.shiftKey && document.activeElement === last) {
-            e.preventDefault();
-            first.focus();
-        }
-    }
-});
 let width = 900,
     height = 450;
 function resize() {
@@ -94,7 +58,7 @@ function obstacles() {
 }
 function reset() {
     playing = false;
-    $('play').textContent = '실험 재생';
+    setPlaybackState('play', playing);
     tick = 0;
     acc = 0;
     const overlap = number('overlap');
@@ -205,7 +169,7 @@ function step() {
     tick++;
     if (tick >= 45) {
         playing = false;
-        $('play').textContent = '다시 재생';
+        setPlaybackState('play', playing);
     }
     $('log').textContent =
         `${tick} 틱 · ${(tick * 0.05).toFixed(2)}s · B 후보 검사 ${actors[1].attempts.length}회${mode() === 'lift' ? ` · 속도 기록 나이 ${number('delay')}ms / 유예 ${number('grace')}ms` : ''}`;
@@ -266,7 +230,7 @@ function frame(now: number) {
 function toggle() {
     if (tick >= 45) reset();
     playing = !playing;
-    $('play').textContent = playing ? '일시 정지' : '실험 재생';
+    setPlaybackState('play', playing);
 }
 function move(direction: number) {
     for (const a of actors)
@@ -276,7 +240,7 @@ function move(direction: number) {
 $('play').onclick = toggle;
 $('step').onclick = () => {
     playing = false;
-    $('play').textContent = '실험 재생';
+    setPlaybackState('play', playing);
     if (tick >= 45) reset();
     step();
 };
@@ -293,7 +257,7 @@ inputs.forEach(
 );
 ['mode', 'blocker', 'same-platform'].forEach((id) => ($(id).onchange = reset));
 document.addEventListener('keydown', (e) => {
-    if (dialog.open || !settings.hidden || ['INPUT', 'SELECT', 'BUTTON'].includes((e.target as HTMLElement).tagName)) return;
+    if (dialog.open || settings.getAttribute('aria-modal') === 'true' || ['INPUT', 'SELECT', 'BUTTON'].includes((e.target as HTMLElement).tagName)) return;
     if (e.code === 'Space') {
         e.preventDefault();
         if (!e.repeat) toggle();

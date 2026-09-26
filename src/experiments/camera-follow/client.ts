@@ -1,58 +1,13 @@
+import { setPlaybackState } from '../../components/experiment-playback';
+
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 const value = (id: string) => Number($<HTMLInputElement>(id).value);
 const checked = (id: string) => $<HTMLInputElement>(id).checked;
 const choice = (id: string) => $<HTMLSelectElement>(id).value;
-const lab = $('lab'),
-    panel = $('settings'),
-    menu = $('menu'),
+const panel = $('settings'),
     info = $<HTMLDialogElement>('info');
 const keys = new Set<string>();
-const compact = matchMedia('(max-width: 700px)');
-const backdrop = $('menu-backdrop');
-const background = [
-    lab.querySelector<HTMLElement>('.scene')!,
-    lab.querySelector<HTMLElement>('footer')!,
-    lab.querySelector<HTMLElement>('header a')!,
-    $('explain'),
-];
-function menuControls() {
-    return Array.from(panel.querySelectorAll<HTMLElement>('button, input, select, a[href]'))
-        .filter((element) => !element.hasAttribute('disabled') && element.getClientRects().length > 0);
-}
-function syncMenu() {
-    const modal = compact.matches && !panel.hidden;
-    backdrop.hidden = !modal;
-    background.forEach((element) => {
-        element.inert = modal;
-    });
-    if (modal) {
-        panel.setAttribute('role', 'dialog');
-        panel.setAttribute('aria-modal', 'true');
-    } else {
-        panel.setAttribute('role', 'complementary');
-        panel.removeAttribute('aria-modal');
-    }
-}
-function setMenu(open: boolean, focus = true) {
-    panel.hidden = !open;
-    lab.classList.toggle('menu-open', open);
-    menu.setAttribute('aria-expanded', String(open));
-    menu.setAttribute('aria-label', open ? '설정 닫기' : '설정 열기');
-    keys.clear();
-    syncMenu();
-    if (focus) {
-        if (open) menuControls()[0]?.focus();
-        else menu.focus();
-    }
-}
-setMenu(!compact.matches, false);
-menu.onclick = () => setMenu(Boolean(panel.hidden));
-$('close-menu').onclick = () => setMenu(false);
-backdrop.onclick = () => setMenu(false);
-compact.addEventListener('change', () => {
-    syncMenu();
-    if (compact.matches && !panel.hidden && !info.open) menuControls()[0]?.focus();
-});
+document.addEventListener('experiment:layoutchange', () => keys.clear());
 $('explain').onclick = () => {
     keys.clear();
     info.showModal();
@@ -60,23 +15,6 @@ $('explain').onclick = () => {
     info.scrollTop = 0;
 };
 $('close-info').onclick = () => info.close();
-document.addEventListener('keydown', (e) => {
-    if (info.open) return;
-    if (e.key === 'Escape' && !panel.hidden) {
-        e.preventDefault();
-        setMenu(false);
-    } else if (e.key === 'Tab' && compact.matches && !panel.hidden) {
-        const controls = menuControls();
-        const first = controls[0], last = controls[controls.length - 1];
-        if (e.shiftKey && (document.activeElement === first || !panel.contains(document.activeElement))) {
-            e.preventDefault();
-            last?.focus();
-        } else if (!e.shiftKey && (document.activeElement === last || !panel.contains(document.activeElement))) {
-            e.preventDefault();
-            first?.focus();
-        }
-    }
-});
 document.querySelectorAll<HTMLInputElement>('input[type="range"]').forEach((input) =>
     input.addEventListener('input', () => {
         const out = document.getElementById(input.id + '-value');
@@ -86,7 +24,7 @@ document.querySelectorAll<HTMLInputElement>('input[type="range"]').forEach((inpu
 const accepted = ['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'KeyA', 'KeyD', 'KeyW', 'KeyS', 'Space'];
 document.addEventListener('keydown', (e) => {
     if (
-        info.open || (compact.matches && !panel.hidden) ||
+        info.open || panel.getAttribute('aria-modal') === 'true' ||
         (e.target instanceof HTMLElement && e.target.closest('input, select, textarea, button, a'))
     ) return;
     if (accepted.includes(e.code)) {
@@ -174,8 +112,16 @@ let player = 10,
     room = 0;
 let previous = performance.now(),
     accumulator = 0,
-    raf = 0;
+    raf = 0,
+    playing = false,
+    demoDirection = 1;
+function setPlaying(next: boolean) {
+    playing = next;
+    accumulator = 0;
+    setPlaybackState('play', playing);
+}
 function reset() {
+    setPlaying(false);
     restoreControls();
     player = 10;
     camera = 13;
@@ -186,8 +132,15 @@ function reset() {
     target = 13;
     room = 0;
     accumulator = 0;
+    demoDirection = 1;
 }
 $('reset').onclick = reset;
+$('play').onclick = () => setPlaying(!playing);
+$('step').onclick = () => {
+    setPlaying(false);
+    keys.clear();
+    update(1 / Number(choice('fps')), true);
+};
 $('teleport').onclick = () => {
     player = 50;
     camera = 53;
@@ -196,10 +149,13 @@ $('teleport').onclick = () => {
     direction = 1;
     pendingTime = 0;
 };
-function update(dt: number) {
-    const input =
+function update(dt: number, automatic: boolean) {
+    if (player >= 70) demoDirection = -1;
+    if (player <= 10) demoDirection = 1;
+    const manual =
         Number(keys.has('ArrowRight') || keys.has('KeyD')) -
         Number(keys.has('ArrowLeft') || keys.has('KeyA'));
+    const input = manual || (automatic ? demoDirection : 0);
     velocity = input * 7;
     player = Math.max(0.5, Math.min(79.5, player + velocity * dt));
     if (input && input !== direction) {
@@ -300,14 +256,16 @@ function frame(now: number) {
     accumulator += dt;
     const step = 1 / Number(choice('fps'));
     while (accumulator >= step) {
-        if (!info.open) update(step);
+        if (!info.open && (playing || keys.size)) update(step, playing);
         accumulator -= step;
     }
     draw();
     raf = requestAnimationFrame(frame);
 }
 raf = requestAnimationFrame(frame);
+setPlaybackState('play', playing);
 window.addEventListener('pagehide', (e) => {
+    setPlaying(false);
     keys.clear();
     cancelAnimationFrame(raf);
     if (!e.persisted) resize.disconnect();
@@ -316,7 +274,6 @@ window.addEventListener('pageshow', (e) => {
     if (!e.persisted) return;
     previous = performance.now();
     accumulator = 0;
-    syncMenu();
     resize.observe(canvas);
     resizeCanvas();
     raf = requestAnimationFrame(frame);

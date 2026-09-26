@@ -1,33 +1,38 @@
 ---
-import Page from '../../layouts/Page.astro';
+import ExperimentLayout from '../../layouts/ExperimentLayout.astro';
+import ExperimentPlayback from '../../components/ExperimentPlayback.astro';
+import ExperimentViewSwitch from '../../components/ExperimentViewSwitch.astro';
 ---
 
-<Page
+<ExperimentLayout
+    helpId="help"
+    class="lab"
+    backdropId="backdrop"
     title="명령 성공이 목표 완료는 아닙니다 · 게임 실험실"
     description="받은 관측과 현재 월드를 나누고, 일부만 실행된 행동의 다음 단계를 확인하세요."
 >
-    <main class="lab">
-        <nav aria-label="실험실 탐색">
-            <button id="menu" aria-label="설정 메뉴 열기" aria-controls="settings" aria-expanded="false">
-                ☰
-            </button>
-            <a href="/">게임 실험실</a>
-            <button id="help" aria-label="원인과 해결 설명 열기">
-                ?
-            </button>
-        </nav>
-        <header>
-            <p class="eyebrow">게임 AI / 관측과 실행</p>
-            <h1>명령 성공이 목표 완료는 아닙니다</h1>
-            <p>받은 관측과 현재 월드를 나누고, 일부만 실행된 행동의 다음 단계를 확인하세요.</p>
-        </header>
-        <section class="stage" aria-label="실험 장면">
-            <canvas
-                id="scene"
-                aria-label="명령 성공이 목표 완료는 아닙니다 관찰 그림"
-                aria-describedby="summary"
-            ></canvas>
-        </section>
+    <ExperimentViewSwitch
+        slot="header-actions"
+        id="scenario"
+        label="실험 장면"
+        options={[
+            { value: 'move', label: '소포 전달', selected: true },
+            { value: 'build', label: '벽 배치' },
+        ]}
+    />
+    <Fragment slot="body-header">
+        <p class="eyebrow">게임 AI / 관측과 실행</p>
+        <h1>명령 성공이 목표 완료는 아닙니다</h1>
+        <p>받은 관측과 현재 월드를 나누고, 일부만 실행된 행동의 다음 단계를 확인하세요.</p>
+    </Fragment>
+    <section slot="graphics" class="stage" aria-label="실험 장면">
+        <canvas
+            id="scene"
+            aria-label="명령 성공이 목표 완료는 아닙니다 관찰 그림"
+            aria-describedby="summary"
+        ></canvas>
+    </section>
+    <Fragment slot="description">
         <section class="readouts" aria-label="관찰값">
             <div class="metric">
                 <span>관측 나이 / 실행 명령</span>
@@ -42,16 +47,7 @@ import Page from '../../layouts/Page.astro';
                 <strong id="metric-2">—</strong>
             </div>
         </section>
-        <div class="toolbar" role="group" aria-label="실험 조작">
-            <button id="cycle" class="primary">
-                관측 → 행동 한 사이클
-            </button>
-            <button id="resolve">전투 종료</button>
-            <button id="restock">자원 +4</button>
-            <button id="concurrent">다른 작업이 3번 칸 변경</button>
-            <button id="rollback">이번 작업 되돌리기</button>
-            <button id="reset">초기화</button>
-        </div>
+
         <p id="summary" class="summary" role="status"></p>
         <section class="extra">
             <p id="result-detail" role="status">
@@ -59,52 +55,44 @@ import Page from '../../layouts/Page.astro';
             </p>
             <div id="events" class="log"></div>
         </section>
-        <div id="backdrop" class="backdrop" hidden></div>
-        <div id="settings" class="settings" role="dialog" aria-modal="true" aria-label="실험 설정" hidden>
-            <h2>
-                실험 설정
-                <button id="close-menu" aria-label="설정 메뉴 닫기">
-                    ×
-                </button>
-            </h2>
-            <div class="control">
-                <label for="scenario">실험 상황</label>
-                <select id="scenario">
-                    <option value="move">소포 전달 · 관측 중 전투 진입</option>
-                    <option value="build">벽 10칸 · 부분 성공과 복원</option>
-                </select>
-            </div>
-            <div class="control">
-                <label for="policy">실행 결과 처리</label>
-                <select id="policy">
-                    <option value="unsafe">명령 응답만 믿기 / 전체 재시도</option>
-                    <option value="verified">맵·완료 조건 확인 / 변경분 재시도</option>
-                </select>
-            </div>
-            <div class="control">
-                <label for="delay">
-                    관측 후 판단 지연 (틱)<output id="delay-value"></output>
-                </label>
-                <input id="delay" type="range" min="0" max="6" value="3" step="1" />
-            </div>
-            <div class="control">
-                <label for="burst">
-                    한 번에 요청할 이동 (칸)<output id="burst-value"></output>
-                </label>
-                <input id="burst" type="range" min="1" max="7" value="5" step="1" />
-            </div>
-            <label class="check">
-                <input id="interrupt" type="checkbox" checked />
-                3틱째 전투로 전환
-            </label>
-            <p class="note">
-                실제 상태와 받은 관측은 같은 시계로 기록합니다. 전투에서는 이동 명령을 수신해도 좌표는 바뀌지
-                않습니다. 벽 작업은 한 번에 최대 6명령, 자원은 처음 6개입니다.
-            </p>
+    </Fragment>
+    <div slot="controls" class="toolbar" role="group" aria-label="실험 조작">
+        <ExperimentPlayback stepId="cycle"><span id="playback-detail">관측 → 행동 → 결과 확인을 한 사이클씩 진행합니다.</span></ExperimentPlayback>
+        <button id="resolve">전투 종료</button>
+        <button id="restock">자원 +4</button>
+        <button id="concurrent">다른 작업이 3번 칸 변경</button>
+        <button id="rollback">이번 작업 되돌리기</button>
+    </div>
+    <div slot="settings" class="settings-fields">
+        <div class="control">
+            <label for="policy">실행 결과 처리</label>
+            <select id="policy">
+                <option value="unsafe">명령 응답만 믿기 / 전체 재시도</option>
+                <option value="verified">맵·완료 조건 확인 / 변경분 재시도</option>
+            </select>
         </div>
-        <noscript>실험을 조작하려면 JavaScript를 켜주세요.</noscript>
-    </main>
-    <dialog id="explanation" aria-labelledby="explanation-title">
+        <div class="control">
+            <label for="delay">
+                관측 후 판단 지연 (틱)<output id="delay-value"></output>
+            </label>
+            <input id="delay" type="range" min="0" max="6" value="3" step="1" />
+        </div>
+        <div class="control">
+            <label for="burst">
+                한 번에 요청할 이동 (칸)<output id="burst-value"></output>
+            </label>
+            <input id="burst" type="range" min="1" max="7" value="5" step="1" />
+        </div>
+        <label class="check">
+            <input id="interrupt" type="checkbox" checked />
+            3틱째 전투로 전환
+        </label>
+        <p class="note">
+            실제 상태와 받은 관측은 같은 시계로 기록합니다. 전투에서는 이동 명령을 수신해도 좌표는 바뀌지
+            않습니다. 벽 작업은 한 번에 최대 6명령, 자원은 처음 6개입니다.
+        </p>
+    </div>
+    <dialog slot="overlays" id="explanation" aria-labelledby="explanation-title">
         <div class="dialog-top">
             <span>원인과 해결</span>
             <button id="close-help" aria-label="설명 닫기">
@@ -149,26 +137,8 @@ import Page from '../../layouts/Page.astro';
     <script>
         import '../../experiments/observation-action-loop/client';
     </script>
-</Page>
+</ExperimentLayout>
 <style>
-    .lab {
-        min-height: 100svh;
-        padding: 18px 28px 28px;
-        background: radial-gradient(ellipse at 50% 30%, #fff, #edf2f3 75%);
-        color: #283f49;
-    }
-    nav {
-        display: flex;
-        gap: 14px;
-        align-items: center;
-        max-width: 1450px;
-        margin: auto;
-    }
-    nav a {
-        font-weight: 750;
-        color: inherit;
-        text-decoration: none;
-    }
     button,
     select {
         min-height: 44px;
@@ -183,54 +153,37 @@ import Page from '../../layouts/Page.astro';
     button:hover {
         background: #e7f1ef;
     }
-    nav button {
-        font-size: 21px;
-        width: 44px;
-        padding: 0;
-    }
-    nav button:last-child {
-        margin-left: auto;
-    }
-    header {
-        text-align: center;
-        margin: 28px 0 23px;
-    }
-    header h1 {
-        word-break: keep-all;
-        font-size: clamp(25px, 3.1vw, 40px);
-        letter-spacing: -0.055em;
-        margin: 8px 0 12px;
-    }
-    header p {
-        font-size: 13px;
-        color: #526b75;
-        margin: 0;
-        line-height: 1.7;
-    }
     .eyebrow {
         font-size: 11px !important;
         color: #197d76 !important;
         letter-spacing: 0.12em;
     }
+    :global(.experiment-shell.lab) {
+        --experiment-graphics-min-height: 385px;
+    }
     .stage {
-        max-width: 1240px;
-        margin: auto;
+        position: relative;
+        min-height: 385px;
+        width: 100%;
+        height: 100%;
         border: 1px solid #d0dce0;
         border-radius: 22px;
         overflow: hidden;
         background: linear-gradient(#f3f7f7, #eaf0f2);
     }
     canvas {
+        position: absolute;
+        inset: 0;
         display: block;
         width: 100%;
-        height: 385px;
+        height: 100%;
     }
     .readouts {
         display: grid;
         grid-template-columns: repeat(3, 1fr);
         gap: 16px;
         max-width: 1150px;
-        margin: 18px auto;
+        margin: 0 auto;
     }
     .metric {
         padding: 6px 12px;
@@ -254,19 +207,16 @@ import Page from '../../layouts/Page.astro';
         font-size: 12px;
     }
     .toolbar {
-        display: flex;
-        justify-content: center;
-        flex-wrap: wrap;
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
         gap: 9px;
-        margin: 18px auto;
+        width: 100%;
     }
-    .primary {
-        background: #187e76;
-        color: white;
-        border-color: #187e76;
-    }
-    .primary:hover {
-        background: #146860;
+    .toolbar button {
+        min-width: 0;
+        width: 100%;
+        white-space: normal;
+        overflow-wrap: anywhere;
     }
     .summary {
         text-align: center;
@@ -297,39 +247,6 @@ import Page from '../../layouts/Page.astro';
         min-height: 44px;
         max-height: 100px;
         overflow: auto;
-    }
-    .backdrop {
-        position: fixed;
-        inset: 0;
-        z-index: 3;
-        background: #263f4833;
-    }
-    .settings {
-        position: fixed;
-        top: 12px;
-        left: 12px;
-        bottom: 12px;
-        width: 312px;
-        max-width: calc(100vw - 24px);
-        overflow: auto;
-        padding: 21px;
-        z-index: 4;
-        background: #f9fbfc;
-        border: 1px solid #ccdbdd;
-        border-radius: 20px;
-        box-shadow: 0 20px 80px #283e4628;
-    }
-    .settings h2 {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        font-size: 18px;
-        margin: 0 0 20px;
-    }
-    .settings h2 button {
-        font-size: 23px;
-        width: 44px;
-        padding: 0;
     }
     .control {
         margin-top: 19px;
@@ -382,21 +299,21 @@ import Page from '../../layouts/Page.astro';
         line-height: 1.75;
         color: #536a74;
     }
-    .settings .wide {
+    .settings-fields .wide {
         width: 100%;
         margin-top: 12px;
         font-size: 12px;
     }
-    .settings hr {
+    .settings-fields hr {
         border: 0;
         border-top: 1px solid #d7e1e3;
         margin: 22px 0;
     }
-    .settings h3 {
+    .settings-fields h3 {
         font-size: 13px;
         color: #197b75;
     }
-    .settings :disabled {
+    .settings-fields :disabled {
         opacity: 0.55;
     }
     .mini-grid {
@@ -486,29 +403,12 @@ import Page from '../../layouts/Page.astro';
         background: #e0efec;
     }
     @media (max-width: 700px) {
-        .lab {
-            padding: 12px 14px 22px;
-        }
-        header {
-            margin: 24px 0 18px;
-        }
-        header h1 {
-            word-break: keep-all;
-            font-size: 27px;
-            line-height: 1.25;
-        }
-        header p {
-            font-size: 11px;
-        }
-        canvas {
-            height: 390px;
-        }
         .stage {
             border-radius: 16px;
         }
         .readouts {
             gap: 6px;
-            margin: 15px 0;
+            margin: 0;
         }
         .metric {
             padding: 3px 8px;

@@ -40,6 +40,12 @@ function client() {
         requestAnimationFrame: (callback: (time: number) => void) => { frame = callback; return 1; },
         cancelAnimationFrame: () => { cancellations++; },
     });
+    const playbackSource = ts.transpileModule(
+        readFileSync(new URL('../../components/experiment-playback.ts', import.meta.url), 'utf8'),
+        { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } },
+    ).outputText;
+    const playback = runInContext(`(() => { const exports = {}; ${playbackSource}; return exports; })()`, context);
+    context.require = (id: string) => id.includes('experiment-playback') ? playback : model;
     runInContext(ts.transpileModule(readFileSync(new URL('./client.ts', import.meta.url), 'utf8'), {
         compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
     }).outputText, context);
@@ -54,6 +60,26 @@ function client() {
         },
     };
 }
+
+test('common playback starts a jump from rest and pause preserves its state', () => {
+    const c = client();
+    c.advance(200);
+    assert.equal(runInContext('time', c.context), 0);
+    assert.equal(runInContext('playing', c.context), false);
+    c.element('play').onclick();
+    assert.equal(runInContext('airborne', c.context), true);
+    c.advance(300);
+    assert.ok(Number(runInContext('y', c.context)) > 0);
+    c.element('play').onclick();
+    const paused = runInContext('y', c.context);
+    c.advance(600);
+    assert.equal(runInContext('y', c.context), paused);
+    c.element('reset').onclick();
+    assert.equal(runInContext('playing', c.context), false);
+    assert.equal(runInContext('y', c.context), 0);
+    assert.equal(c.element('log').textContent,
+        '게임 0.00s · 물리 높이 0.000m · 수평 속도 0.00m/s · 실제 최고점 0.000m · 접지');
+});
 
 test('a paused manual step keeps the current physical position in later render frames', () => {
     const c = client();

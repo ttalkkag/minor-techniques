@@ -24,7 +24,9 @@ function client() {
                 hidden: true,
                 textContent: '',
                 tagName: id === 'scene' ? 'CANVAS' : 'BUTTON',
-                setAttribute() {},
+                attributes: new Map<string, string>(),
+                setAttribute(name: string, value: string) { this.attributes.set(name, value); },
+                getAttribute(name: string) { return this.attributes.get(name) ?? null; },
                 focus() {},
                 setPointerCapture() {},
                 getContext: () => new Proxy({}, { get: () => () => {} }),
@@ -50,6 +52,12 @@ function client() {
         cancelAnimationFrame() {},
     });
     const source = readFileSync(new URL('./client.ts', import.meta.url), 'utf8');
+    const playbackSource = ts.transpileModule(
+        readFileSync(new URL('../../components/experiment-playback.ts', import.meta.url), 'utf8'),
+        { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } },
+    ).outputText;
+    const playback = runInContext(`(() => { const exports = {}; ${playbackSource}; return exports; })()`, context);
+    context.require = (id: string) => id.includes('experiment-playback') ? playback : model;
     runInContext(
         ts.transpileModule(source, {
             compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
@@ -93,4 +101,19 @@ test('releasing a queued press before its tick still honors the held-input polic
     c.advance(34);
     assert.doesNotMatch(c.element('raw-result').textContent, /점프 1회/);
     assert.doesNotMatch(c.element('fixed-result').textContent, /점프 1회/);
+});
+
+test('desktop settings leave scene keys active while the mobile settings dialog blocks them', () => {
+    const desktop = client();
+    desktop.element('settings').hidden = false;
+    desktop.press();
+    desktop.advance(17);
+    assert.match(desktop.element('raw-result').textContent, /점프 1회/);
+
+    const mobile = client();
+    mobile.element('settings').hidden = false;
+    mobile.element('settings').setAttribute('aria-modal', 'true');
+    mobile.press();
+    mobile.advance(17);
+    assert.doesNotMatch(mobile.element('raw-result').textContent, /점프 1회/);
 });

@@ -1,26 +1,17 @@
 ---
-import Page from '../../layouts/Page.astro';
+import ExperimentLayout from '../../layouts/ExperimentLayout.astro';
+import ExperimentPlayback from '../../components/ExperimentPlayback.astro';
 ---
 
-<Page
+<ExperimentLayout
+    helpId="explain"
     title="같은 지도, 다른 발견의 순간 | 게임 실험실"
     description="분기·산의 가림·열쇠 위치를 바꿔 길과 진행 조건을 탐색하세요."
+    id="lab"
+    class="lab"
 >
-    <main class="lab" id="lab">
-        <header>
-            <button id="menu" aria-label="설정 열기" aria-controls="settings" aria-expanded="false">
-                ☰
-            </button>
-            <h1>
-                <small>게임 실험실 · 카메라와 레벨</small>같은 지도, 다른 발견의 순간
-            </h1>
-            <a href="/">목록</a>
-            <button id="explain">원리</button>
-        </header>
-        <button id="menu-backdrop" aria-label="설정 닫기" tabindex="-1" hidden></button>
-        <div class="panel" id="settings" role="complementary" aria-labelledby="settings-title" hidden>
-            <button id="close-menu" class="menu-close">설정 닫기 ×</button>
-            <h2 id="settings-title">조건을 바꾸고 직접 관찰하세요</h2>
+    <Fragment slot="settings">
+        <div class="settings-inputs">
             <label>
                 산 우회 경로
                 <select id="route">
@@ -51,22 +42,33 @@ import Page from '../../layouts/Page.astro';
                 이동 속도 (m/s) <output id="speed-value">5</output>
                 <input id="speed" type="range" min="2" max="10" value="5" step="0.5" />
             </label>
-            <button id="return">시작점으로 돌아가기</button>
-            <button id="reset">초기화</button>
         </div>
+    </Fragment>
+    <Fragment slot="body-header">
+        <h1>
+            <small>게임 실험실 · 카메라와 레벨</small>같은 지도, 다른 발견의 순간
+        </h1>
+    </Fragment>
+    <Fragment slot="graphics">
         <section class="scene" aria-label="같은 지도, 다른 발견의 순간 실험 장면">
             <canvas id="scene" aria-label="대화형 실험 장면"></canvas>
         </section>
-        <footer>
-            <p id="readout">실험을 준비하고 있습니다.</p>
-            <p id="hint">
-                갈림길 버튼으로 다음 지점을 선택하세요. 이동 중에는 실제 경로를 따라갑니다. 위: 경로 기록 /
-                아래: 진행 방향 투영.
-            </p>
-            <div class="touch">
-                <div id="choices"></div>
-            </div>
-        </footer>
+    </Fragment>
+    <Fragment slot="description">
+        <p id="readout">실험을 준비하고 있습니다.</p>
+        <p id="hint">
+            갈림길 버튼으로 다음 지점을 선택하세요. 이동 중에는 실제 경로를 따라갑니다. 위: 경로 기록 /
+            아래: 진행 방향 투영.
+        </p>
+    </Fragment>
+    <div slot="controls" class="controls">
+        <ExperimentPlayback><span id="playback-detail">선택한 경로를 따라 이동합니다. 갈림길에 도착하면 멈춥니다.</span></ExperimentPlayback>
+        <div class="touch">
+            <div id="choices"></div>
+        </div>
+        <button id="return">시작점으로 돌아가기</button>
+    </div>
+    <Fragment slot="overlays">
         <dialog id="info" aria-labelledby="info-title">
             <h2 id="info-title" tabindex="-1">같은 지도, 다른 발견의 순간</h2>
             <h3>문제</h3>
@@ -108,51 +110,13 @@ import Page from '../../layouts/Page.astro';
             </a>
             <button id="close-info">장면으로 돌아가기</button>
         </dialog>
-    </main>
+    </Fragment>
     <script>
         import '../../experiments/navigation-scale/client';
     </script>
-</Page>
+</ExperimentLayout>
 <style>
-    :global(body) {
-        overflow: hidden;
-    }
-    .lab {
-        height: 100svh;
-        min-height: 440px;
-        background: #edf1f3;
-        color: #243744;
-    }
-    header {
-        height: 80px;
-        display: flex;
-        align-items: center;
-        gap: 12px;
-        padding: 12px 22px;
-        border-bottom: 1px solid #cfdbdf;
-        background: #f8faf9;
-        position: relative;
-        z-index: 5;
-    }
-    header a {
-        color: #336460;
-        font-size: 13px;
-        text-decoration: none;
-        white-space: nowrap;
-    }
-    h1 {
-        font-size: clamp(15px, 2vw, 23px);
-        line-height: 1.35;
-        margin: 0;
-        flex: 1;
-    }
-    h1 small {
-        display: block;
-        color: #52676d;
-        font-size: 11px;
-        font-weight: 500;
-        margin-bottom: 4px;
-    }
+    .scene { position: relative; width: 100%; height: 100%; min-height: 0; }
     button,
     select {
         min-height: 42px;
@@ -173,85 +137,41 @@ import Page from '../../layouts/Page.astro';
         opacity: 0.5;
         cursor: default;
     }
-    #menu-backdrop {
-        position: absolute;
-        inset: 86px 0 0;
-        z-index: 3;
-        border: 0;
-        border-radius: 0;
-        background: #24374466;
-    }
-    .panel .menu-close {
-        display: none;
-    }
-    .panel {
-        position: absolute;
-        top: 80px;
-        bottom: 0;
-        left: 0;
-        width: 276px;
-        padding: 22px 18px;
-        background: #f8faf9ee;
-        border-right: 1px solid #cbd8da;
-        overflow: auto;
-        z-index: 4;
-    }
-    .panel h2 {
-        font-size: 13px;
-        color: #547476;
-        margin: 0 0 20px;
-    }
-    .panel label {
+    .settings-inputs label {
         display: block;
         font-size: 13px;
         margin: 0 0 20px;
         line-height: 1.4;
     }
-    .panel input[type='range'] {
+    .settings-inputs input[type='range'] {
         display: block;
         width: 100%;
         accent-color: #187d74;
         margin: 10px 0 0;
         min-height: 25px;
     }
-    .panel select {
+    .settings-inputs select {
         display: block;
         width: 100%;
         margin-top: 8px;
         font-size: 13px;
     }
-    .panel output {
+    .settings-inputs output {
         float: right;
         font-variant-numeric: tabular-nums;
         color: #16786f;
     }
-    .panel .check {
+    .settings-inputs .check {
         display: flex;
         gap: 10px;
         align-items: center;
         min-height: 40px;
         margin-bottom: 8px;
     }
-    .panel input[type='checkbox'] {
+    .settings-inputs input[type='checkbox'] {
         width: 19px;
         height: 19px;
         accent-color: #187d74;
-    }
-    .panel button {
-        width: 100%;
-        margin-bottom: 10px;
-    }
-    .scene {
-        position: absolute;
-        top: 80px;
-        bottom: 146px;
-        left: 0;
-        right: 0;
-        min-height: 100px;
-    }
-    .lab.menu-open .scene,
-    .lab.menu-open footer {
-        left: 276px;
     }
     canvas,
     #webgl {
@@ -259,17 +179,6 @@ import Page from '../../layouts/Page.astro';
         width: 100%;
         height: 100%;
         touch-action: none;
-    }
-    footer {
-        position: absolute;
-        bottom: 0;
-        left: 0;
-        right: 0;
-        padding: 10px 20px 14px;
-        background: #f8faf9;
-        border-top: 1px solid #cbd8da;
-        height: 146px;
-        z-index: 2;
     }
     #readout {
         font-size: 13px;
@@ -284,10 +193,21 @@ import Page from '../../layouts/Page.astro';
         margin: 0 0 8px;
     }
     .touch {
-        display: flex;
+        display: grid;
         gap: 8px;
         align-items: center;
-        flex-wrap: wrap;
+        min-width: 0;
+    }
+    .controls {
+        display: grid;
+        gap: 8px;
+        width: 100%;
+    }
+    .controls button {
+        min-width: 0;
+        width: 100%;
+        white-space: normal;
+        overflow-wrap: anywhere;
     }
     .touch button {
         min-width: 48px;
@@ -295,9 +215,13 @@ import Page from '../../layouts/Page.astro';
         touch-action: none;
     }
     .touch #choices {
-        display: flex;
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
         gap: 6px;
-        flex-wrap: wrap;
+        min-width: 0;
+    }
+    #choices :global(span) {
+        grid-column: 1 / -1;
     }
     .touch #choices button {
         font-size: 12px;
@@ -342,40 +266,7 @@ import Page from '../../layouts/Page.astro';
         margin-top: 20px;
         width: 100%;
     }
-    @media (max-width: 700px) {
-        .panel .menu-close {
-            display: block;
-        }
-        header {
-            height: 86px;
-            padding: 10px;
-            gap: 8px;
-        }
-        header a {
-            font-size: 11px;
-        }
-        h1 {
-            font-size: 15px;
-        }
-        header button {
-            padding: 8px 10px;
-        }
-        .panel {
-            top: 86px;
-            width: min(276px, 86vw);
-        }
-        .scene {
-            top: 86px;
-            bottom: 180px;
-        }
-        .lab.menu-open .scene,
-        .lab.menu-open footer {
-            left: 0;
-        }
-        footer {
-            height: 180px;
-            padding: 10px 12px;
-        }
+    @media (max-width: 800px) {
         #readout {
             font-size: 12px;
         }
@@ -395,7 +286,10 @@ import Page from '../../layouts/Page.astro';
     }
     #choices :global(button) {
         min-height: 42px;
-        min-width: 48px;
+        min-width: 0;
+        width: 100%;
+        white-space: normal;
+        overflow-wrap: anywhere;
         border: 1px solid #b8cbcd;
         border-radius: 9px;
         padding: 8px 12px;

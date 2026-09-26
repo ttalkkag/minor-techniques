@@ -1,4 +1,5 @@
 import { coefficients, type Point } from './model';
+import { setPlaybackState } from '../../components/experiment-playback';
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 const value = (id: string) => Number($<HTMLInputElement>(id).value),
     checked = (id: string) => $<HTMLInputElement>(id).checked;
@@ -82,7 +83,7 @@ async function play() {
             osc.start();
             return osc;
         });
-        $('play').textContent = '소리 끄기';
+        setPlaybackState('play', true);
         canvas.dataset.audioState = 'running';
         updateAudio();
         timer = window.setInterval(paint, 100);
@@ -102,7 +103,7 @@ function stop() {
     master = null;
     analyser = null;
     canvas.dataset.audioState = 'closed';
-    $('play').textContent = '소리 켜기';
+    setPlaybackState('play', false);
     paint();
 }
 function paint() {
@@ -199,46 +200,17 @@ function paint() {
         canvas.dataset.outputRms = rms.toFixed(5);
     } else $('audio-status').textContent = '소리 꺼짐 · 모든 계수는 무음 상태에서도 비교할 수 있습니다.';
 }
-function menu(open: boolean) {
-    const wasOpen = !panel.hidden;
-    panel.hidden = !open;
-    $('backdrop').hidden = !open;
-    $('menu').setAttribute('aria-expanded', String(open));
-    for (const sibling of panel.parentElement!.children) {
-        if (sibling instanceof HTMLElement && sibling !== panel && sibling.id !== 'backdrop')
-            sibling.inert = open;
-    }
-    if (open) {
-        panel.scrollTop = 0;
-        $('close-menu').focus();
-    } else if (wasOpen) $('menu').focus();
-}
-$('menu').onclick = () => menu(true);
-$('close-menu').onclick = () => menu(false);
-$('backdrop').onclick = () => menu(false);
 $('help').onclick = () => dialog.showModal();
 $('close-help').onclick = () => dialog.close();
-document.addEventListener('keydown', (e) => {
-    if (panel.hidden || dialog.open) return;
-    if (e.key === 'Escape') {
-        e.preventDefault();
-        menu(false);
-    } else if (e.key === 'Tab') {
-        const controls = [...panel.querySelectorAll<HTMLElement>('button,input,select,a[href],[tabindex]')].filter(
-            (element) => !element.hasAttribute('disabled') && element.tabIndex >= 0 && element.getClientRects().length,
-        );
-        const first = controls[0],
-            last = controls.at(-1)!;
-        if (e.shiftKey && document.activeElement === first) {
-            e.preventDefault();
-            last.focus();
-        } else if (!e.shiftKey && document.activeElement === last) {
-            e.preventDefault();
-            first.focus();
-        }
-    }
-});
+
 $('play').onclick = () => void play();
+$('step').onclick = () => {
+    stop();
+    const position = $<HTMLInputElement>('source-y');
+    const next = value('source-y') + 0.5;
+    position.value = String(next > Number(position.max) ? Number(position.min) : next);
+    paint();
+};
 $('teleport').onclick = () => {
     const reset = checked('teleport-reset');
     teleportVelocity = reset ? 0 : 1800;
@@ -282,7 +254,6 @@ for (const input of panel.querySelectorAll('input,select')) {
 const resize = new ResizeObserver(paint);
 resize.observe(canvas);
 window.addEventListener('pagehide', () => {
-    menu(false);
     stop();
     resize.disconnect();
 });

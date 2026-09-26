@@ -1,81 +1,18 @@
+import { setPlaybackState } from '../../components/experiment-playback';
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 const value = (id: string) => Number($<HTMLInputElement>(id).value);
 const choice = (id: string) => $<HTMLSelectElement>(id).value;
-const lab = $('lab'),
-    panel = $('settings'),
-    menu = $('menu'),
+const panel = $('settings'),
     info = $<HTMLDialogElement>('info');
 const keys = new Set<string>();
-const compact = matchMedia('(max-width: 700px)');
-const backdrop = $('menu-backdrop');
-const background = [
-    lab.querySelector<HTMLElement>('.scene')!,
-    lab.querySelector<HTMLElement>('footer')!,
-    lab.querySelector<HTMLElement>('header a')!,
-    $('explain'),
-];
-function menuControls() {
-    return Array.from(panel.querySelectorAll<HTMLElement>('button, input, select, a[href]'))
-        .filter((element) => !element.hasAttribute('disabled') && element.getClientRects().length > 0);
-}
-function syncMenu() {
-    const modal = compact.matches && !panel.hidden;
-    backdrop.hidden = !modal;
-    background.forEach((element) => {
-        element.inert = modal;
-    });
-    if (modal) {
-        panel.setAttribute('role', 'dialog');
-        panel.setAttribute('aria-modal', 'true');
-    } else {
-        panel.setAttribute('role', 'complementary');
-        panel.removeAttribute('aria-modal');
-    }
-}
-function setMenu(open: boolean, focus = true) {
-    panel.hidden = !open;
-    lab.classList.toggle('menu-open', open);
-    menu.setAttribute('aria-expanded', String(open));
-    menu.setAttribute('aria-label', open ? '설정 닫기' : '설정 열기');
-    keys.clear();
-    syncMenu();
-    if (focus) {
-        if (open) menuControls()[0]?.focus();
-        else menu.focus();
-    }
-}
-setMenu(!compact.matches, false);
-menu.onclick = () => setMenu(Boolean(panel.hidden));
-$('close-menu').onclick = () => setMenu(false);
-backdrop.onclick = () => setMenu(false);
-compact.addEventListener('change', () => {
-    syncMenu();
-    if (compact.matches && !panel.hidden && !info.open) menuControls()[0]?.focus();
-});
+document.addEventListener('experiment:layoutchange', () => keys.clear());
 $('explain').onclick = () => {
-    keys.clear();
+    setRunning(false);
     info.showModal();
     $('info-title').focus();
     info.scrollTop = 0;
 };
 $('close-info').onclick = () => info.close();
-document.addEventListener('keydown', (e) => {
-    if (info.open) return;
-    if (e.key === 'Escape' && !panel.hidden) {
-        e.preventDefault();
-        setMenu(false);
-    } else if (e.key === 'Tab' && compact.matches && !panel.hidden) {
-        const controls = menuControls();
-        const first = controls[0], last = controls[controls.length - 1];
-        if (e.shiftKey && (document.activeElement === first || !panel.contains(document.activeElement))) {
-            e.preventDefault();
-            last?.focus();
-        } else if (!e.shiftKey && (document.activeElement === last || !panel.contains(document.activeElement))) {
-            e.preventDefault();
-            first?.focus();
-        }
-    }
-});
 document.querySelectorAll<HTMLInputElement>('input[type="range"]').forEach((input) =>
     input.addEventListener('input', () => {
         const out = document.getElementById(input.id + '-value');
@@ -85,12 +22,13 @@ document.querySelectorAll<HTMLInputElement>('input[type="range"]').forEach((inpu
 const accepted = ['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'KeyA', 'KeyD', 'KeyW', 'KeyS', 'Space'];
 document.addEventListener('keydown', (e) => {
     if (
-        info.open || (compact.matches && !panel.hidden) ||
+        info.open || panel.getAttribute('aria-modal') === 'true' ||
         (e.target instanceof HTMLElement && e.target.closest('input, select, textarea, button, a'))
     ) return;
     if (accepted.includes(e.code)) {
         e.preventDefault();
         keys.add(e.code);
+        resumeManual();
     }
 });
 document.addEventListener('keyup', (e) => keys.delete(e.code));
@@ -99,6 +37,7 @@ document.querySelectorAll<HTMLButtonElement>('[data-key]').forEach((b) => {
     b.onpointerdown = (e) => {
         b.setPointerCapture(e.pointerId);
         keys.add(b.dataset.key!);
+        resumeManual();
     };
     b.onpointerup = b.onpointercancel = () => keys.delete(b.dataset.key!);
     b.onkeydown = (e) => {
@@ -106,6 +45,7 @@ document.querySelectorAll<HTMLButtonElement>('[data-key]').forEach((b) => {
             e.preventDefault();
             keyboardHeld = true;
             keys.add(b.dataset.key!);
+            resumeManual();
         }
     };
     b.onkeyup = (e) => {
@@ -169,10 +109,24 @@ let x = 2,
     landing = 0,
     jumpStart = 2,
     clock = 0,
+    running = false,
+    replayReady = true,
     raf = 0,
     last = performance.now(),
     event = '먼저 평지에서 움직여 보세요.';
+function setRunning(next: boolean) {
+    running = next;
+    if (!running) keys.clear();
+    setPlaybackState('play', running);
+}
+function resumeManual() {
+    if (jumpInput.replaying) jumpInput.reset();
+    replayReady = false;
+    setRunning(true);
+}
 function reset() {
+    setRunning(false);
+    replayReady = true;
     restoreControls();
     x = 2;
     y = 0;
@@ -192,7 +146,8 @@ function reset() {
 }
 $('reset').onclick = reset;
 $<HTMLSelectElement>('layout').onchange = () => {
-    keys.clear();
+    setRunning(false);
+    replayReady = true;
     jumpInput.reset();
     x = 2;
     y = 0;
@@ -209,7 +164,7 @@ $<HTMLSelectElement>('layout').onchange = () => {
     jumpStart = 2;
     event = '배치를 바꿨습니다. 같은 조작으로 다시 시도하세요.';
 };
-$('jump-test').onclick = () => {
+function prepareReplay() {
     keys.clear();
     x = 2;
     y = 0;
@@ -217,10 +172,29 @@ $('jump-test').onclick = () => {
     vy = 0;
     grounded = true;
     jumpInput.startReplay();
+    replayReady = false;
     peak = 0;
     landing = 0;
     jumpStart = 2;
     event = '오른쪽 5m/s + 0.12초 점프 입력 재생 중';
+}
+$('jump-test').onclick = () => {
+    prepareReplay();
+    setRunning(true);
+};
+$('play').onclick = () => {
+    if (running) {
+        setRunning(false);
+        return;
+    }
+    if (replayReady) prepareReplay();
+    setRunning(true);
+};
+$('step').onclick = () => {
+    setRunning(false);
+    if (replayReady) prepareReplay();
+    advance(1 / 30);
+    draw();
 };
 function update(dt: number) {
     clock += dt;
@@ -272,6 +246,7 @@ function update(dt: number) {
             landing = nx - jumpStart;
             if (jumpInput.replaying) {
                 jumpInput.reset();
+                replayReady = true;
                 event = `재생 완료: 최고점 ${peak.toFixed(2)}m · 수평 이동 ${landing.toFixed(2)}m`;
             }
         }
@@ -375,29 +350,37 @@ function draw() {
     const sample = jumpSample(value('release'), value('fall'));
     $('readout').textContent =
         `속도 ${vx.toFixed(1)}m/s · 5m/s 제동거리 ${stoppingDistance(5, value('brake')).toFixed(2)}m · 짧은 점프 계산 ${sample.peak.toFixed(2)}m / ${sample.range.toFixed(2)}m · 실패 ${failures}회 · 보상 ${collected ? '접촉함' : '아직'}`;
+    $('playback-detail').textContent = `${running ? '재생 중' : '정지'} · ${clock.toFixed(2)}초 · ${jumpInput.replaying ? '짧은 점프 입력' : replayReady ? '짧은 점프 비교 대기' : '직접 이동'} · 한 스텝은 1/30초입니다.`;
+}
+function advance(dt: number) {
+    if (info.open) return;
+    const replaying = jumpInput.replaying;
+    while (dt > 0) {
+        const step = Math.min(dt, 1 / 120);
+        update(step);
+        dt -= step;
+        if (replaying && !jumpInput.replaying) {
+            setRunning(false);
+            break;
+        }
+    }
 }
 function frame(now: number) {
-    let dt = Math.min(0.05, (now - last) / 1000);
+    const dt = Math.min(0.05, (now - last) / 1000);
     last = now;
-    if (!info.open)
-        while (dt > 0) {
-            const step = Math.min(dt, 1 / 120);
-            update(step);
-            dt -= step;
-        }
+    if (running) advance(dt);
     draw();
     raf = requestAnimationFrame(frame);
 }
 raf = requestAnimationFrame(frame);
 window.addEventListener('pagehide', (e) => {
-    keys.clear();
+    setRunning(false);
     cancelAnimationFrame(raf);
     if (!e.persisted) resize.disconnect();
 });
 window.addEventListener('pageshow', (e) => {
     if (!e.persisted) return;
     last = performance.now();
-    syncMenu();
     resize.observe(canvas);
     resizeCanvas();
     raf = requestAnimationFrame(frame);

@@ -1,57 +1,12 @@
 import { bitDepth, pack, unpack, paletteCost, tileCost, makeTile, expandTiles } from './model';
+import { createPlayback } from '../../components/experiment-playback';
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 const inp = (id: string) => $<HTMLInputElement>(id);
 const num = (id: string) => Number(inp(id).value);
-const menu = $('menu'),
-    panel = $('settings'),
-    form = $<HTMLFormElement>('controls'),
+const form = $<HTMLFormElement>('controls'),
     dialog = $<HTMLDialogElement>('explanation');
-const menuMedia = matchMedia('(max-width: 620px)');
-function overlayMenu() {
-    return true;
-}
-function setMenu(open: boolean, moveFocus = true) {
-    panel.hidden = !open;
-
-    menu.setAttribute('aria-expanded', String(open));
-    menu.setAttribute('aria-label', open ? '설정 메뉴 닫기' : '설정 메뉴 열기');
-    const modal = open && overlayMenu();
-    panel.setAttribute('role', modal ? 'dialog' : 'complementary');
-    if (modal) panel.setAttribute('aria-modal', 'true');
-    else panel.removeAttribute('aria-modal');
-    for (const child of Array.from(panel.parentElement!.children)) {
-        if (child instanceof HTMLElement && child !== panel && child.tagName !== 'NAV')
-            child.inert = modal;
-    }
-    for (const child of Array.from(menu.parentElement!.children))
-        if (child instanceof HTMLElement && child !== menu) child.inert = modal;
-    if (moveFocus) (open ? $('close-menu') : menu).focus();
-
-}
-menu.addEventListener('click', () => setMenu(Boolean(panel.hidden)));
-$('close-menu').addEventListener('click', () => setMenu(false));
 $('help').addEventListener('click', () => dialog.showModal());
 $('close-help').addEventListener('click', () => dialog.close());
-document.addEventListener('keydown', (event) => {
-    if (dialog.open || panel.hidden) return;
-    if (event.key === 'Escape') {
-        event.preventDefault();
-        setMenu(false);
-    } else if (event.key === 'Tab' && overlayMenu()) {
-        const controls = Array.from(panel.querySelectorAll<HTMLElement>(
-            'button:not([disabled]), input:not([disabled]), select:not([disabled]), a[href]',
-        )).filter((control) => control.getClientRects().length > 0);
-        const first = controls[0]!, last = controls[controls.length - 1]!;
-        if (event.shiftKey && (document.activeElement === first || !panel.contains(document.activeElement))) {
-            event.preventDefault();
-            last.focus();
-        } else if (!event.shiftKey && (document.activeElement === last || !panel.contains(document.activeElement))) {
-            event.preventDefault();
-            first.focus();
-        }
-    }
-});
-menuMedia.addEventListener('change', () => setMenu(!panel.hidden, !panel.hidden && overlayMenu()));
 const baseColors = [
     '#233d48',
     '#326c68',
@@ -81,6 +36,21 @@ const canvas = $<HTMLCanvasElement>('scene'),
     ctx = canvas.getContext('2d')!;
 let mapRect = { x: 0, y: 0, size: 0 },
     editorRect = { x: 0, y: 0, size: 0 };
+let progress = -1;
+const playback = createPlayback({
+    interval: 60,
+    advance: () => {
+        const total = mode === 'palette' ? indices.length : map.length;
+        if (progress < 0 || progress >= total) progress = 0;
+        progress++;
+        draw();
+        return progress < total;
+    },
+});
+function restartLookup() {
+    playback.pause();
+    progress = -1;
+}
 function initPalette() {
     const count = num('colors');
     palette = baseColors.slice(0, count);
@@ -109,6 +79,7 @@ function selectedTileIndex() {
     return Math.max(0, Math.min(tiles.length - 1, Math.trunc(num('tile-id')) || 0));
 }
 function switchMode(next: 'palette' | 'tile') {
+    restartLookup();
     mode = next;
     for (const name of ['palette', 'tile']) {
         $(name + '-controls').hidden = name !== mode;
@@ -163,14 +134,14 @@ function drawPalette(width: number) {
         left = (width - 2 * size - gap) / 2,
         top = 42;
     text('초기 팔레트', left, top - 14);
-    text('공유 색 편집 후', left + size + gap, top - 14, '#087c70');
+    text(progress < 0 ? '공유 색 편집 후' : `번호를 읽어 복원 · ${progress}/256`, left + size + gap, top - 14, '#087c70');
     grid(indices, 16, left, top, size, originalPalette, inp('numbers').checked);
-    grid(decoded, 16, left + size + gap, top, size, palette, inp('numbers').checked);
+    grid(progress < 0 ? decoded : decoded.slice(0, progress), 16, left + size + gap, top, size, palette, inp('numbers').checked);
     const cell = size / 16;
     ctx.strokeStyle = '#f3b16e';
     ctx.lineWidth = 1.5;
     decoded.forEach((v, i) => {
-        if (v === selected)
+        if (v === selected && (progress < 0 || i < progress))
             ctx.strokeRect(
                 left + size + gap + (i % 16) * cell + 0.5,
                 top + Math.floor(i / 16) * cell + 0.5,
@@ -178,6 +149,12 @@ function drawPalette(width: number) {
                 cell - 1,
             );
     });
+    if (progress > 0) {
+        const i = progress - 1;
+        ctx.strokeStyle = '#233d48';
+        ctx.lineWidth = 3;
+        ctx.strokeRect(left + size + gap + (i % 16) * cell, top + Math.floor(i / 16) * cell, cell, cell);
+    }
     const swatch = Math.min(42, (width - 40) / 8),
         rowWidth = swatch * 8,
         x0 = (width - rowWidth) / 2,
@@ -188,7 +165,7 @@ function drawPalette(width: number) {
             y = y0 + Math.floor(i / 8) * (swatch + 22);
         ctx.fillStyle = color;
         ctx.fillRect(x + 2, y + 2, swatch - 4, swatch - 4);
-        if (i === selected) {
+        if (i === (progress > 0 ? decoded[progress - 1] : selected)) {
             ctx.strokeStyle = '#dc8748';
             ctx.lineWidth = 3;
             ctx.strokeRect(x, y, swatch, swatch);
@@ -207,9 +184,12 @@ function drawPalette(width: number) {
     $('byte-list').textContent = [...bytes.slice(0, 24)]
         .map((v) => v.toString(16).padStart(2, '0').toUpperCase())
         .join(' ');
+    $('progress-state').textContent = progress < 0
+        ? '픽셀 번호 → 공유 색 표 → 화면 색을 한 칸씩 읽습니다.'
+        : `${progress}/256 · 픽셀 ${progress - 1} → 색 번호 ${decoded[progress - 1]} → ${palette[decoded[progress - 1]!]}`;
 }
 function drawTiles(width: number) {
-    const selected = selectedTileIndex(),
+    const selected = progress > 0 ? map[progress - 1]! : selectedTileIndex(),
         indexBytes = num('index-bytes'),
         attributeBytes = num('attributes'),
         cost = tileCost(100, tiles.length, indexBytes, attributeBytes);
@@ -234,7 +214,11 @@ function drawTiles(width: number) {
     map.forEach((id, i) => {
         const x = left + (i % 10) * cell,
             y = top + Math.floor(i / 10) * cell;
-        if (id === selected) {
+        if (progress >= 0 && i >= progress) {
+            ctx.fillStyle = '#dbe5e5';
+            ctx.fillRect(x, y, cell, cell);
+        }
+        if (id === selected && (progress < 0 || i < progress)) {
             ctx.strokeStyle = '#ee9d55';
             ctx.strokeRect(x + 1, y + 1, cell - 2, cell - 2);
         }
@@ -258,6 +242,9 @@ function drawTiles(width: number) {
     $('byte-list').textContent = [...tileBytes[selected]!]
         .map((v) => v.toString(16).padStart(2, '0').toUpperCase())
         .join(' ');
+    $('progress-state').textContent = progress < 0
+        ? '지도 번호 → 공유 타일 원본 → 지도 칸을 한 칸씩 채웁니다.'
+        : `${progress}/100 · 지도 ${progress - 1} → 타일 ${selected} → ${decodedTiles[selected]!.length}픽셀 복원`;
 }
 function draw() {
     const width = canvas.clientWidth,
@@ -270,6 +257,7 @@ function draw() {
     else drawTiles(width);
 }
 form.addEventListener('input', (e) => {
+    restartLookup();
     const id = (e.target as HTMLElement).id;
     if (id === 'colors') initPalette();
     if (id === 'originals') initTiles();
@@ -277,6 +265,7 @@ form.addEventListener('input', (e) => {
     draw();
 });
 form.addEventListener('change', (e) => {
+    restartLookup();
     if ((e.target as HTMLElement).id === 'color-index')
         inp('color-value').value = palette[num('color-index')]!;
     if ((e.target as HTMLElement).id === 'tile-id') inp('tile-id').value = String(selectedTileIndex());
@@ -284,11 +273,13 @@ form.addEventListener('change', (e) => {
     draw();
 });
 $('swap-color').addEventListener('click', () => {
+    restartLookup();
     palette[num('color-index')] = '#f18b48';
     inp('color-value').value = '#f18b48';
     draw();
 });
 function editTile(pixel: number) {
+    restartLookup();
     const selected = selectedTileIndex();
     tiles[selected]![pixel] = num('tile-color');
     draw();
@@ -301,6 +292,8 @@ function selectedPixel() {
 $('edit-tile').addEventListener('click', () => editTile(selectedPixel()));
 canvas.addEventListener('pointerdown', (e) => {
     if (mode !== 'tile') return;
+    const displayedTile = progress > 0 ? map[progress - 1]! : selectedTileIndex();
+    restartLookup();
     const bounds = canvas.getBoundingClientRect(),
         x = e.clientX - bounds.left,
         y = e.clientY - bounds.top;
@@ -316,6 +309,7 @@ canvas.addEventListener('pointerdown', (e) => {
         y >= editorRect.y &&
         y < editorRect.y + editorRect.size
     ) {
+        inp('tile-id').value = String(displayedTile);
         inp('tile-x').value = String(Math.floor(((x - editorRect.x) / editorRect.size) * 8));
         inp('tile-y').value = String(Math.floor(((y - editorRect.y) / editorRect.size) * 8));
         editTile(selectedPixel());
@@ -323,6 +317,7 @@ canvas.addEventListener('pointerdown', (e) => {
 });
 form.addEventListener('reset', () =>
     requestAnimationFrame(() => {
+        restartLookup();
         initPalette();
         initTiles();
         draw();
@@ -330,10 +325,7 @@ form.addEventListener('reset', () =>
 );
 const observer = new ResizeObserver(draw);
 observer.observe(canvas);
-window.addEventListener('pageshow', () => {
-    setMenu(!panel.hidden, false);
-    draw();
-});
+window.addEventListener('pageshow', draw);
 initPalette();
 initTiles();
 draw();

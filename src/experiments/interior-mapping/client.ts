@@ -1,14 +1,14 @@
 import { trace } from './model';
 import type { Hit, Vec3 } from './model';
+import { createPlayback } from '../../components/experiment-playback';
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 const canvas = $<HTMLCanvasElement>('scene');
 const ctx = canvas.getContext('2d')!;
 const form = $<HTMLFormElement>('controls');
-const menu = $<HTMLButtonElement>('menu');
-const panel = $('settings');
 const dialog = $<HTMLDialogElement>('explanation');
 const inputs = ['camera-x', 'camera-y', 'depth', 'furniture-z'];
 let sample: [number, number] = [0, 0];
+let cameraDirection = 1;
 let hitRect = { x: 0, y: 0, size: 0 };
 const faces: Record<string, string> = {
     left: '왼쪽 벽',
@@ -20,63 +20,8 @@ const faces: Record<string, string> = {
 };
 const number = (id: string) => Number($<HTMLInputElement>(id).value);
 const checked = (id: string) => $<HTMLInputElement>(id).checked;
-const menuBackground = document.querySelectorAll<HTMLElement>(
-    'main > :not(nav):not(#settings):not(dialog), nav > :not(#menu)',
-);
-function syncMenu() {
-    const modal = !panel.hidden;
-    menuBackground.forEach((element) => {
-        element.inert = modal;
-    });
-    if (modal) {
-        panel.setAttribute('role', 'dialog');
-        panel.setAttribute('aria-modal', 'true');
-        if (!dialog.open && !panel.contains(document.activeElement)) $('close-menu').focus();
-    } else {
-        panel.setAttribute('role', 'complementary');
-        panel.removeAttribute('aria-modal');
-    }
-}
-function toggleMenu(open: boolean, focus = true) {
-    panel.hidden = !open;
-    menu.setAttribute('aria-expanded', String(open));
-    menu.setAttribute('aria-label', open ? '설정 메뉴 닫기' : '설정 메뉴 열기');
-    syncMenu();
-    if (focus) (open ? $('close-menu') : menu).focus();
-}
-menu.addEventListener('click', () => toggleMenu(Boolean(panel.hidden)));
-$('close-menu').addEventListener('click', () => {
-    toggleMenu(false);
-    menu.focus();
-});
 $('help').addEventListener('click', () => dialog.showModal());
 $('close-help').addEventListener('click', () => dialog.close());
-document.addEventListener('keydown', (event) => {
-    if (dialog.open || panel.hidden) return;
-    if (event.key === 'Escape') {
-        event.preventDefault();
-        toggleMenu(false);
-    } else if (event.key === 'Tab') {
-        const controls = Array.from(
-            panel.querySelectorAll<HTMLElement>('button, input, select, a[href], [tabindex]'),
-        ).filter(
-            (control) =>
-                !control.matches(':disabled') && control.tabIndex >= 0 && control.getClientRects().length,
-        );
-        const first = controls[0]!,
-            last = controls[controls.length - 1]!;
-        if (event.shiftKey && (document.activeElement === first || !panel.contains(document.activeElement))) {
-            event.preventDefault();
-            last.focus();
-        } else if (
-            !event.shiftKey &&
-            (document.activeElement === last || !panel.contains(document.activeElement))
-        ) {
-            event.preventDefault();
-            first.focus();
-        }
-    }
-});
 function color(hit: Hit | null): [number, number, number] {
     if (!hit) return [206, 217, 217];
     const [u, v] = hit.uv;
@@ -204,8 +149,19 @@ function draw() {
 form.addEventListener('input', draw);
 form.addEventListener('change', draw);
 form.addEventListener('reset', () => {
+    cameraDirection = 1;
     sample = [0, 0];
     requestAnimationFrame(draw);
+});
+createPlayback({
+    interval: 200,
+    advance: () => {
+        const camera = number('camera-x');
+        if (camera >= 5) cameraDirection = -1;
+        else if (camera <= -5) cameraDirection = 1;
+        $<HTMLInputElement>('camera-x').value = Math.max(-5, Math.min(5, camera + cameraDirection * 0.1)).toFixed(1);
+        draw();
+    },
 });
 $('front').addEventListener('click', () => {
     $<HTMLInputElement>('camera-x').value = '0';
@@ -251,7 +207,6 @@ window.addEventListener('pagehide', (event) => {
 window.addEventListener('pageshow', (event) => {
     if (event.persisted) {
         observer.observe(canvas);
-        syncMenu();
         draw();
     }
 });

@@ -1,42 +1,21 @@
 ---
-import Page from '../../layouts/Page.astro';
+import ExperimentLayout from '../../layouts/ExperimentLayout.astro';
+import ExperimentPlayback from '../../components/ExperimentPlayback.astro';
 ---
 
-<Page
+<ExperimentLayout
+    helpId="texture-help"
     title="비스듬한 바닥의 무늬가 휘는 이유 · 게임 실험실"
     description="같은 3D 평면을 아핀 보간과 원근 보정으로 그리며, 분할 공간이 UV 오차에 미치는 영향을 비교합니다."
+    class="texture-lab"
+    settingsId="texture-settings"
+    menuId="texture-menu"
+    closeSettingsId="texture-close-menu"
+    backdropId="texture-backdrop"
+    style="--experiment-graphics-min-height: 465px; --experiment-graphics-mobile-min-height: 710px;"
 >
-    <main class="texture-lab">
-        <nav aria-label="실험실 탐색">
-            <button
-                id="texture-menu"
-                aria-label="설정 메뉴 열기"
-                aria-controls="texture-settings"
-                aria-expanded="false"
-            >
-                ☰
-            </button>
-            <a href="/">게임 실험실</a>
-            <button id="texture-help" aria-label="원인과 해결 설명 열기">
-                ?
-            </button>
-        </nav>
-        <header>
-            <p class="eyebrow">렌더링 정밀도 / 텍스처 보간</p>
-            <h1>
-                바닥은 평평한데,
-                <br class="mobile-break" /> 무늬는 왜 휠까요?
-            </h1>
-            <p>같은 정점, 같은 카메라. 정점 사이의 UV만 달라집니다.</p>
-        </header>
-        <div id="texture-backdrop" class="backdrop" hidden></div>
-        <div id="texture-settings" class="settings" role="dialog" aria-modal="true" aria-label="텍스처 실험 설정" hidden>
-            <div class="settings-heading">
-                <h2>실험 설정</h2>
-                <button id="texture-close-menu" aria-label="설정 메뉴 닫기">
-                    ×
-                </button>
-            </div>
+    <Fragment slot="settings">
+        <div class="settings-fields">
             <label for="texture-method">보간 방식</label>
             <select id="texture-method">
                 <option value="affine">아핀 · 화면에서 UV 선형 보간</option>
@@ -82,11 +61,17 @@ import Page from '../../layouts/Page.astro';
                 <input id="texture-wire" type="checkbox" />
                 <span>제출 삼각형의 모서리 보기</span>
             </label>
-            <div class="presets">
-                <button id="texture-flat">동일 깊이 대조군</button>
-                <button id="texture-reset">초기화</button>
-            </div>
         </div>
+    </Fragment>
+    <Fragment slot="body-header">
+        <p class="eyebrow">렌더링 정밀도 / 텍스처 보간</p>
+        <h1>
+            바닥은 평평한데,
+            <br class="mobile-break" /> 무늬는 왜 휠까요?
+        </h1>
+        <p>같은 정점, 같은 카메라. 정점 사이의 UV만 달라집니다.</p>
+    </Fragment>
+    <Fragment slot="graphics">
         <section class="comparison" aria-label="동일한 3D 바닥의 보간 비교">
             <figure>
                 <figcaption>
@@ -135,6 +120,8 @@ import Page from '../../layouts/Page.astro';
                 </div>
             </figure>
         </section>
+    </Fragment>
+    <Fragment slot="description">
         <section class="probe" aria-label="선택 위치의 UV" aria-live="polite">
             <div>
                 <span>화면의 십자 위치</span>
@@ -144,93 +131,87 @@ import Page from '../../layouts/Page.astro';
                 <span id="texture-probe-a">A UV —</span>
                 <span id="texture-probe-b">B UV —</span>
             </p>
-            <button id="texture-probe-center">중앙 표본</button>
         </section>
         <p class="hint" id="texture-summary" role="status">
             설정에서 기울기와 분할 수를 조절해 보세요.
         </p>
         <noscript>실험을 조작하려면 JavaScript를 켜주세요.</noscript>
-    </main>
-    <dialog id="texture-explanation" aria-labelledby="texture-explanation-title">
-        <div class="dialog-heading">
-            <span>원인과 해결</span>
-            <button id="texture-close-help" aria-label="설명 닫기">
-                ×
-            </button>
+    </Fragment>
+    <Fragment slot="controls">
+        <ExperimentPlayback playId="texture-play" stepId="texture-step" resetId="texture-reset">
+            바닥 기울기를 0°부터 75°까지 왕복하며 UV 보간 차이를 비교합니다.
+        </ExperimentPlayback>
+        <div class="presets">
+            <button id="texture-flat">동일 깊이 대조군</button>
         </div>
-        <h2 id="texture-explanation-title">화면의 중간 ≠ 면의 중간</h2>
-        <p class="guide">
-            아핀 상태에서 분할 수를 8로 올린 뒤, 분할 공간을 바꿔 보세요. ‘동일 깊이 대조군’에서는 두 그림이
-            일치합니다.
-        </p>
-        <h3>문제 · 삼각형 안에서 꺾이는 무늬</h3>
-        <p>
-            가까운 부분은 크게, 먼 부분은 작게 투영됩니다. 화면 삼각형 안에서 UV를 단순 선형 보간하면 원래
-            평면의 위치와 다른 텍스처 좌표를 읽습니다. 두 그림은 같은 3D 정점과 투영식을 사용합니다.
-        </p>
-        <h3>원인 · 깊이를 빼놓은 보간</h3>
-        <p>
-            화면의 무게를 λ, 정점 깊이를 w라 하면 아핀은 Σ(λ × UV), 원근 보정은 Σ(λ × UV / w) ÷ Σ(λ /
-            w)입니다. 가까운 끝 UV=0, w=1과 먼 끝 UV=1, w=4의 화면상 중간은 아핀으로 0.5, 원근 보정으로
-            0.2입니다.
-        </p>
-        <h3>해결 · 원근 보정 또는 3D 면 분할</h3>
-        <p>
-            원근 보정은 각 픽셀의 깊이 비율을 직접 반영합니다. 아핀을 유지하려면 원래 3D 면 위에 정점을 만들고
-            다시 투영해 작은 삼각형 안의 오차를 줄일 수 있습니다. 화면 좌표와 기존 아핀 UV를 함께 잘게 나누면
-            원래의 선형 함수를 유지하므로 오차는 줄지 않습니다.
-        </p>
-        <h3>대가 · 제출 면 수와 계산</h3>
-        <p>
-            한 변을 N개로 나누면 삼각형은 2N²개가 됩니다. 여기서는 제출 면 수만 표시하며, 특정 GPU의 프레임
-            시간이나 텍스처 캐시는 모델링하지 않습니다. 원근 보정은 UV/w와 1/w의 보간 및 나눗셈이 필요합니다.
-        </p>
-        <h3>결과를 읽는 방법</h3>
-        <p>
-            UV RMS는 전체 투영 면의 화면 경계 상자에 놓은 41×41 표본 중 면 내부에 있는 점의 UV 거리 제곱 평균
-            제곱근입니다. UV 범위는 0~1입니다. 십자는 선택한 한 화면 위치입니다. 텍스처는 최근접 표본으로
-            읽으므로 해상도를 올리면 경계가 선명해져도 UV 오차는 그대로입니다.
-        </p>
-        <p>
-            이 장면은 직접 작성한 소프트웨어 삼각형 래스터라이저입니다. 화면 정점 양자화·색 정밀도·깊이 정렬은
-            적용하지 않아 보간 단계만 비교합니다. 원근 보정 모드는 원래 두 삼각형을 사용합니다.
-        </p>
-        <a
-            href="https://psx.arthus.net/sdk/Psy-Q/DOCS/LibOver47.pdf#page=115"
-            target="_blank"
-            rel="noopener noreferrer"
-        >
-            Sony · Run-Time Library Overview, 8-33~8-35쪽 ↗
-        </a>
-        <p class="note">
-            Sony 원문은 역사 문서 보관처 링크입니다. 특정 게임의 실행 결과를 재현하지 않습니다.
-        </p>
-    </dialog>
+        <button id="texture-probe-center">중앙 표본</button>
+    </Fragment>
+    <Fragment slot="overlays">
+        <dialog id="texture-explanation" aria-labelledby="texture-explanation-title">
+            <div class="dialog-heading">
+                <span>원인과 해결</span>
+                <button id="texture-close-help" aria-label="설명 닫기">
+                    ×
+                </button>
+            </div>
+            <h2 id="texture-explanation-title">화면의 중간 ≠ 면의 중간</h2>
+            <p class="guide">
+                아핀 상태에서 분할 수를 8로 올린 뒤, 분할 공간을 바꿔 보세요. ‘동일 깊이
+                대조군’에서는 두 그림이 일치합니다.
+            </p>
+            <h3>문제 · 삼각형 안에서 꺾이는 무늬</h3>
+            <p>
+                가까운 부분은 크게, 먼 부분은 작게 투영됩니다. 화면 삼각형 안에서 UV를 단순 선형
+                보간하면 원래 평면의 위치와 다른 텍스처 좌표를 읽습니다. 두 그림은 같은 3D 정점과
+                투영식을 사용합니다.
+            </p>
+            <h3>원인 · 깊이를 빼놓은 보간</h3>
+            <p>
+                화면의 무게를 λ, 정점 깊이를 w라 하면 아핀은 Σ(λ × UV), 원근 보정은 Σ(λ × UV / w) ÷
+                Σ(λ / w)입니다. 가까운 끝 UV=0, w=1과 먼 끝 UV=1, w=4의 화면상 중간은 아핀으로 0.5,
+                원근 보정으로 0.2입니다.
+            </p>
+            <h3>해결 · 원근 보정 또는 3D 면 분할</h3>
+            <p>
+                원근 보정은 각 픽셀의 깊이 비율을 직접 반영합니다. 아핀을 유지하려면 원래 3D 면 위에
+                정점을 만들고 다시 투영해 작은 삼각형 안의 오차를 줄일 수 있습니다. 화면 좌표와 기존
+                아핀 UV를 함께 잘게 나누면 원래의 선형 함수를 유지하므로 오차는 줄지 않습니다.
+            </p>
+            <h3>대가 · 제출 면 수와 계산</h3>
+            <p>
+                한 변을 N개로 나누면 삼각형은 2N²개가 됩니다. 여기서는 제출 면 수만 표시하며, 특정
+                GPU의 프레임 시간이나 텍스처 캐시는 모델링하지 않습니다. 원근 보정은 UV/w와 1/w의
+                보간 및 나눗셈이 필요합니다.
+            </p>
+            <h3>결과를 읽는 방법</h3>
+            <p>
+                UV RMS는 전체 투영 면의 화면 경계 상자에 놓은 41×41 표본 중 면 내부에 있는 점의 UV
+                거리 제곱 평균 제곱근입니다. UV 범위는 0~1입니다. 십자는 선택한 한 화면 위치입니다.
+                텍스처는 최근접 표본으로 읽으므로 해상도를 올리면 경계가 선명해져도 UV 오차는
+                그대로입니다.
+            </p>
+            <p>
+                이 장면은 직접 작성한 소프트웨어 삼각형 래스터라이저입니다. 화면 정점 양자화·색
+                정밀도·깊이 정렬은 적용하지 않아 보간 단계만 비교합니다. 원근 보정 모드는 원래 두
+                삼각형을 사용합니다.
+            </p>
+            <a
+                href="https://psx.arthus.net/sdk/Psy-Q/DOCS/LibOver47.pdf#page=115"
+                target="_blank"
+                rel="noopener noreferrer"
+            >
+                Sony · Run-Time Library Overview, 8-33~8-35쪽 ↗
+            </a>
+            <p class="note">
+                Sony 원문은 역사 문서 보관처 링크입니다. 특정 게임의 실행 결과를 재현하지 않습니다.
+            </p>
+        </dialog>
+    </Fragment>
     <script>
         import '../../experiments/texture-interpolation/client';
     </script>
-</Page>
-
+</ExperimentLayout>
 <style>
-    .texture-lab {
-        min-height: 100svh;
-        padding: 18px 30px 24px;
-        background: radial-gradient(ellipse at 50% 30%, #fff 0, #f0f3f4 65%);
-        color: #263c45;
-    }
-    nav {
-        display: flex;
-        align-items: center;
-        gap: 16px;
-        max-width: 1600px;
-        margin: auto;
-    }
-    nav a {
-        font-weight: 750;
-        text-decoration: none;
-        color: inherit;
-        letter-spacing: -0.03em;
-    }
     button,
     select {
         min-height: 44px;
@@ -243,27 +224,10 @@ import Page from '../../layouts/Page.astro';
     button {
         padding: 9px 14px;
     }
-    nav button {
-        width: 44px;
-        font-size: 22px;
-        padding: 0;
-    }
-    #texture-help {
-        margin-left: auto;
-    }
-    header {
-        text-align: center;
-        margin: 25px auto 24px;
-    }
-    header h1 {
+    h1 {
         font-size: clamp(25px, 3.3vw, 43px);
         letter-spacing: -0.055em;
         margin: 9px 0 12px;
-    }
-    header p {
-        font-size: 14px;
-        color: #62757d;
-        margin: 0;
     }
     .eyebrow {
         font-size: 11px !important;
@@ -277,8 +241,7 @@ import Page from '../../layouts/Page.astro';
         display: grid;
         grid-template-columns: 1fr 1fr;
         gap: 22px;
-        max-width: 1500px;
-        margin: auto;
+        width: 100%;
     }
     figure {
         margin: 0;
@@ -325,7 +288,7 @@ import Page from '../../layouts/Page.astro';
     }
     .canvas-wrap {
         position: relative;
-        height: clamp(230px, 43vh, 510px);
+        height: 310px;
         border: 1px solid #d6dfe1;
         border-radius: 20px;
         overflow: hidden;
@@ -369,7 +332,7 @@ import Page from '../../layouts/Page.astro';
         align-items: center;
         justify-content: center;
         max-width: 720px;
-        margin: 16px auto 0;
+        margin: 0 auto;
         padding: 16px 20px;
         border: 1px solid #d1dcde;
         border-radius: 16px;
@@ -395,10 +358,6 @@ import Page from '../../layouts/Page.astro';
         font-variant-numeric: tabular-nums;
         font-size: 12px;
     }
-    .probe button {
-        font-size: 12px;
-        margin-left: auto;
-    }
     .hint {
         text-align: center;
         font-size: 12px;
@@ -407,43 +366,7 @@ import Page from '../../layouts/Page.astro';
         max-width: 900px;
         margin: 14px auto 0;
     }
-    .backdrop {
-        position: fixed;
-        inset: 0;
-        background: #253c4933;
-        z-index: 3;
-    }
-    .settings {
-        position: fixed;
-        top: 12px;
-        left: 12px;
-        bottom: 12px;
-        width: 310px;
-        max-width: calc(100vw - 24px);
-        padding: 20px;
-        z-index: 4;
-        overflow: auto;
-        background: #f9fbfc;
-        border: 1px solid #cedcde;
-        border-radius: 20px;
-        box-shadow: 0 20px 80px #263c4526;
-    }
-    .settings-heading {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        margin-bottom: 18px;
-    }
-    .settings-heading h2 {
-        font-size: 17px;
-        margin: 0;
-    }
-    .settings-heading button {
-        font-size: 23px;
-        padding: 0;
-        width: 44px;
-    }
-    .settings > label {
+    .settings-fields > label {
         display: flex;
         justify-content: space-between;
         font-size: 12px;
@@ -451,22 +374,22 @@ import Page from '../../layouts/Page.astro';
         margin-top: 20px;
         margin-bottom: 9px;
     }
-    .settings output {
+    .settings-fields output {
         color: #147b73;
     }
-    .settings select {
+    .settings-fields select {
         width: 100%;
         font-size: 12px;
         padding: 0 10px;
         border-radius: 10px;
     }
-    .settings input[type='range'] {
+    .settings-fields input[type='range'] {
         width: 100%;
         height: 32px;
         accent-color: #187c75;
         margin: 0;
     }
-    .settings .note {
+    .settings-fields .note {
         font-size: 11px;
         line-height: 1.65;
         color: #536972;
@@ -560,24 +483,12 @@ import Page from '../../layouts/Page.astro';
         outline-offset: 3px;
     }
     @media (max-width: 700px) {
-        .texture-lab {
-            padding: 12px 14px 20px;
-        }
-        nav {
-            gap: 11px;
-        }
-        header {
-            margin: 24px auto 15px;
-        }
-        header h1 {
+        h1 {
             font-size: 29px;
             line-height: 1.25;
         }
         .mobile-break {
             display: block;
-        }
-        header p {
-            font-size: 11px;
         }
         .comparison {
             grid-template-columns: 1fr;
@@ -617,10 +528,6 @@ import Page from '../../layouts/Page.astro';
         }
         .probe p span {
             font-size: 11px;
-        }
-        .probe button {
-            min-height: 40px;
-            padding: 7px 10px;
         }
         .hint {
             font-size: 11px;

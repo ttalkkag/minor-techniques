@@ -1,62 +1,18 @@
 import { inspect, type Point, type Settings } from './model';
+import { createPlayback } from '../../components/experiment-playback';
 const el = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 const canvas = el<HTMLCanvasElement>('canvas'),
     ctx = canvas.getContext('2d')!;
 const val = (id: string) => Number(el<HTMLInputElement>(id).value),
     checked = (id: string) => el<HTMLInputElement>(id).checked;
-const menu = el<HTMLButtonElement>('menu'),
-    settings = el<HTMLElement>('settings'),
-    dialog = el<HTMLDialogElement>('explanation');
-const menuMedia = matchMedia('(max-width: 750px)');
-const menuBackground = Array.from(document.querySelectorAll<HTMLElement>('.stage, .lab > header > a'));
-function menuControls() {
-    return Array.from(settings.querySelectorAll<HTMLElement>('button, input, select, a[href]'))
-        .filter((control) => control.getClientRects().length && !control.hasAttribute('disabled'));
-}
-function syncMenu() {
-    const modal = !settings.hidden && menuMedia.matches;
-    for (const element of menuBackground) element.inert = modal;
-    settings.setAttribute('role', modal ? 'dialog' : 'complementary');
-    if (modal) settings.setAttribute('aria-modal', 'true');
-    else settings.removeAttribute('aria-modal');
-}
-function trapMenu(event: KeyboardEvent) {
-    if (dialog.open || settings.hidden || !menuMedia.matches || event.key !== 'Tab') return;
-    const controls = menuControls(), first = controls[0], last = controls.at(-1);
-    if (!first || !last) return;
-    if (!settings.contains(document.activeElement) || (event.shiftKey ? document.activeElement === first : document.activeElement === last)) {
-        event.preventDefault();
-        (event.shiftKey ? last : first).focus();
-    }
-}
-menuMedia.addEventListener('change', () => {
-    syncMenu();
-    if (!settings.hidden && menuMedia.matches && !dialog.open) menuControls()[0]?.focus();
-});
-function setMenu(open: boolean, focus = true) {
-    settings.hidden = !open;
-    menu.setAttribute('aria-expanded', String(open));
-    syncMenu();
-    if (focus) (open ? menuControls()[0] : menu)?.focus();
-}
-setMenu(!menuMedia.matches, false);
-menu.addEventListener('click', () => setMenu(Boolean(settings.hidden)));
-el('close-menu').addEventListener('click', () => setMenu(false));
+const dialog = el<HTMLDialogElement>('explanation');
 el('explain').addEventListener('click', () => dialog.showModal());
 el('close-dialog').addEventListener('click', () => dialog.close());
-const onKey = (e: KeyboardEvent) => {
-    if (dialog.open) return;
-    if (e.key === 'Escape' && !settings.hidden) {
-        e.preventDefault();
-        setMenu(false);
-    }
-    trapMenu(e);
-};
-document.addEventListener('keydown', onKey);
 let width = 0,
     height = 0,
     origin: Point = { x: -7, y: 0 },
     time = 0,
+    movementDirection = 1,
     lastSeen = -Infinity;
 const fixed: Point[] = [
     { x: -3, y: -3.5 },
@@ -217,7 +173,7 @@ function render() {
     ctx.fillStyle = '#4c6970';
     ctx.font = '12px sans-serif';
     ctx.fillText('위에서 본 2D 공간 · 격자 1 m', 16, 25);
-    ctx.fillText(`광선: ${first ? '첫 충돌 검사' : '벽 전용 검사'} · 시간은 수동 진행`, 16, height - 17);
+    ctx.fillText(`광선: ${first ? '첫 충돌 검사' : '벽 전용 검사'} · ${time.toFixed(1)}초`, 16, height - 17);
 }
 function resize() {
     const rect = canvas.getBoundingClientRect();
@@ -227,6 +183,21 @@ function resize() {
     canvas.width = width * dpr;
     canvas.height = height * dpr;
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    render();
+}
+const playback = createPlayback({
+    interval: 500,
+    advance: () => {
+        const y = val('target-y');
+        if (y + movementDirection * 0.5 > 5 || y + movementDirection * 0.5 < -5)
+            movementDirection *= -1;
+        el<HTMLInputElement>('target-y').value = (y + movementDirection * 0.5).toFixed(1);
+        time += 0.5;
+        render();
+    },
+});
+function settingChanged() {
+    playback.pause();
     render();
 }
 for (const id of [
@@ -242,8 +213,9 @@ for (const id of [
     'wall-end',
     'memory',
 ])
-    el(id).addEventListener('input', render);
+    el(id).addEventListener('input', settingChanged);
 function reset() {
+    playback.pause();
     for (const [id, v] of Object.entries({
         heading: '0',
         fov: '90',
@@ -260,6 +232,7 @@ function reset() {
     el<HTMLInputElement>('occlusion').checked = true;
     origin = { x: -7, y: 0 };
     time = 0;
+    movementDirection = 1;
     lastSeen = -Infinity;
     render();
 }
@@ -271,19 +244,23 @@ el('counterexample').addEventListener('click', () => {
     render();
 });
 el('inside-wall').addEventListener('click', () => {
+    playback.pause();
     origin = { x: 1, y: -1 };
     render();
 });
 el('same-position').addEventListener('click', () => {
+    playback.pause();
     el<HTMLInputElement>('target-x').value = String(origin.x);
     el<HTMLInputElement>('target-y').value = String(origin.y);
     render();
 });
 el('tick').addEventListener('click', () => {
+    playback.pause();
     time += 0.5;
     render();
 });
 canvas.addEventListener('pointerdown', (e) => {
+    playback.pause();
     const r = canvas.getBoundingClientRect();
     el<HTMLInputElement>('target-x').value = String(
         Math.max(-8, Math.min(9, (e.clientX - r.left - offsetX) / unit)),
@@ -295,15 +272,13 @@ canvas.addEventListener('pointerdown', (e) => {
 });
 const observer = new ResizeObserver(resize);
 observer.observe(canvas.parentElement!);
-window.addEventListener('pagehide', (event) => {
+window.addEventListener('pagehide', () => {
     observer.disconnect();
-    if (!event.persisted) document.removeEventListener('keydown', onKey);
 });
 window.addEventListener('pageshow', () => {
     observer.observe(canvas.parentElement!);
-    syncMenu();
     resize();
 });
 resize();
 
-for (const id of ['samples', 'query']) el(id).addEventListener('change', render);
+for (const id of ['samples', 'query']) el(id).addEventListener('change', settingChanged);

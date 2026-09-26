@@ -1,3 +1,4 @@
+import { setPlaybackState } from '../../components/experiment-playback';
 const get = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 const input = (id: string) => get<HTMLInputElement>(id);
 const number = (id: string) => Number(input(id).value);
@@ -5,57 +6,9 @@ const text = (id: string, value: string) => {
     const element = get(id);
     if (element.textContent !== value) element.textContent = value;
 };
-const settings = get('settings');
-const menu = get<HTMLButtonElement>('menu');
 const dialog = get<HTMLDialogElement>('explanation');
-const background = [
-    ...Array.from(settings.parentElement!.children).filter(
-        (element) => element !== settings && element !== menu.parentElement && element !== dialog,
-    ),
-    ...Array.from(menu.parentElement!.children).filter((element) => element !== menu),
-] as HTMLElement[];
-function closeMenu(returnFocus = true) {
-    if (settings.hidden) return;
-    settings.hidden = true;
-    menu.setAttribute('aria-expanded', 'false');
-    menu.setAttribute('aria-label', '설정 메뉴 열기');
-    background.forEach((element) => (element.inert = false));
-    document.body.style.overflow = '';
-    if (returnFocus) menu.focus();
-}
-menu.addEventListener('click', () => {
-    if (!settings.hidden) return closeMenu();
-    settings.hidden = false;
-    settings.scrollTop = 0;
-    menu.setAttribute('aria-expanded', 'true');
-    menu.setAttribute('aria-label', '설정 메뉴 닫기');
-    background.forEach((element) => (element.inert = true));
-    document.body.style.overflow = 'hidden';
-    get('close-menu').focus();
-});
-get('close-menu').addEventListener('click', () => closeMenu());
 get('explain').addEventListener('click', () => dialog.showModal());
 get('close-explain').addEventListener('click', () => dialog.close());
-window.addEventListener('keydown', (event) => {
-    if (settings.hidden || dialog.open) return;
-    if (event.key === 'Escape') {
-        event.preventDefault();
-        closeMenu();
-    } else if (event.key === 'Tab') {
-        const controls = Array.from(
-            settings.querySelectorAll<HTMLElement>('button, input, select, a[href]'),
-        ).filter((element) => !element.hasAttribute('disabled') && element.getClientRects().length);
-        const first = controls[0],
-            last = controls[controls.length - 1];
-        if (event.shiftKey && (document.activeElement === first || !settings.contains(document.activeElement))) {
-            event.preventDefault();
-            last.focus();
-        } else if (!event.shiftKey && (document.activeElement === last || !settings.contains(document.activeElement))) {
-            event.preventDefault();
-            first.focus();
-        }
-    }
-});
 import { cubic, mix, table, lookup, type Curve, type Point } from './model';
 const scene = document.getElementById('scene') as unknown as SVGSVGElement;
 let progress = 0.25,
@@ -160,7 +113,7 @@ function animate(now: number) {
     if (progress >= 1) {
         progress = 1;
         playing = false;
-        text('play', '다시 재생');
+        setPlaybackState('play', false);
     }
     draw();
     if (playing) frame = requestAnimationFrame(animate);
@@ -168,11 +121,19 @@ function animate(now: number) {
 get('play').addEventListener('click', () => {
     playing = !playing;
     if (playing && progress >= 1) progress = 0;
-    text('play', playing ? '일시정지' : '재생');
+    setPlaybackState('play', playing);
     if (playing) {
         last = performance.now();
         frame = requestAnimationFrame(animate);
     } else cancelAnimationFrame(frame);
+});
+get('step').addEventListener('click', () => {
+    playing = false;
+    cancelAnimationFrame(frame);
+    setPlaybackState('play', false);
+    if (progress >= 1) progress = 0;
+    progress = Math.min(1, progress + 0.05);
+    draw();
 });
 for (const id of ['bend', 'samples', 'scale', 'construction']) get(id).addEventListener('input', rebuild);
 for (const id of ['shape', 'metric']) get(id).addEventListener('change', rebuild);
@@ -190,14 +151,13 @@ get('reset').addEventListener('click', () => {
     input('scale').value = '1';
     input('metric').value = 'world';
     input('construction').checked = true;
-    text('play', '재생');
+    setPlaybackState('play', false);
     rebuild();
 });
 window.addEventListener('pagehide', () => {
     playing = false;
     cancelAnimationFrame(frame);
-    text('play', '재생');
-    closeMenu(false);
+    setPlaybackState('play', false);
 });
 window.addEventListener('pageshow', (event) => {
     if (event.persisted) draw();

@@ -1,58 +1,13 @@
+import { setPlaybackState } from '../../components/experiment-playback';
+
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 const value = (id: string) => Number($<HTMLInputElement>(id).value);
 const checked = (id: string) => $<HTMLInputElement>(id).checked;
 const choice = (id: string) => $<HTMLSelectElement>(id).value;
-const lab = $('lab'),
-    panel = $('settings'),
-    menu = $('menu'),
+const panel = $('settings'),
     info = $<HTMLDialogElement>('info');
 const keys = new Set<string>();
-const compact = matchMedia('(max-width: 700px)');
-const backdrop = $('menu-backdrop');
-const background = [
-    lab.querySelector<HTMLElement>('.scene')!,
-    lab.querySelector<HTMLElement>('footer')!,
-    lab.querySelector<HTMLElement>('header a')!,
-    $('explain'),
-];
-function menuControls() {
-    return Array.from(panel.querySelectorAll<HTMLElement>('button, input, select, a[href]'))
-        .filter((element) => !element.hasAttribute('disabled') && element.getClientRects().length > 0);
-}
-function syncMenu() {
-    const modal = compact.matches && !panel.hidden;
-    backdrop.hidden = !modal;
-    background.forEach((element) => {
-        element.inert = modal;
-    });
-    if (modal) {
-        panel.setAttribute('role', 'dialog');
-        panel.setAttribute('aria-modal', 'true');
-    } else {
-        panel.setAttribute('role', 'complementary');
-        panel.removeAttribute('aria-modal');
-    }
-}
-function setMenu(open: boolean, focus = true) {
-    panel.hidden = !open;
-    lab.classList.toggle('menu-open', open);
-    menu.setAttribute('aria-expanded', String(open));
-    menu.setAttribute('aria-label', open ? '설정 닫기' : '설정 열기');
-    keys.clear();
-    syncMenu();
-    if (focus) {
-        if (open) menuControls()[0]?.focus();
-        else menu.focus();
-    }
-}
-setMenu(!compact.matches, false);
-menu.onclick = () => setMenu(Boolean(panel.hidden));
-$('close-menu').onclick = () => setMenu(false);
-backdrop.onclick = () => setMenu(false);
-compact.addEventListener('change', () => {
-    syncMenu();
-    if (compact.matches && !panel.hidden && !info.open) menuControls()[0]?.focus();
-});
+document.addEventListener('experiment:layoutchange', () => keys.clear());
 $('explain').onclick = () => {
     keys.clear();
     info.showModal();
@@ -60,23 +15,6 @@ $('explain').onclick = () => {
     info.scrollTop = 0;
 };
 $('close-info').onclick = () => info.close();
-document.addEventListener('keydown', (e) => {
-    if (info.open) return;
-    if (e.key === 'Escape' && !panel.hidden) {
-        e.preventDefault();
-        setMenu(false);
-    } else if (e.key === 'Tab' && compact.matches && !panel.hidden) {
-        const controls = menuControls();
-        const first = controls[0], last = controls[controls.length - 1];
-        if (e.shiftKey && (document.activeElement === first || !panel.contains(document.activeElement))) {
-            e.preventDefault();
-            last?.focus();
-        } else if (!e.shiftKey && (document.activeElement === last || !panel.contains(document.activeElement))) {
-            e.preventDefault();
-            first?.focus();
-        }
-    }
-});
 document.querySelectorAll<HTMLInputElement>('input[type="range"]').forEach((input) =>
     input.addEventListener('input', () => {
         const out = document.getElementById(input.id + '-value');
@@ -86,7 +24,7 @@ document.querySelectorAll<HTMLInputElement>('input[type="range"]').forEach((inpu
 const accepted = ['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'KeyA', 'KeyD', 'KeyW', 'KeyS', 'Space'];
 document.addEventListener('keydown', (e) => {
     if (
-        info.open || (compact.matches && !panel.hidden) ||
+        info.open || panel.getAttribute('aria-modal') === 'true' ||
         (e.target instanceof HTMLElement && e.target.closest('input, select, textarea, button, a'))
     ) return;
     if (accepted.includes(e.code)) {
@@ -178,7 +116,12 @@ let enemies: Enemy[] = [
     time = 0,
     last = performance.now(),
     raf = 0,
+    playing = false,
     switches = 0;
+function setPlaying(next: boolean) {
+    playing = next;
+    setPlaybackState('play', playing);
+}
 const dist = (e: Enemy) => Math.hypot(e.x - p.x, e.z - p.z);
 function candidates() {
     return enemies.filter((e) => e.alive && e.hide <= 0 && dist(e) < 20).sort((a, b) => dist(a) - dist(b));
@@ -203,6 +146,7 @@ function switchTarget() {
     switches++;
 }
 function reset() {
+    setPlaying(false);
     restoreControls();
     p = { x: 0, z: -5 };
     target = null;
@@ -218,6 +162,12 @@ function reset() {
     ];
 }
 $('reset').onclick = reset;
+$('play').onclick = () => setPlaying(!playing);
+$('step').onclick = () => {
+    setPlaying(false);
+    keys.clear();
+    update(0.1, true);
+};
 $('lock').onclick = lock;
 $('switch').onclick = switchTarget;
 $('hide-target').onclick = () => {
@@ -238,7 +188,7 @@ $('remove-target').onclick = () => {
 };
 document.addEventListener('keydown', (e) => {
     if (
-        info.open || (compact.matches && !panel.hidden) ||
+        info.open || panel.getAttribute('aria-modal') === 'true' ||
         (e.target instanceof HTMLElement && e.target.closest('input, select, textarea, button, a'))
     ) return;
     if (e.code === 'KeyL' && !e.repeat) lock();
@@ -247,11 +197,12 @@ document.addEventListener('keydown', (e) => {
         switchTarget();
     }
 });
-function update(dt: number) {
-    time += dt;
+function update(dt: number, advanceTime: boolean) {
+    const elapsed = advanceTime ? dt : 0;
+    time += elapsed;
     enemies[0].x = -2 + Math.sin(time * 0.65) * 3;
     enemies[1].x = 2 - Math.sin(time * 0.65) * 3;
-    enemies.forEach((e) => (e.hide = Math.max(0, e.hide - dt)));
+    enemies.forEach((e) => (e.hide = Math.max(0, e.hide - elapsed)));
     if (target && choice('mode') === 'nearest') {
         const next = candidates()[0]?.id;
         if (next && next !== target) {
@@ -267,7 +218,7 @@ function update(dt: number) {
             target = null;
             reason = '유지 거리 초과';
         } else if (enemy.hide > 0) {
-            occluded += dt;
+            occluded += elapsed;
             if (occluded >= value('grace')) {
                 target = null;
                 reason = '가림 유예 만료';
@@ -394,12 +345,14 @@ function draw() {
 function frame(now: number) {
     const dt = Math.min(0.05, (now - last) / 1000);
     last = now;
-    if (!info.open) update(dt);
+    if (!info.open) update(playing || keys.size ? dt : 0, playing);
     draw();
     raf = requestAnimationFrame(frame);
 }
 raf = requestAnimationFrame(frame);
+setPlaybackState('play', playing);
 window.addEventListener('pagehide', (e) => {
+    setPlaying(false);
     keys.clear();
     cancelAnimationFrame(raf);
     if (!e.persisted) resize.disconnect();
@@ -407,7 +360,6 @@ window.addEventListener('pagehide', (e) => {
 window.addEventListener('pageshow', (e) => {
     if (!e.persisted) return;
     last = performance.now();
-    syncMenu();
     resize.observe(canvas);
     resizeCanvas();
     raf = requestAnimationFrame(frame);

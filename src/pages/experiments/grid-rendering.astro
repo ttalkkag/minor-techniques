@@ -1,31 +1,61 @@
 ---
-import Page from '../../layouts/Page.astro';
+import ExperimentLayout from '../../layouts/ExperimentLayout.astro';
+import ExperimentPlayback from '../../components/ExperimentPlayback.astro';
 ---
 
-<Page
+<ExperimentLayout
+    helpId="gr-help"
     title="평평한 벽이 휘어 보이는 이유 · 게임 실험실"
     description="격자 광선의 거리와 전방 깊이를 비교하며 열마다 그리는 벽 높이를 바꿔 봅니다."
+    style="--experiment-graphics-min-height: 500px"
+    class="grid-lab"
+    settingsId="gr-settings"
+    menuId="gr-menu"
+    closeSettingsId="gr-close"
+    backdropId="gr-backdrop"
 >
-    <main class="grid-lab">
-        <nav aria-label="실험실 탐색">
-            <button
-                id="gr-menu"
-                aria-label="설정 메뉴 열기"
-                aria-controls="gr-settings"
-                aria-expanded="false"
-            >
-                ☰
-            </button>
-            <a href="/">게임 실험실</a>
-            <button id="gr-help" aria-label="원인과 해결 설명 열기">
-                ?
-            </button>
-        </nav>
-        <header>
+    <Fragment slot="settings">
+        <div class="settings-fields">
+            <h2>광선과 카메라</h2>
+            <label for="gr-map">지도</label>
+            <select id="gr-map">
+                <option value="flat">정면의 평평한 벽</option>
+                <option value="rooms">문이 있는 방</option>
+            </select>
+            <label for="gr-bearing">
+                바라보는 방향
+                <output id="gr-bearing-value">0°</output>
+            </label>
+            <input id="gr-bearing" type="range" min="-180" max="180" step="1" value="0" />
+            <label for="gr-fov">
+                수평 시야각
+                <output id="gr-fov-value">90°</output>
+            </label>
+            <input id="gr-fov" type="range" min="40" max="120" step="1" value="90" />
+            <label for="gr-column">
+                살펴볼 화면 열
+                <output id="gr-column-value">90%</output>
+            </label>
+            <input id="gr-column" type="range" min="0" max="100" step="1" value="90" />
+            <label for="gr-resolution">
+                가로 열 수
+                <output id="gr-resolution-value">160열</output>
+            </label>
+            <input id="gr-resolution" type="range" min="32" max="240" step="16" value="160" />
+
+            <p class="note">
+                주황색 광선 하나를 따라 셀 경계와 투영 높이를 비교합니다. 벽 안으로는 이동할 수 없습니다.
+            </p>
+        </div>
+    </Fragment>
+    <Fragment slot="body-header">
+        <div class="experiment-intro">
             <p>격자 광선으로 만드는 3D 화면</p>
             <h1>평평한 벽이 휘어 보이는 이유</h1>
             <span>같은 광선, 다른 거리 기준. 지도에서 카메라를 옮겨 보세요.</span>
-        </header>
+        </div>
+    </Fragment>
+    <Fragment slot="graphics">
         <section class="scene-wrap" aria-label="격자 지도와 두 투영 결과">
             <canvas
                 id="gr-scene"
@@ -34,6 +64,8 @@ import Page from '../../layouts/Page.astro';
             ></canvas>
             <div class="scene-hint">지도 클릭: 이동 · 방향과 시야각: 설정 ☰</div>
         </section>
+    </Fragment>
+    <Fragment slot="description">
         <footer aria-live="polite" aria-atomic="true">
             <div>
                 <span>선택한 광선 거리 s</span>
@@ -53,35 +85,12 @@ import Page from '../../layouts/Page.astro';
             </div>
             <p id="gr-summary"></p>
         </footer>
-        <div id="gr-backdrop" class="backdrop" hidden></div>
-        <div data-settings-panel role="complementary" id="gr-settings" aria-label="실험 설정" hidden>
-            <div class="settings-heading">
-                <h2>광선과 카메라</h2>
-                <button id="gr-close" aria-label="설정 메뉴 닫기">
-                    ×
-                </button>
-            </div>
-            <label for="gr-map">지도</label>
-            <select id="gr-map">
-                <option value="flat">정면의 평평한 벽</option>
-                <option value="rooms">문이 있는 방</option>
-            </select>
-            <label for="gr-bearing">
-                바라보는 방향 <output id="gr-bearing-value">0°</output>
-            </label>
-            <input id="gr-bearing" type="range" min="-180" max="180" step="1" value="0" />
-            <label for="gr-fov">
-                수평 시야각 <output id="gr-fov-value">90°</output>
-            </label>
-            <input id="gr-fov" type="range" min="40" max="120" step="1" value="90" />
-            <label for="gr-column">
-                살펴볼 화면 열 <output id="gr-column-value">90%</output>
-            </label>
-            <input id="gr-column" type="range" min="0" max="100" step="1" value="90" />
-            <label for="gr-resolution">
-                가로 열 수 <output id="gr-resolution-value">160열</output>
-            </label>
-            <input id="gr-resolution" type="range" min="32" max="240" step="16" value="160" />
+    </Fragment>
+    <Fragment slot="controls">
+        <ExperimentPlayback playId="gr-play" stepId="gr-step" resetId="gr-reset">
+            화면 열을 왼쪽부터 오른쪽으로 순회하며 광선과 투영 높이를 비교합니다.
+        </ExperimentPlayback>
+        <div class="movement-controls">
             <fieldset>
                 <legend>카메라 이동</legend>
                 <div class="moves">
@@ -91,22 +100,14 @@ import Page from '../../layouts/Page.astro';
                     <button id="gr-back">뒤로 ↓</button>
                 </div>
             </fieldset>
-            <p class="note" id="gr-position">
-                카메라 위치
-            </p>
-            <button id="gr-reset" class="reset">
-                처음으로
-            </button>
-            <p class="note">
-                주황색 광선 하나를 따라 셀 경계와 투영 높이를 비교합니다. 벽 안으로는 이동할 수 없습니다.
-            </p>
+            <p class="note" id="gr-position">카메라 위치</p>
         </div>
+    </Fragment>
+    <Fragment slot="overlays">
         <dialog id="gr-dialog" aria-labelledby="gr-dialog-title">
             <div class="dialog-heading">
                 <h2 id="gr-dialog-title">왜 벽이 휘어 보일까요?</h2>
-                <button id="gr-dialog-close" aria-label="설명 닫기">
-                    ×
-                </button>
+                <button id="gr-dialog-close" aria-label="설명 닫기">×</button>
             </div>
             <h3>문제 · 화면 가장자리의 벽이 작아진다</h3>
             <p>
@@ -131,8 +132,10 @@ import Page from '../../layouts/Page.astro';
             </p>
             <h3>Doom의 BSP와는 무엇이 다른가요?</h3>
             <p>
-                Doom의 공개 <code>R_RenderBSPNode</code>는 앞쪽 BSP 자식을 먼저 순회하고, 뒤쪽은 경계 검사 후
-                방문합니다. 여기의 화면 열별 격자 셀 탐색과는 입력 자료구조와 순회 단위가 다릅니다.
+                Doom의 공개
+                <code>R_RenderBSPNode</code>
+                는 앞쪽 BSP 자식을 먼저 순회하고, 뒤쪽은 경계 검사 후 방문합니다. 여기의 화면 열별 격자 셀
+                탐색과는 입력 자료구조와 순회 단위가 다릅니다.
             </p>
             <a
                 href="https://github.com/id-Software/DOOM/blob/master/linuxdoom-1.10/r_bsp.c"
@@ -142,36 +145,13 @@ import Page from '../../layouts/Page.astro';
                 근거: id Software · Doom r_bsp.c ↗
             </a>
         </dialog>
-    </main>
-</Page>
-
-<script>
-    import '../../experiments/grid-rendering/client';
-</script>
+    </Fragment>
+    <script>
+        import '../../experiments/grid-rendering/client';
+    </script>
+</ExperimentLayout>
 
 <style>
-    .grid-lab {
-        min-height: 100svh;
-        display: flex;
-        flex-direction: column;
-        background: #edf1f3;
-        color: #273841;
-    }
-    nav {
-        display: flex;
-        align-items: center;
-        gap: 14px;
-        padding: 16px 26px;
-    }
-    nav a {
-        font-size: 17px;
-        font-weight: 750;
-        color: inherit;
-        text-decoration: none;
-    }
-    nav button:last-child {
-        margin-left: auto;
-    }
     button {
         min-height: 44px;
         min-width: 44px;
@@ -184,37 +164,28 @@ import Page from '../../layouts/Page.astro';
     button:hover {
         background: #dcebe9;
     }
-    nav button {
-        font-size: 22px;
-    }
-    header {
-        padding: 8px 34px 16px;
-    }
-    header p {
+    .experiment-intro p {
         font-size: 12px;
         font-weight: 750;
         color: #0d716b;
         letter-spacing: 0.07em;
         margin: 0 0 6px;
     }
-    h1 {
-        font-size: clamp(24px, 3vw, 38px);
-        letter-spacing: -0.04em;
-        margin: 0 0 7px;
-    }
-    header span {
+    .experiment-intro span {
         font-size: 14px;
         color: #4d636b;
     }
     .scene-wrap {
         position: relative;
-        flex: 1;
-        min-height: 420px;
-        margin: 0 24px;
+
+        margin: 0;
         background: #e2e9eb;
         border: 1px solid #d1dde0;
         border-radius: 22px;
         overflow: hidden;
+
+        height: 100%;
+        min-height: 0;
     }
     canvas {
         display: block;
@@ -236,7 +207,7 @@ import Page from '../../layouts/Page.astro';
         display: grid;
         grid-template-columns: repeat(4, 1fr);
         gap: 10px 25px;
-        padding: 18px 34px 20px;
+        padding: 0;
     }
     footer div {
         min-width: 0;
@@ -258,28 +229,6 @@ import Page from '../../layouts/Page.astro';
         margin: 4px 0 0;
         color: #4d6269;
     }
-    .backdrop {
-        position: fixed;
-        inset: 0;
-        background: #20363e45;
-        z-index: 3;
-    }
-    [data-settings-panel] {
-        position: fixed;
-        top: 12px;
-        left: 12px;
-        bottom: 12px;
-        width: 310px;
-        max-width: calc(100vw - 24px);
-        z-index: 4;
-        background: #f8fbfc;
-        box-shadow: 0 12px 55px #29424b22;
-        border: 1px solid #d8e1e4;
-        border-radius: 20px;
-        padding: 20px;
-        overflow-y: auto;
-    }
-    .settings-heading,
     .dialog-heading {
         display: flex;
         align-items: center;
@@ -291,12 +240,11 @@ import Page from '../../layouts/Page.astro';
         font-size: 19px;
         margin: 0;
     }
-    .settings-heading button,
     .dialog-heading button {
         font-size: 25px;
         flex-shrink: 0;
     }
-    [data-settings-panel] label {
+    .settings-fields label {
         display: flex;
         justify-content: space-between;
         font-weight: 650;
@@ -325,35 +273,32 @@ import Page from '../../layouts/Page.astro';
     fieldset {
         padding: 0;
         border: 0;
-        margin: 20px 0 0;
+        margin: 0;
     }
     legend {
         font-size: 13px;
         font-weight: 650;
         margin-bottom: 12px;
     }
+    .movement-controls {
+        display: flex;
+        align-items: flex-end;
+        flex-wrap: wrap;
+        gap: 12px;
+    }
     .moves {
         display: grid;
-        grid-template-columns: 1fr 1fr;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
         gap: 8px;
     }
-    .moves button:first-child,
-    .moves button:last-child {
-        grid-column: 1/-1;
+    .movement-controls fieldset {
+        width: 100%;
+        min-width: 0;
     }
     .note {
         font-size: 12px;
         line-height: 1.7;
         color: #61777f;
-    }
-    .reset {
-        width: 100%;
-        background: #127e77;
-        color: white;
-        border-color: #127e77;
-    }
-    .reset:hover {
-        background: #0f6762;
     }
     dialog {
         width: min(650px, calc(100vw - 28px));
@@ -388,31 +333,20 @@ import Page from '../../layouts/Page.astro';
     code {
         overflow-wrap: anywhere;
     }
-    @media (min-width: 950px) {
-        .scene-wrap {
-            min-height: 450px;
-        }
-    }
     @media (max-width: 650px) {
-        nav {
-            padding: 12px 16px;
-        }
-        header {
-            padding: 6px 18px 14px;
-        }
-        header span {
+        .experiment-intro span {
             font-size: 12px;
             line-height: 1.7;
             display: block;
         }
         .scene-wrap {
-            margin: 0 10px;
-            min-height: 500px;
+            margin: 0;
+
             border-radius: 16px;
         }
         footer {
             grid-template-columns: repeat(2, 1fr);
-            padding: 16px 18px;
+            padding: 0;
             gap: 17px 14px;
         }
         footer strong {

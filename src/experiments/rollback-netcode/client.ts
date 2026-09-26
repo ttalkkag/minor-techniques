@@ -1,5 +1,6 @@
 import { simulate, defaults } from './model';
 import type { Options, State } from './model';
+import { createPlayback } from '../../components/experiment-playback';
 const el = (id: string) => document.getElementById(id)!;
 const input = (id: string) => el(id) as HTMLInputElement;
 const canvas = el('scene') as HTMLCanvasElement;
@@ -36,57 +37,9 @@ const dot = (x: number, y: number, radius: number, color: string) => {
     ctx.arc(x, y, radius, 0, Math.PI * 2);
     ctx.fill();
 };
-function menu(open: boolean) {
-    const panel = el('settings');
-    panel.hidden = !open;
-    el('backdrop').hidden = !open;
-    el('menu').setAttribute('aria-expanded', String(open));
-    for (const sibling of panel.parentElement!.children) {
-        if (
-            sibling instanceof HTMLElement &&
-            !['settings', 'backdrop', 'explanation'].includes(sibling.id)
-        )
-            sibling.inert = open;
-    }
-    document.body.style.overflow = open ? 'hidden' : '';
-    (open ? el('close') : el('menu')).focus();
-}
 function boot(draw: () => void) {
-    on('menu', 'click', () => menu(Boolean(el('settings').hidden)));
-    on('close', 'click', () => menu(false));
-    on('backdrop', 'click', () => menu(false));
     on('help', 'click', () => (el('explanation') as HTMLDialogElement).showModal());
     on('explain-close', 'click', () => (el('explanation') as HTMLDialogElement).close());
-    document.addEventListener(
-        'keydown',
-        (event) => {
-            const panel = el('settings');
-            if (panel.hidden || (el('explanation') as HTMLDialogElement).open) return;
-            if (event.key === 'Escape') {
-                event.preventDefault();
-                menu(false);
-            } else if (event.key === 'Tab') {
-                const controls = Array.from(
-                    panel.querySelectorAll<HTMLElement>(
-                        'button:not(:disabled), input:not(:disabled), select:not(:disabled), a[href]',
-                    ),
-                ).filter((control) => control.getClientRects().length > 0);
-                const first = controls[0]!,
-                    last = controls.at(-1)!;
-                if (
-                    !panel.contains(document.activeElement) ||
-                    (event.shiftKey && document.activeElement === first)
-                ) {
-                    event.preventDefault();
-                    (event.shiftKey ? last : first).focus();
-                } else if (!event.shiftKey && document.activeElement === last) {
-                    event.preventDefault();
-                    first.focus();
-                }
-            }
-        },
-        { signal: abort.signal },
-    );
     const resize = () => {
         const bounds = canvas.getBoundingClientRect();
         w = bounds.width;
@@ -195,6 +148,7 @@ function draw() {
     }
 }
 function reset() {
+    playback.pause();
     for (const [key, value] of Object.entries(defaults)) {
         if (typeof value === 'boolean') input(key).checked = value;
         else input(key).value = String(value);
@@ -203,13 +157,18 @@ function reset() {
     draw();
 }
 for (const key of Object.keys(defaults)) on(key, 'input', draw);
-on('step', 'click', () => {
-    wallTicks = Math.min(60, wallTicks + 1);
-    draw();
-});
 on('run', 'click', () => {
+    playback.pause();
     wallTicks = 30;
     draw();
 });
 on('reset', 'click', reset);
+const playback = createPlayback({
+    interval: 220,
+    advance: () => {
+        wallTicks = wallTicks === 60 ? 1 : wallTicks + 1;
+        draw();
+        return wallTicks < 60;
+    },
+});
 boot(draw);

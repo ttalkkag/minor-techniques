@@ -1,57 +1,12 @@
+import { syncViewControls } from '../../layouts/experiment-layout';
+import { createPlayback } from '../../components/experiment-playback';
 import { blocks, mesh, corners, qef } from './model';
 const get = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 const canvas = get<HTMLCanvasElement>('scene'),
     ctx = canvas.getContext('2d')!;
-const menu = get<HTMLButtonElement>('menu'),
-    settings = get<HTMLElement>('settings'),
-    info = get<HTMLDialogElement>('info');
-const background = [
-    ...document.querySelectorAll<HTMLElement>(
-        'main > :not(nav):not(#settings):not(dialog), nav > :not(#menu)',
-    ),
-];
-function menuOpen(open: boolean) {
-    settings.hidden = !open;
-    settings.setAttribute('role', 'dialog');
-    settings.setAttribute('aria-modal', String(open));
-    menu.setAttribute('aria-expanded', String(open));
-    menu.setAttribute('aria-label', open ? '설정 메뉴 닫기' : '설정 메뉴 열기');
-    menu.tabIndex = open ? -1 : 0;
-    background.forEach((element) => {
-        element.inert = open;
-    });
-    if (open) {
-        settings.scrollTop = 0;
-        get('close-menu').focus();
-    } else menu.focus();
-}
-menu.addEventListener('click', () => menuOpen(Boolean(settings.hidden)));
-get('close-menu').addEventListener('click', () => menuOpen(false));
+const info = get<HTMLDialogElement>('info');
 get('explain').addEventListener('click', () => info.showModal());
 get('close-info').addEventListener('click', () => info.close());
-document.addEventListener('keydown', (e) => {
-    if (settings.hidden || info.open) return;
-    if (e.key === 'Escape') {
-        e.preventDefault();
-        menuOpen(false);
-    } else if (e.key === 'Tab') {
-        const controls = [...settings.querySelectorAll<HTMLElement>('button, input, select, a[href]')].filter(
-            (element) => !element.hasAttribute('disabled') && element.getClientRects().length,
-        );
-        const first = controls[0],
-            last = controls[controls.length - 1];
-        if (e.shiftKey && (document.activeElement === first || !settings.contains(document.activeElement))) {
-            e.preventDefault();
-            last.focus();
-        } else if (
-            !e.shiftKey &&
-            (document.activeElement === last || !settings.contains(document.activeElement))
-        ) {
-            e.preventDefault();
-            first.focus();
-        }
-    }
-});
 function surface() {
     const r = canvas.getBoundingClientRect(),
         dpr = Math.min(devicePixelRatio, 2);
@@ -71,7 +26,11 @@ function range(id: string) {
     get(`${id}-value`).textContent = control.value;
     return Number(control.value);
 }
+let faceProgress = 0,
+    faceCount = 0,
+    angleDirection = 1;
 function draw() {
+    syncViewControls();
     const { w, h } = surface(),
         n = range('size'),
         yaw = (range('yaw') * Math.PI) / 180,
@@ -143,6 +102,8 @@ function draw() {
         get('metric-0').textContent = '2개';
         get('metric-1').textContent = result.error.toFixed(5);
         get('metric-2').textContent = result.determinant.toFixed(5);
+        get('playback-status').textContent =
+            `법선 각도 ${Math.round((angle * 180) / Math.PI)}° · 정점 (${result.vertex[0].toFixed(2)}, ${result.vertex[1].toFixed(2)})`;
         get('summary').textContent =
             `법선 사이 ${Math.round((angle * 180) / Math.PI)}°. ${result.vertex.some((v) => v < 0 || v > 1) ? '해가 셀 밖에 있습니다.' : '해가 셀 안에 있습니다.'} ${get<HTMLInputElement>('regularize').checked ? '셀 중심에서의 거리 제약 λ=0.02를 추가했습니다.' : '거의 평행하면 법선 행렬이 불안정해집니다.'} 이 도식은 국소 2D QEF이며 전체 표면 연결은 포함하지 않습니다.`;
     } else {
@@ -176,9 +137,10 @@ function draw() {
         const camera = [Math.sin(yaw) * Math.cos(pitch), Math.sin(pitch), Math.cos(yaw) * Math.cos(pitch)];
         const faces = quads
             .filter((q) => camera[q.axis] * q.sign > 0)
-            .map((q) => ({ q, p: corners(q).map(project) }))
+            .map((q, index) => ({ q, index, p: corners(q).map(project) }))
             .sort((a, b) => a.p.reduce((s, p) => s + p.depth, 0) - b.p.reduce((s, p) => s + p.depth, 0));
-        for (const { q, p } of faces) {
+        faceCount = faces.length;
+        for (const { q, p, index } of faces) {
             ctx.beginPath();
             p.forEach((p, i) => {
                 if (i === 0) ctx.moveTo(p.x, p.y);
@@ -186,13 +148,36 @@ function draw() {
             });
             ctx.closePath();
             const shade = q.axis === 1 ? 66 : q.axis === 0 ? 48 : 37;
-            ctx.fillStyle = `hsl(${q.material === 1 ? 174 : 29} 36% ${shade}%)`;
+            ctx.fillStyle =
+                index < faceProgress
+                    ? `hsl(${q.material === 1 ? 174 : 29} 36% ${shade}%)`
+                    : `hsl(175 12% ${shade + 30}%)`;
             ctx.fill();
-            ctx.strokeStyle = '#244c5977';
-            ctx.lineWidth = 1;
+            ctx.strokeStyle = index === faceProgress - 1 ? '#ef9a32' : '#244c5977';
+            ctx.lineWidth = index === faceProgress - 1 ? 2 : 1;
             ctx.stroke();
         }
-        textAt('같은 논리 데이터 · 방법에 따라 달라지는 면 경계', w / 2, 24, '#4a6b73', 13);
+        const currentFace = faces.find(({ index }) => index === Math.min(faceProgress, faceCount) - 1);
+        if (currentFace) {
+            ctx.beginPath();
+            currentFace.p.forEach((p, i) => {
+                if (i === 0) ctx.moveTo(p.x, p.y);
+                else ctx.lineTo(p.x, p.y);
+            });
+            ctx.closePath();
+            ctx.fillStyle = '#ef9a3244';
+            ctx.fill();
+            ctx.strokeStyle = '#e58920';
+            ctx.lineWidth = 3;
+            ctx.stroke();
+        }
+        textAt(
+            currentFace ? '주황: 확인 중인 면(내부 면 포함)' : '같은 논리 데이터 · 방법에 따라 달라지는 면 경계',
+            w / 2,
+            24,
+            '#4a6b73',
+            13,
+        );
         textAt(
             `큐브 ${solid * 6}면 → 노출 ${exposed.length}면 → 병합 ${greedy.length}면`,
             w / 2,
@@ -203,17 +188,44 @@ function draw() {
         get('metric-0').textContent = `${solid}개`;
         get('metric-1').textContent = `${quads.length}개`;
         get('metric-2').textContent = `${quads.length * 2}개`;
+        get('playback-status').textContent =
+            `생성 순서 확인 ${Math.min(faceProgress, faceCount)} / ${faceCount}면 · 카메라를 향한 면`;
         get('summary').textContent =
             `${method === 'cubes' ? '맞닿은 내부 면도 생성합니다. 이웃 상태와 관계없이 큐브의 6면을 유지하며, 이웃 정책은 비교용 노출·병합 면 수에만 반영합니다.' : `${method === 'exposed' ? '이웃이 비어 있는 면만 생성합니다.' : '평면·방향·재질이 같은 면만 직사각형으로 묶습니다.'} ${neighbor === 'temporary' ? '미확인 +x 이웃은 임시로 비었다고 보고 면을 만듭니다.' : neighbor === 'hold' ? '미확인 +x 경계 면은 데이터가 올 때까지 보류합니다.' : neighbor === 'solid' ? '+x 이웃이 꽉 차 경계 면을 제거했습니다.' : '+x 이웃은 빈 공간입니다.'}`} ${get<HTMLInputElement>('carve').checked ? '경계 블록 수정으로 메시를 다시 계산했습니다.' : ''} 면 수는 생성량이며 뒤쪽 면은 화면에서만 숨깁니다.`;
     }
 }
+const playback = createPlayback({
+    interval: 180,
+    advance: () => {
+        if (get<HTMLSelectElement>('scene-mode').value === 'qef') {
+            const angle = get<HTMLInputElement>('plane-angle');
+            if (Number(angle.value) >= 90) angleDirection = -1;
+            if (Number(angle.value) <= 2) angleDirection = 1;
+            angle.value = String(Math.max(2, Math.min(90, Number(angle.value) + angleDirection * 2)));
+            draw();
+            return;
+        }
+        const step = Math.max(1, Math.ceil(faceCount / 24));
+        faceProgress = faceProgress >= faceCount ? step : Math.min(faceCount, faceProgress + step);
+        draw();
+        return faceProgress < faceCount;
+    },
+});
+function changeSettings() {
+    playback.pause();
+    faceProgress = 0;
+    draw();
+}
+get('scene-mode').addEventListener('change', changeSettings);
 document
     .querySelectorAll<HTMLInputElement | HTMLSelectElement>('#settings input,#settings select')
     .forEach((c) => {
-        c.addEventListener('input', draw);
-        c.addEventListener('change', draw);
+        c.addEventListener('input', changeSettings);
+        c.addEventListener('change', changeSettings);
     });
 get('reset').addEventListener('click', () => {
+    faceProgress = 0;
+    angleDirection = 1;
     for (const [id, value] of Object.entries({
         'scene-mode': 'blocks',
         method: 'cubes',

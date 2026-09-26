@@ -1,12 +1,12 @@
 import { FOV, PROBE, mirrorRay, trace, visible, targetVisibility, boxDirection } from './model';
 import type { Point, World } from './model';
+import { createPlayback } from '../../components/experiment-playback';
 const el = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 const fields = ['object-x', 'object-z', 'camera-x', 'yaw', 'samples'] as const;
 const input = (id: string) => el<HTMLInputElement>(id);
 const value = (id: string) => Number(input(id).value);
 const canvases = ['map', 'planar', 'cube', 'ssr'].map((id) => el<HTMLCanvasElement>(id));
 const dialog = el<HTMLDialogElement>('explanation');
-const settings = el('settings');
 let captured: World = { target: { x: 3, z: 4 }, blocker: null };
 let captureCount = 1;
 function world(): World {
@@ -196,33 +196,9 @@ function update() {
     el('summary').textContent =
         `물체는 기준 카메라의 ${labels[status]}에 있습니다. ${status === 'visible' ? '이 정보 모형에서는 화면 안 물체의 색을 SSR에 사용할 수 있습니다.' : 'SSR 샘플을 늘려도 이 물체의 보이지 않는 표면은 복원되지 않습니다.'}`;
 }
-const menuBackground = document.querySelectorAll<HTMLElement>(
-    'main > :not(nav):not(#settings):not(dialog), nav > :not(#menu)',
-);
-function syncMenu() {
-    const modal = !settings.hidden && window.innerWidth < 1100;
-    menuBackground.forEach((element) => {
-        element.inert = modal;
-    });
-    if (modal) {
-        settings.setAttribute('role', 'dialog');
-        settings.setAttribute('aria-modal', 'true');
-        if (!dialog.open && !settings.contains(document.activeElement)) el('close-menu').focus();
-    } else {
-        settings.setAttribute('role', 'complementary');
-        settings.removeAttribute('aria-modal');
-    }
-}
-function menu(open: boolean, focus = true) {
-    settings.hidden = !open;
-    el('menu').setAttribute('aria-expanded', String(open));
-    el('menu').setAttribute('aria-label', open ? '설정 메뉴 닫기' : '설정 메뉴 열기');
-    document.querySelector('.lab')!.classList.toggle('menu-open', open);
-    update();
-    syncMenu();
-    if (focus) (open ? el('close-menu') : el('menu')).focus();
-}
 function reset(x = 3, z = 4) {
+    playback.pause();
+    objectDirection = 1;
     input('object-x').value = String(x);
     input('object-z').value = String(z);
     input('camera-x').value = '0';
@@ -233,6 +209,17 @@ function reset(x = 3, z = 4) {
     captureCount = 1;
     update();
 }
+let objectDirection = 1;
+const playback = createPlayback({
+    interval: 120,
+    advance: () => {
+        const x = value('object-x');
+        if (x >= 4) objectDirection = -1;
+        else if (x <= -4) objectDirection = 1;
+        input('object-x').value = (x + objectDirection * 0.1).toFixed(1);
+        update();
+    },
+});
 for (const id of [...fields, 'blocker', 'box', 'fallback']) input(id).addEventListener('input', update);
 el('capture').addEventListener('click', () => {
     captured = structuredClone(world());
@@ -242,42 +229,8 @@ el('capture').addEventListener('click', () => {
 el('reset').addEventListener('click', () => reset());
 el('outside').addEventListener('click', () => reset());
 el('inside').addEventListener('click', () => reset(0, 3));
-el('menu').addEventListener('click', () => menu(Boolean(settings.hidden)));
-el('close-menu').addEventListener('click', () => {
-    menu(false);
-    el('menu').focus();
-});
 el('help').addEventListener('click', () => dialog.showModal());
 el('close-help').addEventListener('click', () => dialog.close());
-document.addEventListener('keydown', (event) => {
-    if (dialog.open || settings.hidden) return;
-    if (event.key === 'Escape') {
-        event.preventDefault();
-        menu(false);
-    } else if (event.key === 'Tab' && window.innerWidth < 1100) {
-        const controls = Array.from(
-            settings.querySelectorAll<HTMLElement>('button, input, select, a[href], [tabindex]'),
-        ).filter(
-            (control) =>
-                !control.matches(':disabled') && control.tabIndex >= 0 && control.getClientRects().length,
-        );
-        const first = controls[0]!,
-            last = controls[controls.length - 1]!;
-        if (
-            event.shiftKey &&
-            (document.activeElement === first || !settings.contains(document.activeElement))
-        ) {
-            event.preventDefault();
-            last.focus();
-        } else if (
-            !event.shiftKey &&
-            (document.activeElement === last || !settings.contains(document.activeElement))
-        ) {
-            event.preventDefault();
-            first.focus();
-        }
-    }
-});
 const observer = new ResizeObserver(update);
 observer.observe(el('map'));
 window.addEventListener('pagehide', (event) => {
@@ -286,9 +239,7 @@ window.addEventListener('pagehide', (event) => {
 window.addEventListener('pageshow', (event) => {
     if (event.persisted) {
         observer.observe(el('map'));
-        syncMenu();
         update();
     }
 });
-window.addEventListener('resize', syncMenu);
-menu(window.innerWidth >= 1100, false);
+update();

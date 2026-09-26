@@ -1,81 +1,19 @@
+import { createPlayback } from '../../components/experiment-playback';
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 const value = (id: string) => Number($<HTMLInputElement>(id).value);
 const checked = (id: string) => $<HTMLInputElement>(id).checked;
-const lab = $('lab'),
-    panel = $('settings'),
-    menu = $('menu'),
+const panel = $('settings'),
     info = $<HTMLDialogElement>('info');
 const keys = new Set<string>();
-const compact = matchMedia('(max-width: 700px)');
-const backdrop = $('menu-backdrop');
-const background = [
-    lab.querySelector<HTMLElement>('.scene')!,
-    lab.querySelector<HTMLElement>('footer')!,
-    lab.querySelector<HTMLElement>('header a')!,
-    $('explain'),
-];
-function menuControls() {
-    return Array.from(panel.querySelectorAll<HTMLElement>('button, input, select, a[href]'))
-        .filter((element) => !element.hasAttribute('disabled') && element.getClientRects().length > 0);
-}
-function syncMenu() {
-    const modal = compact.matches && !panel.hidden;
-    backdrop.hidden = !modal;
-    background.forEach((element) => {
-        element.inert = modal;
-    });
-    if (modal) {
-        panel.setAttribute('role', 'dialog');
-        panel.setAttribute('aria-modal', 'true');
-    } else {
-        panel.setAttribute('role', 'complementary');
-        panel.removeAttribute('aria-modal');
-    }
-}
-function setMenu(open: boolean, focus = true) {
-    panel.hidden = !open;
-    lab.classList.toggle('menu-open', open);
-    menu.setAttribute('aria-expanded', String(open));
-    menu.setAttribute('aria-label', open ? '설정 닫기' : '설정 열기');
-    keys.clear();
-    syncMenu();
-    if (focus) {
-        if (open) menuControls()[0]?.focus();
-        else menu.focus();
-    }
-}
-setMenu(!compact.matches, false);
-menu.onclick = () => setMenu(Boolean(panel.hidden));
-$('close-menu').onclick = () => setMenu(false);
-backdrop.onclick = () => setMenu(false);
-compact.addEventListener('change', () => {
-    syncMenu();
-    if (compact.matches && !panel.hidden && !info.open) menuControls()[0]?.focus();
-});
+document.addEventListener('experiment:layoutchange', () => keys.clear());
 $('explain').onclick = () => {
+    playback.pause();
     keys.clear();
     info.showModal();
     $('info-title').focus();
     info.scrollTop = 0;
 };
 $('close-info').onclick = () => info.close();
-document.addEventListener('keydown', (e) => {
-    if (info.open) return;
-    if (e.key === 'Escape' && !panel.hidden) {
-        e.preventDefault();
-        setMenu(false);
-    } else if (e.key === 'Tab' && compact.matches && !panel.hidden) {
-        const controls = menuControls();
-        const first = controls[0], last = controls[controls.length - 1];
-        if (e.shiftKey && (document.activeElement === first || !panel.contains(document.activeElement))) {
-            e.preventDefault();
-            last?.focus();
-        } else if (!e.shiftKey && (document.activeElement === last || !panel.contains(document.activeElement))) {
-            e.preventDefault();
-            first?.focus();
-        }
-    }
-});
 document.querySelectorAll<HTMLInputElement>('input[type="range"]').forEach((input) =>
     input.addEventListener('input', () => {
         const out = document.getElementById(input.id + '-value');
@@ -85,11 +23,12 @@ document.querySelectorAll<HTMLInputElement>('input[type="range"]').forEach((inpu
 const accepted = ['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'KeyA', 'KeyD', 'KeyW', 'KeyS', 'Space'];
 document.addEventListener('keydown', (e) => {
     if (
-        info.open || (compact.matches && !panel.hidden) ||
+        info.open || panel.getAttribute('aria-modal') === 'true' ||
         (e.target instanceof HTMLElement && e.target.closest('input, select, textarea, button, a'))
     ) return;
     if (accepted.includes(e.code)) {
         e.preventDefault();
+        playback.pause();
         keys.add(e.code);
     }
 });
@@ -97,6 +36,7 @@ document.addEventListener('keyup', (e) => keys.delete(e.code));
 document.querySelectorAll<HTMLButtonElement>('[data-key]').forEach((b) => {
     let keyboardHeld = false;
     b.onpointerdown = (e) => {
+        playback.pause();
         b.setPointerCapture(e.pointerId);
         keys.add(b.dataset.key!);
     };
@@ -104,6 +44,7 @@ document.querySelectorAll<HTMLButtonElement>('[data-key]').forEach((b) => {
     b.onkeydown = (e) => {
         if (e.code === 'Enter' || e.code === 'Space') {
             e.preventDefault();
+            playback.pause();
             keyboardHeld = true;
             keys.add(b.dataset.key!);
         }
@@ -173,17 +114,38 @@ let px = 0.65,
     raf = 0,
     last = performance.now();
 function reset() {
+    playback.pause();
     restoreControls();
     px = 0.65;
     pz = -3;
     passed = false;
     collision = false;
+    automaticFinished = false;
 }
 $('reset').onclick = reset;
 $('center').onclick = () => {
+    playback.pause();
     px = 0;
+    collision = false;
+    automaticFinished = false;
 };
-function update(dt: number) {
+let automaticFinished = false;
+const playback = createPlayback({
+    interval: 50,
+    advance: () => {
+        if (automaticFinished) {
+            pz = -3;
+            passed = false;
+            collision = false;
+            automaticFinished = false;
+        }
+        update(0.05, true);
+        draw();
+        automaticFinished = collision || passed;
+        return !automaticFinished;
+    },
+});
+function update(dt: number, automatic = false) {
     const g = walls(value('width')),
         r = value('radius');
     let ix =
@@ -191,10 +153,14 @@ function update(dt: number) {
         Number(keys.has('ArrowLeft') || keys.has('KeyA'));
     let iz =
         Number(keys.has('ArrowUp') || keys.has('KeyW')) - Number(keys.has('ArrowDown') || keys.has('KeyS'));
+    if (automatic) {
+        ix = 0;
+        iz = 1;
+    }
     const norm = Math.max(1, Math.hypot(ix, iz));
     ix = (ix / norm) * 2.4 * dt;
     iz = (iz / norm) * 2.4 * dt;
-    collision = false;
+    if (ix || iz) collision = false;
     if (!blocked(px + ix, pz, r, g)) px += ix;
     else if (ix) collision = true;
     if (!blocked(px, pz + iz, r, g)) pz += iz;
@@ -344,7 +310,6 @@ window.addEventListener('pagehide', (e) => {
 window.addEventListener('pageshow', (e) => {
     if (!e.persisted) return;
     last = performance.now();
-    syncMenu();
     resize.observe(canvas);
     resizeCanvas();
     raf = requestAnimationFrame(frame);

@@ -1,51 +1,11 @@
+import { setPlaybackState } from '../../components/experiment-playback';
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 const canvas = $<HTMLCanvasElement>('scene');
 const ctx = canvas.getContext('2d')!;
-const menu = $<HTMLButtonElement>('menu'),
-    settings = $<HTMLElement>('settings');
-function setMenuOpen(open: boolean) {
-    settings.hidden = !open;
-    $('menu-backdrop').hidden = !open;
-    menu.setAttribute('aria-expanded', String(open));
-    for (const region of document.querySelectorAll<HTMLElement>(
-        'main > :not(nav):not(#settings):not(#menu-backdrop), nav > :not(#menu)',
-    )) region.inert = open;
-    if (open) {
-        keys.clear();
-        if (!autoRelease) release();
-        $('close-menu').focus();
-    }
-    else menu.focus();
-}
-function closeMenu() {
-    setMenuOpen(false);
-}
-menu.onclick = () => setMenuOpen(Boolean(settings.hidden));
-$<HTMLButtonElement>('close-menu').onclick = closeMenu;
-$('menu-backdrop').onclick = closeMenu;
+const settings = $<HTMLElement>('settings');
 const dialog = $<HTMLDialogElement>('explanation');
 $<HTMLButtonElement>('explain').onclick = () => dialog.showModal();
 $<HTMLButtonElement>('close-explanation').onclick = () => dialog.close();
-document.addEventListener('keydown', (e) => {
-    if (dialog.open || settings.hidden) return;
-    if (e.key === 'Escape') {
-        e.preventDefault();
-        closeMenu();
-    }
-    if (e.key === 'Tab') {
-        const controls = [...settings.querySelectorAll<HTMLElement>(
-            'button:not(:disabled), input:not(:disabled), select:not(:disabled), a[href]',
-        )];
-        const first = controls[0]!, last = controls[controls.length - 1]!;
-        if (!settings.contains(document.activeElement) || (e.shiftKey && document.activeElement === first)) {
-            e.preventDefault();
-            (e.shiftKey ? last : first).focus();
-        } else if (!e.shiftKey && document.activeElement === last) {
-            e.preventDefault();
-            first.focus();
-        }
-    }
-});
 let width = 900,
     height = 450;
 function resize() {
@@ -78,7 +38,7 @@ let y = 0,
     time = 0,
     jumpTime = 0,
     airborne = false,
-    playing = true,
+    playing = false,
     autoRelease = true,
     released = false,
     last = 0,
@@ -103,7 +63,7 @@ function jump(automatic: boolean) {
     jumpTime = 0;
     peak = 0;
     playing = true;
-    $('play').textContent = '일시 정지';
+    setPlaybackState('play', playing);
     draw();
 }
 function reset() {
@@ -115,13 +75,14 @@ function reset() {
     time = 0;
     jumpTime = 0;
     airborne = false;
-    playing = true;
+    playing = false;
     released = false;
     acc = 0;
     peak = 0;
     keys.clear();
-    $('play').textContent = '일시 정지';
+    setPlaybackState('play', playing);
     updatePrediction();
+    updateReadout();
     draw();
 }
 function updatePrediction() {
@@ -169,8 +130,15 @@ function step() {
             y = 0;
             vy = 0;
             airborne = false;
+            if (keys.size === 0) {
+                playing = false;
+                setPlaybackState('play', false);
+            }
         }
     }
+    updateReadout();
+}
+function updateReadout() {
     $('log').textContent =
         `게임 ${time.toFixed(2)}s · 물리 높이 ${y.toFixed(3)}m · 수평 속도 ${vx.toFixed(2)}m/s · 실제 최고점 ${peak.toFixed(3)}m${airborne ? '' : ' · 접지'}`;
 }
@@ -247,7 +215,7 @@ function frame(now: number) {
     if (playing) {
         acc += elapsed;
         const dt = 1 / number('hz');
-        while (acc >= dt) {
+        while (acc >= dt && playing) {
             step();
             acc -= dt;
         }
@@ -268,15 +236,19 @@ $('jump').onclick = () => {
     jump(true);
 };
 $('play').onclick = () => {
+    if (!playing && !airborne) {
+        jump(true);
+        return;
+    }
     playing = !playing;
-    $('play').textContent = playing ? '일시 정지' : '재생';
+    setPlaybackState('play', playing);
 };
 $('step').onclick = () => {
     playing = false;
-    $('play').textContent = '재생';
+    setPlaybackState('play', playing);
     if (!airborne) jump(true);
     playing = false;
-    $('play').textContent = '재생';
+    setPlaybackState('play', playing);
     step();
     acc = 1 / number('hz');
     draw();
@@ -290,6 +262,8 @@ for (const [id, key] of [
     button.onpointerdown = (e) => {
         button.setPointerCapture(e.pointerId);
         keys.add(key);
+        playing = true;
+        setPlaybackState('play', true);
     };
     button.onpointerup = () => keys.delete(key);
     button.onpointercancel = () => keys.delete(key);
@@ -297,15 +271,19 @@ for (const [id, key] of [
         if (e.key === 'Enter' || e.key === ' ') {
             e.preventDefault();
             keys.add(key);
+            playing = true;
+            setPlaybackState('play', true);
         }
     };
     button.onkeyup = () => keys.delete(key);
 }
 document.addEventListener('keydown', (e) => {
-    if (dialog.open || !settings.hidden || ['INPUT', 'SELECT', 'BUTTON'].includes((e.target as HTMLElement).tagName)) return;
+    if (dialog.open || settings.getAttribute('aria-modal') === 'true' || ['INPUT', 'SELECT', 'BUTTON'].includes((e.target as HTMLElement).tagName)) return;
     if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
         e.preventDefault();
         keys.add(e.key);
+        playing = true;
+        setPlaybackState('play', true);
     }
     if (e.code === 'Space') {
         e.preventDefault();
@@ -344,4 +322,10 @@ reset();
 raf = requestAnimationFrame((now) => {
     last = now;
     frame(now);
+});
+
+document.addEventListener('experiment:layoutchange', () => {
+    if (settings.hidden) return;
+    keys.clear();
+    if (!autoRelease) release();
 });

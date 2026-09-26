@@ -1,82 +1,19 @@
+import { setPlaybackState } from '../../components/experiment-playback';
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 const value = (id: string) => Number($<HTMLInputElement>(id).value);
 const checked = (id: string) => $<HTMLInputElement>(id).checked;
 const choice = (id: string) => $<HTMLSelectElement>(id).value;
-const lab = $('lab'),
-    panel = $('settings'),
-    menu = $('menu'),
+const panel = $('settings'),
     info = $<HTMLDialogElement>('info');
 const keys = new Set<string>();
-const compact = matchMedia('(max-width: 700px)');
-const backdrop = $('menu-backdrop');
-const background = [
-    lab.querySelector<HTMLElement>('.scene')!,
-    lab.querySelector<HTMLElement>('footer')!,
-    lab.querySelector<HTMLElement>('header a')!,
-    $('explain'),
-];
-function menuControls() {
-    return Array.from(panel.querySelectorAll<HTMLElement>('button, input, select, a[href]'))
-        .filter((element) => !element.hasAttribute('disabled') && element.getClientRects().length > 0);
-}
-function syncMenu() {
-    const modal = compact.matches && !panel.hidden;
-    backdrop.hidden = !modal;
-    background.forEach((element) => {
-        element.inert = modal;
-    });
-    if (modal) {
-        panel.setAttribute('role', 'dialog');
-        panel.setAttribute('aria-modal', 'true');
-    } else {
-        panel.setAttribute('role', 'complementary');
-        panel.removeAttribute('aria-modal');
-    }
-}
-function setMenu(open: boolean, focus = true) {
-    panel.hidden = !open;
-    lab.classList.toggle('menu-open', open);
-    menu.setAttribute('aria-expanded', String(open));
-    menu.setAttribute('aria-label', open ? '설정 닫기' : '설정 열기');
-    keys.clear();
-    syncMenu();
-    if (focus) {
-        if (open) menuControls()[0]?.focus();
-        else menu.focus();
-    }
-}
-setMenu(!compact.matches, false);
-menu.onclick = () => setMenu(Boolean(panel.hidden));
-$('close-menu').onclick = () => setMenu(false);
-backdrop.onclick = () => setMenu(false);
-compact.addEventListener('change', () => {
-    syncMenu();
-    if (compact.matches && !panel.hidden && !info.open) menuControls()[0]?.focus();
-});
+document.addEventListener('experiment:layoutchange', () => keys.clear());
 $('explain').onclick = () => {
-    keys.clear();
+    setRunning(false);
     info.showModal();
     $('info-title').focus();
     info.scrollTop = 0;
 };
 $('close-info').onclick = () => info.close();
-document.addEventListener('keydown', (e) => {
-    if (info.open) return;
-    if (e.key === 'Escape' && !panel.hidden) {
-        e.preventDefault();
-        setMenu(false);
-    } else if (e.key === 'Tab' && compact.matches && !panel.hidden) {
-        const controls = menuControls();
-        const first = controls[0], last = controls[controls.length - 1];
-        if (e.shiftKey && (document.activeElement === first || !panel.contains(document.activeElement))) {
-            e.preventDefault();
-            last?.focus();
-        } else if (!e.shiftKey && (document.activeElement === last || !panel.contains(document.activeElement))) {
-            e.preventDefault();
-            first?.focus();
-        }
-    }
-});
 document.querySelectorAll<HTMLInputElement>('input[type="range"]').forEach((input) =>
     input.addEventListener('input', () => {
         const out = document.getElementById(input.id + '-value');
@@ -86,7 +23,7 @@ document.querySelectorAll<HTMLInputElement>('input[type="range"]').forEach((inpu
 const accepted = ['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'KeyA', 'KeyD', 'KeyW', 'KeyS', 'Space'];
 document.addEventListener('keydown', (e) => {
     if (
-        info.open || (compact.matches && !panel.hidden) ||
+        info.open || panel.getAttribute('aria-modal') === 'true' ||
         (e.target instanceof HTMLElement && e.target.closest('input, select, textarea, button, a'))
     ) return;
     if (accepted.includes(e.code)) {
@@ -199,6 +136,7 @@ let node = 'S',
     trail: Point[] = [{ ...base.S }],
     message = '갈림길로 출발하세요.',
     heading = -Math.PI / 4,
+    running = false,
     raf = 0,
     last = performance.now();
 function points() {
@@ -208,6 +146,7 @@ function visible() {
     return !checked('occlusion') || clearSight(position, base.G, { x: 50, y: 48 }, 18);
 }
 function restart() {
+    setRunning(false);
     node = 'S';
     position = { ...base.S };
     travel = null;
@@ -220,6 +159,23 @@ function restart() {
     message = '갈림길로 출발하세요.';
     heading = -Math.PI / 4;
     buttons();
+}
+function setRunning(next: boolean) {
+    running = next;
+    setPlaybackState('play', running);
+}
+function startTravel(id: string) {
+    if (id === 'G' && !key) {
+        message = '문이 잠겼습니다. A 분기로 돌아가 열쇠를 찾아야 합니다.';
+        return false;
+    }
+    const to = points()[id],
+        length = Math.hypot(to.x - position.x, to.y - position.y);
+    travel = { from: { ...position }, to: { ...to }, id, length, done: 0 };
+    heading = Math.atan2(to.y - position.y, to.x - position.x);
+    message = names[id] + '로 이동 중';
+    buttons();
+    return true;
 }
 function buttons() {
     const box = $('choices');
@@ -234,16 +190,7 @@ function buttons() {
         const b = document.createElement('button');
         b.textContent = checked('guidance') ? names[id] + ' →' : `경로 ${id} →`;
         b.onclick = () => {
-            if (id === 'G' && !key) {
-                message = '문이 잠겼습니다. A 분기로 돌아가 열쇠를 찾아야 합니다.';
-                return;
-            }
-            const to = points()[id],
-                length = Math.hypot(to.x - position.x, to.y - position.y);
-            travel = { from: { ...position }, to: { ...to }, id, length, done: 0 };
-            heading = Math.atan2(to.y - position.y, to.x - position.x);
-            message = names[id] + '로 이동 중';
-            buttons();
+            if (startTravel(id)) setRunning(true);
         };
         box.append(b);
     }
@@ -253,6 +200,22 @@ $('reset').onclick = () => {
     restart();
 };
 $('return').onclick = restart;
+$('play').onclick = () => {
+    if (running) {
+        setRunning(false);
+        return;
+    }
+    if (!travel && node === 'S') startTravel('F');
+    if (travel) setRunning(true);
+    else message = '다음 경로 버튼을 선택하세요.';
+};
+$('step').onclick = () => {
+    setRunning(false);
+    if (!travel && node === 'S') startTravel('F');
+    if (travel) update(0.1);
+    else message = '다음 경로 버튼을 선택하세요.';
+    draw();
+};
 $<HTMLSelectElement>('route').onchange = restart;
 $<HTMLSelectElement>('keyRule').onchange = restart;
 $<HTMLInputElement>('guidance').onchange = buttons;
@@ -276,6 +239,7 @@ function update(dt: number) {
             node = travel.id;
             visited.add(node);
             travel = null;
+            setRunning(false);
             if (node === 'A' || (node === 'B' && choice('keyRule') === 'both')) {
                 key = true;
                 message = '열쇠를 얻었습니다. 합류점의 문을 열 수 있습니다.';
@@ -384,17 +348,19 @@ function draw() {
         textAt('↑ ' + (travel ? names[travel.id] : names[node]), W / 2 - 35, H - 18, '#385e4d', 15);
     $('readout').textContent =
         `${distance.toFixed(1)}m · ${elapsed.toFixed(1)}초 · 최초 화면 노출 ${first === null ? '아직 없음' : first.toFixed(1) + 'm'} · 열쇠 ${key ? '있음' : '없음'} · ${message}`;
+    $('playback-detail').textContent = `${running ? '이동 중' : '정지'} · ${travel ? names[travel.id] + '까지 이동' : node === 'S' ? '재생하면 갈림길로 출발합니다' : '다음 경로를 선택하세요'} · 한 스텝은 0.1초입니다.`;
 }
 buttons();
 function frame(now: number) {
     const dt = Math.min(0.05, (now - last) / 1000);
     last = now;
-    if (!info.open) update(dt);
+    if (running && !info.open) update(dt);
     draw();
     raf = requestAnimationFrame(frame);
 }
 raf = requestAnimationFrame(frame);
 window.addEventListener('pagehide', (e) => {
+    setRunning(false);
     keys.clear();
     cancelAnimationFrame(raf);
     if (!e.persisted) resize.disconnect();
@@ -402,7 +368,6 @@ window.addEventListener('pagehide', (e) => {
 window.addEventListener('pageshow', (e) => {
     if (!e.persisted) return;
     last = performance.now();
-    syncMenu();
     resize.observe(canvas);
     resizeCanvas();
     raf = requestAnimationFrame(frame);

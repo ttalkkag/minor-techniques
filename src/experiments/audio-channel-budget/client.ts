@@ -1,4 +1,5 @@
 import { requestEffect, ownerAt, pcmBytes, pitchSample, type Owner } from './model';
+import { setPlaybackState } from '../../components/experiment-playback';
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 const value = (id: string) => Number($<HTMLInputElement>(id).value),
     checked = (id: string) => $<HTMLInputElement>(id).checked;
@@ -114,7 +115,7 @@ function update() {
 }
 async function play() {
     if (running || starting) {
-        stop();
+        stop(false);
         return;
     }
     const request = ++playRequest;
@@ -125,8 +126,7 @@ async function play() {
         starting = false;
         origin = context.currentTime - time;
         running = true;
-        $('play').textContent = '소리 정지';
-        $<HTMLButtonElement>('step').disabled = true;
+        setPlaybackState('play', true);
         timer = window.setInterval(() => {
             update();
             paint();
@@ -135,11 +135,12 @@ async function play() {
         paint();
     } catch {
         if (request !== playRequest) return;
-        stop();
+        stop(false);
         $('channel-result').textContent = '오디오를 시작하지 못했습니다. 무음 진행은 사용할 수 있습니다.';
     }
 }
-function stop() {
+function stop(resetClock = true) {
+    update();
     ++playRequest;
     starting = false;
     audioReady = null;
@@ -152,10 +153,11 @@ function stop() {
     void audio?.close();
     audio = null;
     master = null;
-    time = 0;
-    owners = Array.from({ length: 4 }, () => ({ kind: 'music', priority: 1, until: Infinity, id: 0 }));
-    $('play').textContent = '소리 켜고 재생';
-    $<HTMLButtonElement>('step').disabled = false;
+    if (resetClock) {
+        time = 0;
+        owners = Array.from({ length: 4 }, () => ({ kind: 'music', priority: 1, until: Infinity, id: 0 }));
+    }
+    setPlaybackState('play', false);
     canvas.dataset.audioState = 'closed';
     paint();
 }
@@ -302,49 +304,14 @@ function paint() {
     for (const key of ['priority', 'duration', 'budget', 'volume', 'seconds', 'bank', 'semitones'])
         $(key + '-value').textContent = String(value(key));
 }
-function menu(open: boolean) {
-    const wasOpen = !panel.hidden;
-    panel.hidden = !open;
-    $('backdrop').hidden = !open;
-    $('menu').setAttribute('aria-expanded', String(open));
-    for (const sibling of panel.parentElement!.children) {
-        if (sibling instanceof HTMLElement && sibling !== panel && sibling.id !== 'backdrop')
-            sibling.inert = open;
-    }
-    if (open) {
-        panel.scrollTop = 0;
-        $('close-menu').focus();
-    } else if (wasOpen) $('menu').focus();
-}
-$('menu').onclick = () => menu(true);
-$('close-menu').onclick = () => menu(false);
-$('backdrop').onclick = () => menu(false);
 $('help').onclick = () => dialog.showModal();
 $('close-help').onclick = () => dialog.close();
-document.addEventListener('keydown', (e) => {
-    if (panel.hidden || dialog.open) return;
-    if (e.key === 'Escape') {
-        e.preventDefault();
-        menu(false);
-    } else if (e.key === 'Tab') {
-        const controls = [...panel.querySelectorAll<HTMLElement>('button,input,select,a[href],[tabindex]')].filter(
-            (element) => !element.hasAttribute('disabled') && element.tabIndex >= 0 && element.getClientRects().length,
-        );
-        const first = controls[0],
-            last = controls.at(-1)!;
-        if (e.shiftKey && document.activeElement === first) {
-            e.preventDefault();
-            last.focus();
-        } else if (!e.shiftKey && document.activeElement === last) {
-            e.preventDefault();
-            first.focus();
-        }
-    }
-});
+
 $('play').onclick = () => void play();
 $('effect').onclick = effect;
 $('sample').onclick = () => void sample();
 $('step').onclick = () => {
+    stop(false);
     time += 0.5;
     owners = owners.map((o) => ownerAt(o, time));
     paint();
@@ -380,8 +347,7 @@ for (const input of panel.querySelectorAll('input,select')) {
 const resize = new ResizeObserver(paint);
 resize.observe(canvas);
 window.addEventListener('pagehide', () => {
-    menu(false);
-    stop();
+    stop(false);
     resize.disconnect();
 });
 window.addEventListener('pageshow', () => {

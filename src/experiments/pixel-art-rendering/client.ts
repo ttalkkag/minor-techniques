@@ -9,64 +9,20 @@ import {
     dither,
 } from './model';
 import type { RGB } from './model';
+import { createPlayback } from '../../components/experiment-playback';
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 const inp = (id: string) => $<HTMLInputElement>(id);
 const num = (id: string) => Number(inp(id).value);
 const val = (id: string) => $<HTMLSelectElement>(id).value;
-const menu = $('menu'),
-    panel = $('settings'),
-    form = $<HTMLFormElement>('controls'),
+const form = $<HTMLFormElement>('controls'),
     dialog = $<HTMLDialogElement>('explanation');
-const menuMedia = matchMedia('(max-width: 620px)');
-function overlayMenu() {
-    return true;
-}
-function setMenu(open: boolean, moveFocus = true) {
-    panel.hidden = !open;
-
-    menu.setAttribute('aria-expanded', String(open));
-    menu.setAttribute('aria-label', open ? '설정 메뉴 닫기' : '설정 메뉴 열기');
-    const modal = open && overlayMenu();
-    panel.setAttribute('role', modal ? 'dialog' : 'complementary');
-    if (modal) panel.setAttribute('aria-modal', 'true');
-    else panel.removeAttribute('aria-modal');
-    for (const child of Array.from(panel.parentElement!.children)) {
-        if (child instanceof HTMLElement && child !== panel && child.tagName !== 'NAV')
-            child.inert = modal;
-    }
-    for (const child of Array.from(menu.parentElement!.children))
-        if (child instanceof HTMLElement && child !== menu) child.inert = modal;
-    if (moveFocus) (open ? $('close-menu') : menu).focus();
-
-}
-menu.addEventListener('click', () => setMenu(Boolean(panel.hidden)));
-$('close-menu').addEventListener('click', () => setMenu(false));
 $('help').addEventListener('click', () => dialog.showModal());
 $('close-help').addEventListener('click', () => dialog.close());
-document.addEventListener('keydown', (event) => {
-    if (dialog.open || panel.hidden) return;
-    if (event.key === 'Escape') {
-        event.preventDefault();
-        setMenu(false);
-    } else if (event.key === 'Tab' && overlayMenu()) {
-        const controls = Array.from(panel.querySelectorAll<HTMLElement>(
-            'button:not([disabled]), input:not([disabled]), select:not([disabled]), a[href]',
-        )).filter((control) => control.getClientRects().length > 0);
-        const first = controls[0]!, last = controls[controls.length - 1]!;
-        if (event.shiftKey && (document.activeElement === first || !panel.contains(document.activeElement))) {
-            event.preventDefault();
-            last.focus();
-        } else if (!event.shiftKey && (document.activeElement === last || !panel.contains(document.activeElement))) {
-            event.preventDefault();
-            first.focus();
-        }
-    }
-});
-menuMedia.addEventListener('change', () => setMenu(!panel.hidden, !panel.hidden && overlayMenu()));
 const canvas = $<HTMLCanvasElement>('scene'),
     ctx = canvas.getContext('2d')!;
 let mode: 'raster' | 'color' = 'raster';
 function switchMode(next: 'raster' | 'color') {
+    playback.pause();
     mode = next;
     for (const name of ['raster', 'color']) {
         $(name + '-controls').hidden = name !== mode;
@@ -220,15 +176,17 @@ $('integer').addEventListener('click', () => {
     $<HTMLSelectElement>('filter').value = 'nearest';
     draw();
 });
-$('next-frame').addEventListener('click', () => {
-    inp('phase').value = String((num('phase') + 0.25) % 1.25);
-    draw();
+const playback = createPlayback({
+    stepId: 'next-frame',
+    interval: 250,
+    advance: () => {
+        if (mode === 'color') inp('phase').value = String((num('phase') + 0.25) % 1.25);
+        else inp('world').value = num('world') >= 1 ? '0' : (num('world') + 0.01).toFixed(2);
+        draw();
+    },
 });
 form.addEventListener('reset', () => requestAnimationFrame(draw));
 const observer = new ResizeObserver(draw);
 observer.observe(canvas);
-window.addEventListener('pageshow', () => {
-    setMenu(!panel.hidden, false);
-    draw();
-});
+window.addEventListener('pageshow', draw);
 draw();

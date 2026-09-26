@@ -1,24 +1,20 @@
 ---
-import Page from '../../layouts/Page.astro';
+import ExperimentLayout from '../../layouts/ExperimentLayout.astro';
+import ExperimentPlayback from '../../components/ExperimentPlayback.astro';
 ---
 
-<Page
+<ExperimentLayout
     title="투명 경계와 색 합성 · 게임 실험실"
     description="알파의 저장 표현, 합성 인자, 색 공간을 직접 비교하는 실험"
+    class="world-lab"
+    helpId="explain"
 >
-    <main>
-        <nav>
-            <button id="menu" aria-label="설정 메뉴 열기" aria-controls="settings" aria-expanded="false">
-                ☰
-            </button>
-            <a href="/">게임 실험실</a>
-            <button id="explain">원리 보기</button>
-        </nav>
-        <header>
-            <p>RGB와 알파의 약속</p>
-            <h1>같은 색, 다른 가장자리</h1>
-            <span id="intro">이미 곱한 알파를 또 곱하면, 투명한 부분부터 어두워집니다.</span>
-        </header>
+    <Fragment slot="body-header">
+        <p class="eyebrow">RGB와 알파의 약속</p>
+        <h1>같은 색, 다른 가장자리</h1>
+        <span class="intro" id="intro">이미 곱한 알파를 또 곱하면, 투명한 부분부터 어두워집니다.</span>
+    </Fragment>
+    <Fragment slot="graphics">
         <section class="stage" aria-label="합성 결과 비교">
             <canvas
                 id="scene"
@@ -26,6 +22,8 @@ import Page from '../../layouts/Page.astro';
                 aria-describedby="summary"
             ></canvas>
         </section>
+    </Fragment>
+    <Fragment slot="description">
         <div class="numbers">
             <div>
                 <span id="left-title">선택한 처리</span>
@@ -37,77 +35,75 @@ import Page from '../../layouts/Page.astro';
             </div>
         </div>
         <p id="summary" role="status"></p>
-        <div id="settings" role="complementary" hidden aria-label="색 합성 설정">
-            <div class="panel-head">
-                <h2>합성 조건</h2>
-                <button id="close-menu" aria-label="설정 메뉴 닫기">
-                    ×
-                </button>
-            </div>
-            <label for="mode">
-                합성 실험
-                <select id="mode">
-                    <option value="over">반투명 source-over</option>
-                    <option value="add">가산 · 밝은 배경의 대비</option>
-                    <option value="multiply">곱셈 · 배경을 어둡게</option>
+    </Fragment>
+    <div slot="controls" class="toolbar">
+        <ExperimentPlayback resetId="reset">전경 알파를 바꾸며 합성 결과를 비교합니다.</ExperimentPlayback>
+    </div>
+    <div slot="settings" class="settings-fields">
+        <label for="mode">
+            합성 실험
+            <select id="mode">
+                <option value="over">반투명 source-over</option>
+                <option value="add">가산 · 밝은 배경의 대비</option>
+                <option value="multiply">곱셈 · 배경을 어둡게</option>
+            </select>
+        </label>
+        <label for="source-color">
+            전경 색<input id="source-color" type="color" value="#ed7046" />
+        </label>
+        <label for="source-alpha">
+            전경 알파 / 효과 세기 <output id="source-alpha-value"></output>
+            <input id="source-alpha" type="range" min="0" max="1" step="0.01" value="0.45" />
+        </label>
+        <div id="over-controls">
+            <label for="background-color">
+                배경 색<input id="background-color" type="color" value="#188b88" />
+            </label>
+            <label for="background-alpha">
+                배경 알파 <output id="background-alpha-value"></output>
+                <input id="background-alpha" type="range" min="0" max="1" step="0.01" value="0.65" />
+            </label>
+            <label for="storage">
+                전경 RGB 저장
+                <select id="storage">
+                    <option value="premult">Premultiplied · C×α 저장</option>
+                    <option value="straight">Straight · C 저장</option>
                 </select>
             </label>
-            <label for="source-color">
-                전경 색<input id="source-color" type="color" value="#ed7046" />
-            </label>
-            <label for="source-alpha">
-                전경 알파 / 효과 세기 <output id="source-alpha-value"></output>
-                <input id="source-alpha" type="range" min="0" max="1" step="0.01" value="0.45" />
-            </label>
-            <div id="over-controls">
-                <label for="background-color">
-                    배경 색<input id="background-color" type="color" value="#188b88" />
-                </label>
-                <label for="background-alpha">
-                    배경 알파 <output id="background-alpha-value"></output>
-                    <input id="background-alpha" type="range" min="0" max="1" step="0.01" value="0.65" />
-                </label>
-                <label for="storage">
-                    전경 RGB 저장
-                    <select id="storage">
-                        <option value="premult">Premultiplied · C×α 저장</option>
-                        <option value="straight">Straight · C 저장</option>
-                    </select>
-                </label>
-                <label for="factor">
-                    전경 RGB 합성 인자
-                    <select id="factor">
-                        <option value="alpha">SrcAlpha · 알파 곱하기</option>
-                        <option value="one">One · 그대로 쓰기</option>
-                    </select>
-                </label>
-                <label for="alpha-factor">
-                    출력 알파 합성
-                    <select id="alpha-factor">
-                        <option value="separate">별도 One · 올바른 α</option>
-                        <option value="same">RGB와 같은 인자</option>
-                    </select>
-                </label>
-                <button id="match">저장 표현에 인자 맞추기</button>
-                <button id="swap">전경과 배경 순서 바꾸기</button>
-                <button id="example">빨강 0.4 / 파랑 0.25 예제</button>
-            </div>
-            <div id="backdrop-controls" hidden>
-                <label for="brightness">
-                    오른쪽 배경 밝기 <output id="brightness-value"></output>
-                    <input id="brightness" type="range" min="0.05" max="1" step="0.01" value="0.95" />
-                </label>
-                <p>왼쪽은 sRGB 0.08의 어두운 배경, 오른쪽은 조절한 불투명 배경입니다.</p>
-            </div>
-            <label for="space">
-                계산 색 공간
-                <select id="space">
-                    <option value="srgb">sRGB 인코딩 값에서 혼합</option>
-                    <option value="linear">선형 광량으로 변환 후 혼합</option>
+            <label for="factor">
+                전경 RGB 합성 인자
+                <select id="factor">
+                    <option value="alpha">SrcAlpha · 알파 곱하기</option>
+                    <option value="one">One · 그대로 쓰기</option>
                 </select>
             </label>
-            <button id="reset">초기화</button>
+            <label for="alpha-factor">
+                출력 알파 합성
+                <select id="alpha-factor">
+                    <option value="separate">별도 One · 올바른 α</option>
+                    <option value="same">RGB와 같은 인자</option>
+                </select>
+            </label>
+            <button id="match">저장 표현에 인자 맞추기</button>
+            <button id="swap">전경과 배경 순서 바꾸기</button>
+            <button id="example">빨강 0.4 / 파랑 0.25 예제</button>
         </div>
+        <div id="backdrop-controls" hidden>
+            <label for="brightness">
+                오른쪽 배경 밝기 <output id="brightness-value"></output>
+                <input id="brightness" type="range" min="0.05" max="1" step="0.01" value="0.95" />
+            </label>
+            <p>왼쪽은 sRGB 0.08의 어두운 배경, 오른쪽은 조절한 불투명 배경입니다.</p>
+        </div>
+        <label for="space">
+            계산 색 공간
+            <select id="space">
+                <option value="srgb">sRGB 인코딩 값에서 혼합</option>
+                <option value="linear">선형 광량으로 변환 후 혼합</option>
+            </select>
+        </label>
+    </div>
+    <Fragment slot="overlays">
         <dialog id="info" aria-labelledby="info-title">
             <div class="dialog-head">
                 <h2 id="info-title">어두운 경계와 사라진 빛</h2>
@@ -162,24 +158,8 @@ import Page from '../../layouts/Page.astro';
                 </a>
             </p>
         </dialog>
-    </main>
+    </Fragment>
     <style>
-        main {
-            min-height: 100svh;
-            padding: 20px 28px 24px;
-            background: radial-gradient(circle at 50% 35%, #fff, #edf1f3 75%);
-        }
-        nav {
-            display: flex;
-            align-items: center;
-            gap: 14px;
-        }
-        nav a {
-            color: #263340;
-            text-decoration: none;
-            font-weight: 750;
-            margin-right: auto;
-        }
         button,
         select {
             min-height: 44px;
@@ -193,28 +173,14 @@ import Page from '../../layouts/Page.astro';
         button:hover {
             background: #e0efed;
         }
-        header {
-            text-align: center;
-            margin: 24px auto 8px;
-        }
-        header p {
+        .eyebrow {
             color: #0c716c;
             font-size: 13px;
             letter-spacing: 0.08em;
         }
-        h1 {
-            font-size: clamp(25px, 3vw, 44px);
-            margin: 10px 0;
-        }
-        header span {
+        .intro {
             font-size: 14px;
             color: #52646b;
-        }
-        .stage {
-            height: clamp(300px, 48vh, 530px);
-            width: 100%;
-            max-width: 1300px;
-            margin: auto;
         }
         canvas {
             display: block;
@@ -254,21 +220,6 @@ import Page from '../../layouts/Page.astro';
             max-width: 1000px;
             margin: 14px auto;
         }
-        #settings {
-            position: fixed;
-            left: 24px;
-            top: 80px;
-            width: 316px;
-            max-height: calc(100svh - 104px);
-            overflow: auto;
-            z-index: 5;
-            padding: 20px;
-            background: #fffffff5;
-            border: 1px solid #c7d5d6;
-            border-radius: 20px;
-            box-shadow: 0 18px 70px #263b3d30;
-        }
-        .panel-head,
         .dialog-head {
             display: flex;
             align-items: center;
@@ -279,7 +230,6 @@ import Page from '../../layouts/Page.astro';
             font-size: 18px;
             margin: 0;
         }
-        .panel-head button,
         .dialog-head button {
             font-size: 23px;
         }
@@ -315,18 +265,13 @@ import Page from '../../layouts/Page.astro';
             float: right;
             color: #0b716b;
         }
-        #settings button {
+        .settings-fields button {
             margin-bottom: 8px;
         }
-        #settings > button,
-        #settings > div > button {
+        .settings-fields > div > button {
             width: 100%;
         }
-        .panel-head > button {
-            width: auto;
-            margin: 0;
-        }
-        #settings p {
+        .settings-fields p {
             font-size: 12px;
             line-height: 1.7;
         }
@@ -355,22 +300,10 @@ import Page from '../../layouts/Page.astro';
             color: #0b716b;
         }
         @media (max-width: 600px) {
-            main {
-                padding: 14px 12px;
-            }
-            header span {
+            .intro {
                 display: block;
                 line-height: 1.7;
                 padding: 0 15px;
-            }
-            nav {
-                gap: 8px;
-            }
-            nav button {
-                padding: 9px 12px;
-            }
-            .stage {
-                height: 580px;
             }
             .numbers {
                 flex-direction: column;
@@ -379,17 +312,18 @@ import Page from '../../layouts/Page.astro';
             .numbers > div {
                 padding: 12px 16px;
             }
-            #settings {
-                left: 12px;
-                top: 74px;
-                width: min(316px, calc(100% - 24px));
-            }
             #summary {
                 font-size: 13px;
             }
         }
+        :global(.experiment-shell.world-lab) { --experiment-graphics-min-height: 300px; }
+        .stage { width: 100%; height: 100%; min-height: 0; }
+        @media (max-width: 1000px) {
+            :global(.experiment-shell.world-lab) { --experiment-graphics-min-height: 500px; }
+        }
+        .toolbar { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 8px; }
     </style>
     <script>
         import '../../experiments/color-compositing/client';
     </script>
-</Page>
+</ExperimentLayout>

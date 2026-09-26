@@ -1,0 +1,72 @@
+---
+import Page from './Page.astro';
+import '../styles/experiment-layout.css';
+
+interface Props {
+    title: string;
+    description: string;
+    id?: string;
+    class?: string;
+    style?: string;
+    settingsId?: string;
+    menuId?: string;
+    closeSettingsId?: string;
+    backdropId?: string;
+    helpId?: string;
+}
+
+const {
+    title, description, id = 'lab', class: className = 'lab', style,
+    settingsId = 'settings', menuId = 'menu', closeSettingsId = 'close-menu',
+    backdropId = 'menu-backdrop', helpId = 'help',
+} = Astro.props;
+---
+
+<Page title={title} description={description}>
+    <div id={id} class:list={['experiment-shell', className]} style={style} data-experiment-layout>
+        <header class="experiment-app-header" data-experiment-region="header">
+            <nav class="experiment-navigation" aria-label="실험실 탐색">
+                <button id={menuId} class="experiment-menu-button" data-settings-toggle aria-label="설정 메뉴 열기" aria-controls={settingsId} aria-expanded="false">
+                    <span aria-hidden="true"></span><span aria-hidden="true"></span><span aria-hidden="true"></span>
+                </button>
+                <a class="experiment-brand" href="/" aria-label="Game lab 목록으로">Game lab</a>
+            </nav>
+            <div class="experiment-header-actions">
+                <slot name="header-actions" />
+                <div class="experiment-page-actions" role="group" aria-label="설명과 페이지 초기화">
+                    <button id={helpId} class="experiment-help-button" data-experiment-help type="button" aria-label="추가 설명 열기" title="왜 이런 일이 생길까요?">
+                        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="12" cy="12" r="9" /><path d="M12 11v6M12 7h.01" stroke-linecap="round" /></svg>
+                    </button>
+                    <button id="reset-all" class="experiment-reset-all" data-experiment-reset-all type="button" aria-label="전체 초기화" title="설정·화면·재생 전체 초기화">
+                        <span class="experiment-reset-symbol" aria-hidden="true">↺</span>
+                    </button>
+                </div>
+            </div>
+        </header>
+        <div class="experiment-body">
+            <div id={backdropId} class="experiment-backdrop" data-settings-backdrop hidden></div>
+            <aside id={settingsId} class="experiment-settings" data-experiment-region="settings" aria-label="실험 설정" hidden>
+                <div class="experiment-settings-heading">
+                    <h2>설정</h2>
+                    <div class="experiment-settings-actions">
+                        <button id={closeSettingsId} class="experiment-close-button" data-settings-close aria-label="설정 메뉴 닫기">×</button>
+                    </div>
+                </div>
+                <div class="experiment-settings-content">
+                    {Astro.slots.has('controls') && <section class="experiment-controls" data-experiment-region="controls" aria-label="실험 재생과 조작"><slot name="controls" /></section>}
+                    <slot name="settings" />
+                </div>
+            </aside>
+            <main class="experiment-content" data-experiment-region="content">
+                <header class="experiment-body-header" data-experiment-region="body-header"><slot name="body-header" /></header>
+                <section class="experiment-graphics" data-experiment-region="graphics" aria-label="실험 장면"><slot name="graphics" /></section>
+                <section class="experiment-description" data-experiment-region="description" aria-label="실험 설명과 결과"><slot name="description" /></section>
+            </main>
+        </div>
+        <slot name="overlays" />
+        <slot />
+    </div>
+    <script>
+        import './experiment-layout';
+    </script>
+</Page>

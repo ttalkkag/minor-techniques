@@ -1,9 +1,9 @@
 import { rowPoint, rayPoint, affinePoint, mapBoundary, mapColor } from './model';
+import { createPlayback } from '../../components/experiment-playback';
 const input = (id: string) => document.getElementById(id) as HTMLInputElement;
 const canvas = document.getElementById('scene') as HTMLCanvasElement,
     ctx = canvas.getContext('2d')!;
 const settings = document.getElementById('settings')!,
-    menu = document.getElementById('menu')!,
     dialog = document.getElementById('explanation') as HTMLDialogElement;
 const buffers = [document.createElement('canvas'), document.createElement('canvas')];
 buffers.forEach((c) => {
@@ -21,54 +21,8 @@ for (let y = 0; y < 144; y++)
         mapImg.data.set([...color, 255], i);
     }
 mapCtx.putImageData(mapImg, 0, 0);
-const lab = document.getElementById('lab')!;
-const overlayMenu = matchMedia('(max-width: 1099px)');
-function syncMenu() {
-    const modal = !settings.hidden && overlayMenu.matches;
-    for (const child of lab.children)
-        if (child instanceof HTMLElement && child !== settings) child.inert = modal;
-    if (modal) {
-        settings.setAttribute('role', 'dialog');
-        settings.setAttribute('aria-modal', 'true');
-        if (!settings.contains(document.activeElement) && !dialog.open)
-            document.getElementById('close-menu')!.focus();
-    } else {
-        settings.setAttribute('role', 'complementary');
-        settings.removeAttribute('aria-modal');
-    }
-}
-function setMenu(open: boolean) {
-    settings.hidden = !open;
-    menu.setAttribute('aria-expanded', String(open));
-    lab.classList.toggle('menu-open', open);
-    syncMenu();
-    if (open) document.getElementById('close-menu')!.focus();
-    else menu.focus();
-}
-overlayMenu.addEventListener('change', syncMenu);
-menu.addEventListener('click', () => setMenu(Boolean(settings.hidden)));
-document.getElementById('close-menu')!.addEventListener('click', () => setMenu(false));
 document.getElementById('explain')!.addEventListener('click', () => dialog.showModal());
 document.getElementById('close-dialog')!.addEventListener('click', () => dialog.close());
-const key = (e: KeyboardEvent) => {
-    if (dialog.open || settings.hidden) return;
-    if (e.key === 'Escape') {
-        e.preventDefault();
-        setMenu(false);
-    } else if (e.key === 'Tab' && overlayMenu.matches) {
-        const controls = Array.from(settings.querySelectorAll<HTMLElement>('button, input, select, a[href]'))
-            .filter((control) => !control.hasAttribute('disabled') && control.getClientRects().length);
-        const first = controls[0]!, last = controls[controls.length - 1]!;
-        if (e.shiftKey && document.activeElement === first) {
-            e.preventDefault();
-            last.focus();
-        } else if (!e.shiftKey && document.activeElement === last) {
-            e.preventDefault();
-            first.focus();
-        }
-    }
-};
-document.addEventListener('keydown', key);
 function render() {
     const w = canvas.clientWidth,
         h = canvas.clientHeight,
@@ -227,6 +181,14 @@ document.getElementById('reset')!.addEventListener('click', () => {
     input('obstacle').checked = false;
     render();
 });
+createPlayback({
+    interval: 150,
+    advance: () => {
+        const row = Number(input('row').value);
+        input('row').value = String(row >= 179 ? 37 : row + 1);
+        render();
+    },
+});
 const resize = new ResizeObserver(render);
 resize.observe(canvas.parentElement!);
 window.addEventListener('pagehide', () => {
@@ -234,7 +196,6 @@ window.addEventListener('pagehide', () => {
 });
 window.addEventListener('pageshow', () => {
     resize.observe(canvas.parentElement!);
-    syncMenu();
     render();
 });
 render();

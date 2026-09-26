@@ -1,5 +1,6 @@
 import { outline, volumeSamples, volumeBelow, levelForVolume, clipLiquid, oscillatorStep } from './model';
 import type { Point, Shape } from './model';
+import { setPlaybackState } from '../../components/experiment-playback';
 const get = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 const canvas = get<HTMLCanvasElement>('scene');
 const ctx = canvas.getContext('2d')!;
@@ -8,71 +9,14 @@ const tilt = get<HTMLInputElement>('tilt'),
     damping = get<HTMLInputElement>('damping');
 const shape = get<HTMLSelectElement>('shape'),
     level = get<HTMLSelectElement>('level');
-const menu = get<HTMLButtonElement>('menu'),
-    settings = get<HTMLElement>('settings'),
-    info = get<HTMLDialogElement>('info');
+const info = get<HTMLDialogElement>('info');
 let samples = volumeSamples('bottle'),
     slosh = 0,
     velocity = 0,
     frame = 0,
     lastTime = 0;
-const menuBackground = document.querySelectorAll<HTMLElement>(
-    'main > :not(nav):not(#settings):not(dialog), nav > :not(#menu)',
-);
-function syncMenu() {
-    const modal = !settings.hidden;
-    menuBackground.forEach((element) => {
-        element.inert = modal;
-    });
-    if (modal) {
-        settings.setAttribute('role', 'dialog');
-        settings.setAttribute('aria-modal', 'true');
-        if (!info.open && !settings.contains(document.activeElement)) get('close-menu').focus();
-    } else {
-        settings.setAttribute('role', 'complementary');
-        settings.removeAttribute('aria-modal');
-    }
-}
-function menuOpen(open: boolean, focus = true) {
-    settings.hidden = !open;
-    menu.setAttribute('aria-expanded', String(open));
-    menu.setAttribute('aria-label', open ? '설정 메뉴 닫기' : '설정 메뉴 열기');
-    syncMenu();
-    if (focus) (open ? get('close-menu') : menu).focus();
-}
-menu.addEventListener('click', () => menuOpen(Boolean(settings.hidden)));
-get('close-menu').addEventListener('click', () => menuOpen(false));
 get('explain').addEventListener('click', () => info.showModal());
 get('close-info').addEventListener('click', () => info.close());
-document.addEventListener('keydown', (event) => {
-    if (info.open || settings.hidden) return;
-    if (event.key === 'Escape') {
-        event.preventDefault();
-        menuOpen(false);
-    } else if (event.key === 'Tab') {
-        const controls = Array.from(
-            settings.querySelectorAll<HTMLElement>('button, input, select, a[href], [tabindex]'),
-        ).filter(
-            (control) =>
-                !control.matches(':disabled') && control.tabIndex >= 0 && control.getClientRects().length,
-        );
-        const first = controls[0]!,
-            last = controls[controls.length - 1]!;
-        if (
-            event.shiftKey &&
-            (document.activeElement === first || !settings.contains(document.activeElement))
-        ) {
-            event.preventDefault();
-            last.focus();
-        } else if (
-            !event.shiftKey &&
-            (document.activeElement === last || !settings.contains(document.activeElement))
-        ) {
-            event.preventDefault();
-            first.focus();
-        }
-    }
-});
 function path(points: Point[], project: (point: Point) => Point) {
     ctx.beginPath();
     points.forEach((p, i) => {
@@ -203,24 +147,45 @@ function animate(time: number) {
         frame = 0;
         slosh = 0;
         velocity = 0;
+        setPlaybackState('play', false);
         draw();
     }
 }
-function stop() {
+function pause() {
     cancelAnimationFrame(frame);
     frame = 0;
+    setPlaybackState('play', false);
+}
+function start() {
+    if (frame) return;
+    lastTime = performance.now();
+    frame = requestAnimationFrame(animate);
+    setPlaybackState('play', true);
+}
+function stop() {
+    pause();
     slosh = 0;
     velocity = 0;
     draw();
 }
 get('pulse').addEventListener('click', () => {
     velocity += 2;
-    if (!frame) {
-        lastTime = performance.now();
-        frame = requestAnimationFrame(animate);
+    start();
+});
+get('play').addEventListener('click', () => {
+    if (frame) pause();
+    else {
+        if (Math.abs(slosh) + Math.abs(velocity) < 0.0002) velocity = 2;
+        start();
     }
 });
-get('stop').addEventListener('click', stop);
+get('step').addEventListener('click', () => {
+    pause();
+    if (Math.abs(slosh) + Math.abs(velocity) < 0.0002) velocity = 2;
+    for (let i = 0; i < 8; i++)
+        [slosh, velocity] = oscillatorStep(slosh, velocity, Number(damping.value), 1 / 480);
+    draw();
+});
 [tilt, fill, damping, level].forEach((control) => control.addEventListener('input', draw));
 level.addEventListener('change', draw);
 shape.addEventListener('change', () => {
@@ -245,7 +210,6 @@ window.addEventListener('pagehide', (event) => {
 window.addEventListener('pageshow', (event) => {
     if (event.persisted) {
         observer.observe(canvas);
-        syncMenu();
         draw();
     }
 });

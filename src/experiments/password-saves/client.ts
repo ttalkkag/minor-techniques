@@ -1,3 +1,5 @@
+import { setSettingsOpen } from '../../layouts/experiment-layout';
+import { createPlayback } from '../../components/experiment-playback';
 import { encode, encodeRaw, decode, restore, alphabet } from './model';
 const el = (id: string) => document.getElementById(id)!;
 const input = (id: string) => el(id) as HTMLInputElement;
@@ -36,57 +38,9 @@ const dot = (x: number, y: number, radius: number, color: string) => {
     ctx.arc(x, y, radius, 0, Math.PI * 2);
     ctx.fill();
 };
-function menu(open: boolean) {
-    const panel = el('settings');
-    panel.hidden = !open;
-    el('backdrop').hidden = !open;
-    el('menu').setAttribute('aria-expanded', String(open));
-    for (const sibling of panel.parentElement!.children) {
-        if (
-            sibling instanceof HTMLElement &&
-            !['settings', 'backdrop', 'explanation'].includes(sibling.id)
-        )
-            sibling.inert = open;
-    }
-    document.body.style.overflow = open ? 'hidden' : '';
-    (open ? el('close') : el('menu')).focus();
-}
 function boot(draw: () => void) {
-    on('menu', 'click', () => menu(Boolean(el('settings').hidden)));
-    on('close', 'click', () => menu(false));
-    on('backdrop', 'click', () => menu(false));
     on('help', 'click', () => (el('explanation') as HTMLDialogElement).showModal());
     on('explain-close', 'click', () => (el('explanation') as HTMLDialogElement).close());
-    document.addEventListener(
-        'keydown',
-        (event) => {
-            const panel = el('settings');
-            if (panel.hidden || (el('explanation') as HTMLDialogElement).open) return;
-            if (event.key === 'Escape') {
-                event.preventDefault();
-                menu(false);
-            } else if (event.key === 'Tab') {
-                const controls = Array.from(
-                    panel.querySelectorAll<HTMLElement>(
-                        'button:not(:disabled), input:not(:disabled), select:not(:disabled), a[href]',
-                    ),
-                ).filter((control) => control.getClientRects().length > 0);
-                const first = controls[0]!,
-                    last = controls.at(-1)!;
-                if (
-                    !panel.contains(document.activeElement) ||
-                    (event.shiftKey && document.activeElement === first)
-                ) {
-                    event.preventDefault();
-                    (event.shiftKey ? last : first).focus();
-                } else if (!event.shiftKey && document.activeElement === last) {
-                    event.preventDefault();
-                    first.focus();
-                }
-            }
-        },
-        { signal: abort.signal },
-    );
     const resize = () => {
         const bounds = canvas.getBoundingClientRect();
         w = bounds.width;
@@ -111,10 +65,29 @@ function boot(draw: () => void) {
     });
     resize();
 }
-let restored = restore('2G68');
+let restored: ReturnType<typeof restore> = null;
 let result = decode('2G68');
-let pending = false;
+let pending = true;
+let phase = 0;
 let message = '';
+const stages = ['문자', '비트', '검사값', '버전·범위', '복원'];
+function stageDetail() {
+    const code = input('code').value;
+    if (phase === 0) return '입력한 코드를 한 단계씩 검증합니다.';
+    if (!result.ok && phase === result.step) return result.error;
+    const packed = [...code].reduce((value, char) => value * 32 + alphabet.indexOf(char), 0),
+        version = packed >>> 18,
+        level = (packed >>> 14) & 15,
+        items = (packed >>> 6) & 255;
+    return [
+        '',
+        `${code} · 4글자 모두 문자표에 포함`,
+        [...code].map((char) => alphabet.indexOf(char).toString(2).padStart(5, '0')).join(' '),
+        `기록 ${packed & 63} = (${version} + ${level} + ${items}) mod 64 = ${(version + level + items) % 64}`,
+        `버전 ${version} 지원 · 레벨 ${level}은 1–12 범위`,
+        `레벨 ${level} · 아이템 ${items} 복원 / 위치 10% · 효과 없음`,
+    ][phase]!;
+}
 function current() {
     return {
         level: +input('level').value,
@@ -134,11 +107,12 @@ function draw() {
     el('position-value').textContent = `${state.position}%`;
     el('generated').textContent = generated;
     el('metric-0').textContent = '4글자 · 20비트';
-    el('metric-1').textContent = pending ? '복원 대기' : result.ok ? '5 / 5 통과' : `${result.step}단계 거부`;
+    el('metric-1').textContent = pending ? `${phase} / 5 진행` : result.ok ? '5 / 5 통과' : `${result.step}단계 거부`;
     el('metric-2').textContent = pending ? '입력 확인 전' : result.ok ? '레벨 + 아이템' : '기존 상태 유지';
     el('summary').textContent =
         message ||
         `현재 위치 ${state.position}%와 일시 효과는 코드에 저장되지 않으므로, 복원은 위치 10% · 효과 없음으로 시작합니다.`;
+    el('playback-status').textContent = `${phase} / 5 · ${phase ? stages[phase - 1] : '입력 코드 검증 대기'}${!pending && !result.ok ? ' 거부' : ''}`;
     const bitBox = el('bits');
     bitBox.replaceChildren();
     if (code.length === 4 && [...code].every((char) => alphabet.includes(char))) {
@@ -159,12 +133,21 @@ function draw() {
         bitBox.append(span);
     }
     ctx.clearRect(0, 0, w, h);
+    const stepWidth = (w - 28) / stages.length;
+    stages.forEach((stage, index) => {
+        const failed = !result.ok && !pending && index + 1 === phase,
+            reached = index < phase,
+            color = failed ? '#b65c43' : reached ? '#147e73' : '#6d8790';
+        rect(14 + index * stepWidth, 13, stepWidth - 5, 33, failed ? '#f6dfd6' : reached ? '#d7eee8' : '#f5f9fa', 6);
+        text(`${index + 1} ${stage}`, 20 + index * stepWidth, 34, color, w < 500 ? 10 : 12, stepWidth - 15);
+    });
+    text(stageDetail(), 16, 71, !pending && !result.ok ? '#b65c43' : '#345963', w < 500 ? 10 : 12, w - 32);
     const mobile = w < 620,
         panelW = mobile ? w - 24 : (w - 42) / 2,
-        panelH = mobile ? (h - 38) / 2 : h - 32;
+        panelH = mobile ? (h - 126) / 2 : h - 120;
     for (let i = 0; i < 2; i++) {
         const x = mobile ? 12 : 14 + i * (panelW + 14),
-            y = mobile ? 12 + i * (panelH + 12) : 16;
+            y = mobile ? 100 + i * (panelH + 12) : 104;
         const data = i === 0 ? state : restored;
         rect(x, y, panelW, panelH, '#f8fbfc', 14);
         text(
@@ -232,37 +215,64 @@ function draw() {
     }
 }
 function read() {
+    playback.pause();
     pending = false;
     result = decode(input('code').value);
+    phase = result.ok ? 5 : result.step;
     if (result.ok) {
         restored = restore(input('code').value);
         message = `복원 성공: 레벨 ${result.value.level}, 아이템 값 ${result.value.items}, 검사값 ${result.checksum}. 위치와 효과는 초기값입니다.`;
     } else message = `복원 거부: ${result.error} 이전 복원 상태를 유지했습니다.`;
     draw();
 }
+function advance() {
+    if (!pending) phase = 0;
+    if (phase === 0) result = decode(input('code').value);
+    pending = true;
+    phase++;
+    if (!result.ok && phase === result.step) {
+        pending = false;
+        message = `복원 거부: ${result.error} 이전 복원 상태를 유지했습니다.`;
+    } else if (phase === 5 && result.ok) {
+        restored = restore(input('code').value);
+        pending = false;
+        message = `복원 성공: 레벨 ${result.value.level}, 아이템 값 ${result.value.items}. 위치와 효과는 초기값입니다.`;
+    } else message = `${phase}단계 · ${stageDetail()}`;
+    draw();
+    return pending;
+}
+const playback = createPlayback({ interval: 750, advance });
+function prepare() {
+    playback.pause();
+    phase = 0;
+    pending = true;
+    result = decode(input('code').value);
+}
 function reset() {
+    playback.pause();
     input('level').value = '5';
     input('position').value = '65';
     input('effect').checked = true;
     for (let i = 0; i < 8; i++) input(`item-${i}`).checked = i < 2;
     input('code').value = '2G68';
     select('fault').value = 'typo';
-    restored = restore('2G68');
+    restored = null;
     result = decode('2G68');
-    pending = false;
+    pending = true;
+    phase = 0;
     message = '';
     draw();
 }
 for (const id of ['level', 'position', 'effect', ...Array.from({ length: 8 }, (_, i) => `item-${i}`)])
     on(id, 'input', draw);
 on('code', 'input', () => {
-    pending = true;
-    message = '입력한 코드는 복원 버튼을 누를 때 검증합니다.';
+    prepare();
+    message = '재생 또는 한 단계 진행으로 입력 코드를 검증하세요.';
     draw();
 });
 on('encode', 'click', () => {
     input('code').value = encode(current());
-    pending = true;
+    prepare();
     message = '현재 레벨과 아이템을 코드에 담았습니다. 복원해 보세요.';
     draw();
 });
@@ -285,12 +295,12 @@ on('inject', 'click', () => {
         input('level').value = '5';
         for (let i = 0; i < 8; i++) input(`item-${i}`).checked = i < 2;
     }
-    pending = true;
+    prepare();
     message =
         fault === 'collision'
             ? '현재 상태 5 + 3 = 8, 실험 코드 6 + 2 = 8. 검사값이 같아도 상태는 다릅니다. 복원해 보세요.'
             : '실험 코드를 입력했습니다. 복원 버튼으로 검사를 실행하세요.';
-    menu(false);
+    setSettingsOpen(false);
     draw();
 });
 on('reset', 'click', reset);

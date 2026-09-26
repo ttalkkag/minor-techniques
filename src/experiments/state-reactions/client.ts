@@ -1,3 +1,4 @@
+import { createPlayback } from '../../components/experiment-playback';
 const get = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 const input = (id: string) => get<HTMLInputElement>(id);
 const number = (id: string) => Number(input(id).value);
@@ -5,62 +6,16 @@ const text = (id: string, value: string) => {
     const element = get(id);
     if (element.textContent !== value) element.textContent = value;
 };
-const settings = get('settings');
-const menu = get<HTMLButtonElement>('menu');
 const dialog = get<HTMLDialogElement>('explanation');
-const background = [
-    ...Array.from(settings.parentElement!.children).filter(
-        (element) => element !== settings && element !== menu.parentElement && element !== dialog,
-    ),
-    ...Array.from(menu.parentElement!.children).filter((element) => element !== menu),
-] as HTMLElement[];
-function closeMenu(returnFocus = true) {
-    if (settings.hidden) return;
-    settings.hidden = true;
-    menu.setAttribute('aria-expanded', 'false');
-    menu.setAttribute('aria-label', '설정 메뉴 열기');
-    background.forEach((element) => (element.inert = false));
-    document.body.style.overflow = '';
-    if (returnFocus) menu.focus();
-}
-menu.addEventListener('click', () => {
-    if (!settings.hidden) return closeMenu();
-    settings.hidden = false;
-    settings.scrollTop = 0;
-    menu.setAttribute('aria-expanded', 'true');
-    menu.setAttribute('aria-label', '설정 메뉴 닫기');
-    background.forEach((element) => (element.inert = true));
-    document.body.style.overflow = 'hidden';
-    get('close-menu').focus();
+get('explain').addEventListener('click', () => {
+    playback.pause();
+    dialog.showModal();
 });
-get('close-menu').addEventListener('click', () => closeMenu());
-get('explain').addEventListener('click', () => dialog.showModal());
 get('close-explain').addEventListener('click', () => dialog.close());
-window.addEventListener('keydown', (event) => {
-    if (settings.hidden || dialog.open) return;
-    if (event.key === 'Escape') {
-        event.preventDefault();
-        closeMenu();
-    } else if (event.key === 'Tab') {
-        const controls = Array.from(
-            settings.querySelectorAll<HTMLElement>('button, input, select, a[href]'),
-        ).filter((element) => !element.hasAttribute('disabled') && element.getClientRects().length);
-        const first = controls[0],
-            last = controls[controls.length - 1];
-        if (event.shiftKey && (document.activeElement === first || !settings.contains(document.activeElement))) {
-            event.preventDefault();
-            last.focus();
-        } else if (!event.shiftKey && (document.activeElement === last || !settings.contains(document.activeElement))) {
-            event.preventDefault();
-            first.focus();
-        }
-    }
-});
 import { initialWorld, removeBody, stepWorld, type Contact } from './model';
 const scene = document.getElementById('scene') as unknown as SVGSVGElement;
 let world = initialWorld(),
-    selected = 0,
-    timer = 0;
+    selected = 0;
 function draw() {
     const target = world.bodies.find((b) => b.id === selected);
     text('dry-out', `${number('dry')}틱`);
@@ -125,20 +80,18 @@ get('both').addEventListener('click', () =>
     enqueue(input('order').value === 'wf' ? ['water', 'fire'] : ['fire', 'water']),
 );
 function step() {
+    if (world.tick === 0 && world.queue.length === 0) {
+        const first = world.bodies.find((body) => body.flammable);
+        if (first) {
+            world.queue.push({ target: first.id, kind: 'fire' });
+            world.log.unshift(`재생 예제 · ${first.id + 1}번 나무에 불 접촉 추가`);
+        }
+    }
     stepWorld(world, input('policy').value, number('dry'), number('budget'), input('spread').checked);
     draw();
+    return world.queue.length > 0 || world.bodies.some((body) => body.wet > 0);
 }
-get('step').addEventListener('click', step);
-get('play').addEventListener('click', () => {
-    if (timer) {
-        clearInterval(timer);
-        timer = 0;
-        text('play', '자동 실행');
-    } else {
-        timer = window.setInterval(step, 650);
-        text('play', '일시정지');
-    }
-});
+const playback = createPlayback({ interval: 650, advance: step });
 function select(event: Event) {
     const body = (event.target as Element).closest('[data-body]');
     if (body) {
@@ -165,11 +118,9 @@ get('material').addEventListener('change', () => {
 for (const id of ['policy', 'order']) get(id).addEventListener('change', draw);
 for (const id of ['dry', 'budget', 'spread']) get(id).addEventListener('input', draw);
 function reset(ring = false) {
-    clearInterval(timer);
-    timer = 0;
+    playback.pause();
     world = initialWorld(ring);
     selected = 0;
-    text('play', '자동 실행');
     draw();
 }
 get('ring').addEventListener('click', () => reset(true));
@@ -180,12 +131,6 @@ get('reset').addEventListener('click', () => {
     input('budget').value = '20';
     input('spread').checked = true;
     reset();
-});
-window.addEventListener('pagehide', () => {
-    clearInterval(timer);
-    timer = 0;
-    text('play', '자동 실행');
-    closeMenu(false);
 });
 window.addEventListener('pageshow', (event) => {
     if (event.persisted) draw();

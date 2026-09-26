@@ -1,61 +1,15 @@
 import { initial, step, rebase, relative, ulp } from './model';
+import { createPlayback } from '../../components/experiment-playback';
 const input = (id: string) => document.getElementById(id) as HTMLInputElement;
 const canvas = document.getElementById('scene') as HTMLCanvasElement,
     ctx = canvas.getContext('2d')!;
 const settings = document.getElementById('settings')!,
-    menu = document.getElementById('menu')!,
     dialog = document.getElementById('explanation') as HTMLDialogElement;
 let state = initial(20),
     lastRebase = '',
     history: { request: number; stored: number; screen: number }[] = [];
-const lab = document.getElementById('lab')!;
-const overlayMenu = matchMedia('(max-width: 1099px)');
-function syncMenu() {
-    const modal = !settings.hidden && overlayMenu.matches;
-    for (const child of lab.children)
-        if (child instanceof HTMLElement && child !== settings) child.inert = modal;
-    if (modal) {
-        settings.setAttribute('role', 'dialog');
-        settings.setAttribute('aria-modal', 'true');
-        if (!settings.contains(document.activeElement) && !dialog.open)
-            document.getElementById('close-menu')!.focus();
-    } else {
-        settings.setAttribute('role', 'complementary');
-        settings.removeAttribute('aria-modal');
-    }
-}
-function setMenu(open: boolean) {
-    settings.hidden = !open;
-    menu.setAttribute('aria-expanded', String(open));
-    lab.classList.toggle('menu-open', open);
-    syncMenu();
-    if (open) document.getElementById('close-menu')!.focus();
-    else menu.focus();
-}
-overlayMenu.addEventListener('change', syncMenu);
-menu.addEventListener('click', () => setMenu(Boolean(settings.hidden)));
-document.getElementById('close-menu')!.addEventListener('click', () => setMenu(false));
 document.getElementById('explain')!.addEventListener('click', () => dialog.showModal());
 document.getElementById('close-dialog')!.addEventListener('click', () => dialog.close());
-const key = (e: KeyboardEvent) => {
-    if (dialog.open || settings.hidden) return;
-    if (e.key === 'Escape') {
-        e.preventDefault();
-        setMenu(false);
-    } else if (e.key === 'Tab' && overlayMenu.matches) {
-        const controls = Array.from(settings.querySelectorAll<HTMLElement>('button, input, select, a[href]'))
-            .filter((control) => !control.hasAttribute('disabled') && control.getClientRects().length);
-        const first = controls[0]!, last = controls[controls.length - 1]!;
-        if (e.shiftKey && document.activeElement === first) {
-            e.preventDefault();
-            last.focus();
-        } else if (!e.shiftKey && document.activeElement === last) {
-            e.preventDefault();
-            first.focus();
-        }
-    }
-};
-document.addEventListener('keydown', key);
 const fmt = (v: number) =>
     Math.abs(v) > 1000 ? v.toLocaleString('en', { maximumFractionDigits: 3 }) : v.toFixed(5);
 function record() {
@@ -163,6 +117,7 @@ function advance(count: number) {
     render();
 }
 function reset() {
+    playback.pause();
     state = initial(Number(input('exponent').value));
     lastRebase = '';
     history = [];
@@ -170,6 +125,7 @@ function reset() {
     render();
 }
 function settingChanged(e: Event) {
+    playback.pause();
     const id = (e.target as HTMLElement).id;
     if (id === 'omit') return;
     if (id === 'render') {
@@ -177,11 +133,15 @@ function settingChanged(e: Event) {
         render();
     } else reset();
 }
+const playback = createPlayback({ interval: 200, advance: () => advance(1) });
 settings.addEventListener('input', settingChanged);
 settings.addEventListener('change', settingChanged);
-document.getElementById('step')!.addEventListener('click', () => advance(1));
-document.getElementById('steps')!.addEventListener('click', () => advance(20));
+document.getElementById('steps')!.addEventListener('click', () => {
+    playback.pause();
+    advance(20);
+});
 document.getElementById('rebase')!.addEventListener('click', () => {
+    playback.pause();
     const before = state.origin + state.local,
         distance = state.obstacle - state.local;
     state = rebase(state, input('omit').checked);
@@ -204,7 +164,6 @@ window.addEventListener('pagehide', () => {
 });
 window.addEventListener('pageshow', () => {
     resize.observe(canvas.parentElement!);
-    syncMenu();
     render();
 });
 reset();

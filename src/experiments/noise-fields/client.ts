@@ -1,57 +1,11 @@
 import { field, perlin, worley, gradient, density as remapDensity } from './model';
+import { createPlayback } from '../../components/experiment-playback';
 const get = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 const canvas = get<HTMLCanvasElement>('scene'),
     ctx = canvas.getContext('2d')!;
-const menu = get<HTMLButtonElement>('menu'),
-    settings = get<HTMLElement>('settings'),
-    info = get<HTMLDialogElement>('info');
-const background = [
-    ...document.querySelectorAll<HTMLElement>(
-        'main > :not(nav):not(#settings):not(dialog), nav > :not(#menu)',
-    ),
-];
-function menuOpen(open: boolean) {
-    settings.hidden = !open;
-    settings.setAttribute('role', 'dialog');
-    settings.setAttribute('aria-modal', String(open));
-    menu.setAttribute('aria-expanded', String(open));
-    menu.setAttribute('aria-label', open ? '설정 메뉴 닫기' : '설정 메뉴 열기');
-    menu.tabIndex = open ? -1 : 0;
-    background.forEach((element) => {
-        element.inert = open;
-    });
-    if (open) {
-        settings.scrollTop = 0;
-        get('close-menu').focus();
-    } else menu.focus();
-}
-menu.addEventListener('click', () => menuOpen(Boolean(settings.hidden)));
-get('close-menu').addEventListener('click', () => menuOpen(false));
+const info = get<HTMLDialogElement>('info');
 get('explain').addEventListener('click', () => info.showModal());
 get('close-info').addEventListener('click', () => info.close());
-document.addEventListener('keydown', (e) => {
-    if (settings.hidden || info.open) return;
-    if (e.key === 'Escape') {
-        e.preventDefault();
-        menuOpen(false);
-    } else if (e.key === 'Tab') {
-        const controls = [...settings.querySelectorAll<HTMLElement>('button, input, select, a[href]')].filter(
-            (element) => !element.hasAttribute('disabled') && element.getClientRects().length,
-        );
-        const first = controls[0],
-            last = controls[controls.length - 1];
-        if (e.shiftKey && (document.activeElement === first || !settings.contains(document.activeElement))) {
-            e.preventDefault();
-            last.focus();
-        } else if (
-            !e.shiftKey &&
-            (document.activeElement === last || !settings.contains(document.activeElement))
-        ) {
-            e.preventDefault();
-            first.focus();
-        }
-    }
-});
 function surface() {
     const r = canvas.getBoundingClientRect(),
         dpr = Math.min(devicePixelRatio, 2);
@@ -72,6 +26,7 @@ function range(id: string) {
     return Number(control.value);
 }
 let uniform = false,
+    movementDirection = 1,
     cached = '',
     images: HTMLCanvasElement[] = [];
 function draw() {
@@ -212,13 +167,28 @@ function draw() {
     get('summary').textContent =
         `선택 셀 (${ix},${iy}), 내부 (${u.toFixed(2)},${v.toFixed(2)}). ${kind === 'gradient' ? `내적 합 ${gradientResult.dots.reduce((s, v) => s + v, 0).toFixed(4)}, fade 보간 ${gradientResult.value.toFixed(6)}.${uniform ? ' 네 gradient=(1,0)인 계산 예제입니다. 지도는 일반 gradient를 유지합니다.' : ''}` : `Worley 검색 ${worleyResult.candidates.length}점, ${worleyResult.ring}개 이웃 고리.${get<HTMLInputElement>('own-only').checked ? ' 현재 셀만 보므로 F2도 잘못될 수 있습니다.' : ''}`} 지도의 십자는 주파수를 적용하기 전 좌표이며 아래 도식은 기본 셀을 보여 줍니다.`;
 }
+const playback = createPlayback({
+    interval: 120,
+    advance: () => {
+        const x = Number(get<HTMLInputElement>('sample-x').value);
+        if (x + movementDirection * 0.05 > 2 || x + movementDirection * 0.05 < -2)
+            movementDirection *= -1;
+        get<HTMLInputElement>('sample-x').value = (x + movementDirection * 0.05).toFixed(2);
+        draw();
+    },
+});
+function settingChanged() {
+    playback.pause();
+    draw();
+}
 document
     .querySelectorAll<HTMLInputElement | HTMLSelectElement>('#settings input,#settings select')
     .forEach((c) => {
-        c.addEventListener('input', draw);
-        c.addEventListener('change', draw);
+        c.addEventListener('input', settingChanged);
+        c.addEventListener('change', settingChanged);
     });
 get('example').addEventListener('click', () => {
+    playback.pause();
     uniform = true;
     get<HTMLSelectElement>('kind').value = 'gradient';
     get<HTMLInputElement>('sample-x').value = '.25';
@@ -226,6 +196,8 @@ get('example').addEventListener('click', () => {
     draw();
 });
 get('reset').addEventListener('click', () => {
+    playback.pause();
+    movementDirection = 1;
     uniform = false;
     get<HTMLSelectElement>('kind').value = 'gradient';
     get<HTMLSelectElement>('remap').value = 'height';

@@ -1,5 +1,6 @@
 import { over, straight, operation, decode, encode, display } from "./model";
 import type { RGB, Pixel } from "./model";
+import { createPlayback } from "../../components/experiment-playback";
 const get = <T extends HTMLElement>(id: string) =>
     document.getElementById(id) as T;
 const canvas = get<HTMLCanvasElement>("scene"),
@@ -14,75 +15,12 @@ const sourceColor = get<HTMLInputElement>("source-color"),
     sourceAlpha = get<HTMLInputElement>("source-alpha"),
     backgroundAlpha = get<HTMLInputElement>("background-alpha"),
     brightness = get<HTMLInputElement>("brightness");
-const menu = get<HTMLButtonElement>("menu"),
-    settings = get<HTMLElement>("settings"),
-    info = get<HTMLDialogElement>("info");
+const info = get<HTMLDialogElement>("info");
+let alphaDirection = 1;
 const tile = document.createElement("canvas"),
     tileCtx = tile.getContext("2d")!;
-const menuBackground = document.querySelectorAll<HTMLElement>(
-    "main > :not(nav):not(#settings):not(dialog), nav > :not(#menu)",
-);
-function syncMenu() {
-    const modal = !settings.hidden;
-    menuBackground.forEach((element) => {
-        element.inert = modal;
-    });
-    if (modal) {
-        settings.setAttribute("role", "dialog");
-        settings.setAttribute("aria-modal", "true");
-        if (!info.open && !settings.contains(document.activeElement))
-            get("close-menu").focus();
-    } else {
-        settings.setAttribute("role", "complementary");
-        settings.removeAttribute("aria-modal");
-    }
-}
-function menuOpen(open: boolean, focus = true) {
-    settings.hidden = !open;
-    menu.setAttribute("aria-expanded", String(open));
-    menu.setAttribute("aria-label", open ? "설정 메뉴 닫기" : "설정 메뉴 열기");
-    syncMenu();
-    if (focus) (open ? get("close-menu") : menu).focus();
-}
-menu.addEventListener("click", () => menuOpen(Boolean(settings.hidden)));
-get("close-menu").addEventListener("click", () => menuOpen(false));
 get("explain").addEventListener("click", () => info.showModal());
 get("close-info").addEventListener("click", () => info.close());
-document.addEventListener("keydown", (event) => {
-    if (info.open || settings.hidden) return;
-    if (event.key === "Escape") {
-        event.preventDefault();
-        menuOpen(false);
-    } else if (event.key === "Tab") {
-        const controls = Array.from(
-            settings.querySelectorAll<HTMLElement>(
-                "button, input, select, a[href], [tabindex]",
-            ),
-        ).filter(
-            (control) =>
-                !control.matches(":disabled") &&
-                control.tabIndex >= 0 &&
-                control.getClientRects().length,
-        );
-        const first = controls[0]!,
-            last = controls[controls.length - 1]!;
-        if (
-            event.shiftKey &&
-            (document.activeElement === first ||
-                !settings.contains(document.activeElement))
-        ) {
-            event.preventDefault();
-            last.focus();
-        } else if (
-            !event.shiftKey &&
-            (document.activeElement === last ||
-                !settings.contains(document.activeElement))
-        ) {
-            event.preventDefault();
-            first.focus();
-        }
-    }
-});
 function color(hex: string, linear: boolean): RGB {
     return [1, 3, 5].map((i) => {
         const c = parseInt(hex.slice(i, i + 2), 16) / 255;
@@ -301,6 +239,7 @@ get("example").addEventListener("click", () => {
     draw();
 });
 get("reset").addEventListener("click", () => {
+    alphaDirection = 1;
     mode.value = "over";
     storage.value = "premult";
     factor.value = "alpha";
@@ -313,6 +252,16 @@ get("reset").addEventListener("click", () => {
     brightness.value = "0.95";
     draw();
 });
+createPlayback({
+    interval: 200,
+    advance: () => {
+        const alpha = Number(sourceAlpha.value);
+        if (alpha >= 1) alphaDirection = -1;
+        else if (alpha <= 0) alphaDirection = 1;
+        sourceAlpha.value = Math.max(0, Math.min(1, alpha + alphaDirection * 0.05)).toFixed(2);
+        draw();
+    },
+});
 const observer = new ResizeObserver(draw);
 observer.observe(canvas);
 window.addEventListener("pagehide", (event) => {
@@ -321,7 +270,6 @@ window.addEventListener("pagehide", (event) => {
 window.addEventListener("pageshow", (event) => {
     if (event.persisted) {
         observer.observe(canvas);
-        syncMenu();
         draw();
     }
 });

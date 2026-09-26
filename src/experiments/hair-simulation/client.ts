@@ -1,3 +1,4 @@
+import { setPlaybackState } from '../../components/experiment-playback';
 const get = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 const input = (id: string) => get<HTMLInputElement>(id);
 const number = (id: string) => Number(input(id).value);
@@ -5,57 +6,9 @@ const text = (id: string, value: string) => {
     const element = get(id);
     if (element.textContent !== value) element.textContent = value;
 };
-const settings = get('settings');
-const menu = get<HTMLButtonElement>('menu');
 const dialog = get<HTMLDialogElement>('explanation');
-const background = [
-    ...Array.from(settings.parentElement!.children).filter(
-        (element) => element !== settings && element !== menu.parentElement && element !== dialog,
-    ),
-    ...Array.from(menu.parentElement!.children).filter((element) => element !== menu),
-] as HTMLElement[];
-function closeMenu(returnFocus = true) {
-    if (settings.hidden) return;
-    settings.hidden = true;
-    menu.setAttribute('aria-expanded', 'false');
-    menu.setAttribute('aria-label', '설정 메뉴 열기');
-    background.forEach((element) => (element.inert = false));
-    document.body.style.overflow = '';
-    if (returnFocus) menu.focus();
-}
-menu.addEventListener('click', () => {
-    if (!settings.hidden) return closeMenu();
-    settings.hidden = false;
-    settings.scrollTop = 0;
-    menu.setAttribute('aria-expanded', 'true');
-    menu.setAttribute('aria-label', '설정 메뉴 닫기');
-    background.forEach((element) => (element.inert = true));
-    document.body.style.overflow = 'hidden';
-    get('close-menu').focus();
-});
-get('close-menu').addEventListener('click', () => closeMenu());
 get('explain').addEventListener('click', () => dialog.showModal());
 get('close-explain').addEventListener('click', () => dialog.close());
-window.addEventListener('keydown', (event) => {
-    if (settings.hidden || dialog.open) return;
-    if (event.key === 'Escape') {
-        event.preventDefault();
-        closeMenu();
-    } else if (event.key === 'Tab') {
-        const controls = Array.from(
-            settings.querySelectorAll<HTMLElement>('button, input, select, a[href]'),
-        ).filter((element) => !element.hasAttribute('disabled') && element.getClientRects().length);
-        const first = controls[0],
-            last = controls[controls.length - 1];
-        if (event.shiftKey && (document.activeElement === first || !settings.contains(document.activeElement))) {
-            event.preventDefault();
-            last.focus();
-        } else if (!event.shiftKey && (document.activeElement === last || !settings.contains(document.activeElement))) {
-            event.preventDefault();
-            first.focus();
-        }
-    }
-});
 import { makeChain, stepChain, interpolate, type Particle, type Circle } from './model';
 const canvas = get<HTMLCanvasElement>('scene'),
     context = canvas.getContext('2d')!;
@@ -63,7 +16,7 @@ let guides: Particle[][] = [],
     offset = 0,
     shake = 0,
     time = 0,
-    running = true,
+    running = false,
     frame = 0,
     last = performance.now(),
     accumulator = 0;
@@ -269,7 +222,7 @@ function animate(now: number) {
 }
 get('play').addEventListener('click', () => {
     running = !running;
-    text('play', running ? '일시정지' : '재생');
+    setPlaybackState('play', running);
     if (running) {
         last = performance.now();
         frame = requestAnimationFrame(animate);
@@ -277,6 +230,14 @@ get('play').addEventListener('click', () => {
         cancelAnimationFrame(frame);
         draw();
     }
+});
+get('step').addEventListener('click', () => {
+    running = false;
+    cancelAnimationFrame(frame);
+    accumulator = 0;
+    setPlaybackState('play', false);
+    simulate();
+    draw();
 });
 get('impulse').addEventListener('click', () => {
     shake = shake <= 0 ? 45 : -45;
@@ -297,6 +258,9 @@ for (const id of ['representation', 'teleport-mode']) get(id).addEventListener('
 for (const id of ['strands', 'wind', 'radius', 'collision', 'show-guides'])
     get(id).addEventListener('input', draw);
 get('reset').addEventListener('click', () => {
+    running = false;
+    cancelAnimationFrame(frame);
+    setPlaybackState('play', false);
     offset = 0;
     shake = 0;
     time = 0;
@@ -322,8 +286,7 @@ window.addEventListener('pagehide', (event) => {
     running = false;
     cancelAnimationFrame(frame);
     accumulator = 0;
-    text('play', '재생');
-    closeMenu(false);
+    setPlaybackState('play', false);
     draw();
     if (!event.persisted) observer.disconnect();
 });
@@ -335,4 +298,3 @@ window.addEventListener('pageshow', (event) => {
 });
 rebuild();
 draw();
-frame = requestAnimationFrame(animate);

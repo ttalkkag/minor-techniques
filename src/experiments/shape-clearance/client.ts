@@ -1,89 +1,59 @@
 import { clearance, defaults, type ClearanceInput } from './model';
+import { createPlayback } from '../../components/experiment-playback';
 const byId = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
-const root = byId('clearance-lab');
-const panel = byId('sc-settings');
-const menu = byId<HTMLButtonElement>('sc-menu');
 const dialog = byId<HTMLDialogElement>('sc-dialog');
 const canvas = byId<HTMLCanvasElement>('sc-canvas');
 const ctx = canvas.getContext('2d')!;
 let state: ClearanceInput = { ...defaults };
 let mode: 'ray' | 'volume' = 'ray';
-let attempted = false;
+let stage = 0;
 let didMove = false;
-const menuMedia = matchMedia('(max-width: 700px)');
-const menuBackground = Array.from(document.querySelectorAll<HTMLElement>('.scene-area, nav > a, #sc-help'));
-function menuControls() {
-    return Array.from(panel.querySelectorAll<HTMLElement>('button, input, select, a[href]'))
-        .filter((control) => control.getClientRects().length && !control.hasAttribute('disabled'));
-}
-function syncMenu() {
-    const modal = !panel.hidden && menuMedia.matches;
-    for (const element of menuBackground) element.inert = modal;
-    panel.setAttribute('role', modal ? 'dialog' : 'complementary');
-    if (modal) panel.setAttribute('aria-modal', 'true');
-    else panel.removeAttribute('aria-modal');
-}
-function trapMenu(event: KeyboardEvent) {
-    if (dialog.open || panel.hidden || !menuMedia.matches || event.key !== 'Tab') return;
-    const controls = menuControls(), first = controls[0], last = controls.at(-1);
-    if (!first || !last) return;
-    if (!panel.contains(document.activeElement) || (event.shiftKey ? document.activeElement === first : document.activeElement === last)) {
-        event.preventDefault();
-        (event.shiftKey ? last : first).focus();
-    }
-}
-menuMedia.addEventListener('change', () => {
-    syncMenu();
-    if (!panel.hidden && menuMedia.matches && !dialog.open) menuControls()[0]?.focus();
+const stageNames = ['검사 대기', '표면 발견', '경사 검사', '도착 공간 검사', '경로 검사', '이동 결정'];
+const playback = createPlayback({
+    playId: 'sc-play',
+    stepId: 'sc-step',
+    resetId: 'sc-reset',
+    interval: 800,
+    advance: () => {
+        if (stage === 5) {
+            stage = 0;
+            didMove = false;
+        }
+        stage = mode === 'ray' && stage === 1 ? 5 : stage + 1;
+        if (stage === 5) {
+            const result = clearance(state);
+            didMove = mode === 'ray' ? result.surface : result.allowed;
+        }
+        update();
+        return stage < 5;
+    },
 });
-function setMenu(open: boolean, focus = true) {
-    panel.hidden = !open;
-    root.classList.toggle('open', open);
-    menu.setAttribute('aria-expanded', String(open));
-    menu.setAttribute('aria-label', open ? '설정 메뉴 닫기' : '설정 메뉴 열기');
-    syncMenu();
-    if (focus) (open ? menuControls()[0] : menu)?.focus();
-    requestAnimationFrame(draw);
+function restart() {
+    playback.pause();
+    stage = 0;
+    didMove = false;
+    update();
 }
-menu.addEventListener('click', () => setMenu(Boolean(panel.hidden)));
-byId('sc-close').addEventListener('click', () => setMenu(false));
 byId('sc-help').addEventListener('click', () => dialog.showModal());
 byId('sc-dialog-close').addEventListener('click', () => dialog.close());
-const keydown = (e: KeyboardEvent) => {
-    if (dialog.open) return;
-    if (e.key === 'Escape' && !panel.hidden) {
-        e.preventDefault();
-        setMenu(false);
-    }
-    trapMenu(e);
-};
-document.addEventListener('keydown', keydown);
 const numeric = ['width', 'ceiling', 'radius', 'height', 'slope', 'range'] as const;
 for (const key of numeric)
     byId<HTMLInputElement>(`sc-${key}`).addEventListener('input', (e) => {
         state[key] = Number((e.target as HTMLInputElement).value);
-        attempted = false;
-        didMove = false;
-        update();
+        restart();
     });
 byId<HTMLSelectElement>('sc-travel').addEventListener('change', (e) => {
     state.travel = (e.target as HTMLSelectElement).value as ClearanceInput['travel'];
-    attempted = false;
-    didMove = false;
-    update();
+    restart();
 });
 byId<HTMLInputElement>('sc-obstacle').addEventListener('change', (e) => {
     state.obstacle = (e.target as HTMLInputElement).checked;
-    attempted = false;
-    didMove = false;
-    update();
+    restart();
 });
 function reset() {
     state = { ...defaults };
     mode = 'ray';
-    attempted = false;
-    didMove = false;
-    update();
+    restart();
 }
 byId('sc-reset').addEventListener('click', reset);
 document.querySelectorAll<HTMLButtonElement>('[data-preset]').forEach((button) =>
@@ -96,24 +66,14 @@ document.querySelectorAll<HTMLButtonElement>('[data-preset]').forEach((button) =
                   ? { width: 1.6 }
                   : {}),
         };
-        attempted = false;
-        didMove = false;
-        update();
+        restart();
     }),
 );
 for (const key of ['ray', 'volume'] as const)
     byId(`sc-${key}`).addEventListener('click', () => {
         mode = key;
-        attempted = false;
-        didMove = false;
-        update();
+        restart();
     });
-byId('sc-attempt').addEventListener('click', () => {
-    const result = clearance(state);
-    attempted = true;
-    didMove = mode === 'ray' ? result.surface : result.allowed;
-    update();
-});
 function update() {
     const r = clearance(state);
     for (const key of numeric) {
@@ -124,23 +84,31 @@ function update() {
     byId<HTMLSelectElement>('sc-travel').value = state.travel;
     byId<HTMLInputElement>('sc-obstacle').checked = state.obstacle;
     for (const key of ['ray', 'volume']) byId(`sc-${key}`).setAttribute('aria-pressed', String(mode === key));
-    for (const [id, ok, yes, no] of [
+    for (const [index, [id, ok, yes, no]] of ([
         ['surface', r.surface, '발견', '범위 밖'],
         ['slope-status', r.slope, '통과', '너무 가파름'],
         ['space', r.space, '배치 가능', '몸이 겹침'],
         ['path', r.path, '천장 통과 허용', '천장에 차단'],
-    ] as const) {
-        byId(`sc-${id}`).textContent = ok ? yes : no;
-        byId(`sc-${id}`).dataset.ok = String(ok);
+    ] as const).entries()) {
+        const skipped = mode === 'ray' && index > 0;
+        const complete = !skipped && stage >= index + 1;
+        const output = byId(`sc-${id}`);
+        output.textContent = skipped ? '검사 생략' : complete ? (ok ? yes : no) : '대기';
+        if (complete) output.dataset.ok = String(ok);
+        else delete output.dataset.ok;
+        output.parentElement!.dataset.current = String(stage === index + 1 && !skipped);
     }
-    const granted = mode === 'ray' ? r.surface : r.allowed;
-    byId('sc-summary').textContent = attempted
+    byId('sc-summary').textContent = stage === 5
         ? didMove
             ? r.allowed
-                ? '이동 완료 · 모든 조건을 통과했습니다.'
+                ? mode === 'ray'
+                    ? '이동 완료 · 표면 검사로 이동했고, 현재 공간에는 몸도 들어갑니다.'
+                    : '이동 완료 · 모든 조건을 통과했습니다.'
                 : `이동 허가 오류 · 표면만 확인해서 ${[!r.slope && '경사 제한', !r.space && '몸의 겹침', !r.path && '경로 차단'].filter(Boolean).join(' · ')}을 놓쳤습니다.`
             : '이동 차단 · 출발 위치를 유지합니다.'
-        : `${mode === 'ray' ? '탐색선만' : '전체 단계'} 검사: ${granted ? '이동 허가' : '이동 불가'}${mode === 'ray' && granted && !r.allowed ? ' · 실제 배치 조건은 실패합니다.' : ' · 이동 시도로 결과를 확인하세요.'}`;
+        : stage === 0
+          ? '재생하거나 한 단계씩 진행해 이동 허가에 필요한 검사를 확인하세요.'
+          : `${String(stage).padStart(2, '0')} · ${stageNames[stage]}${mode === 'ray' ? ' · 다른 조건을 검사하지 않고 다음 단계에서 이동 여부를 결정합니다.' : ' · 주황색 도형이 현재 검사 대상입니다.'}`;
     byId('sc-gaps').textContent =
         `한쪽 벽 여유 ${r.sideGap.toFixed(2)} m · 머리 위 ${r.headGap.toFixed(2)} m · 음수는 겹침 · 구 중심 높이 ${r.centers.map((x) => x.toFixed(2)).join(' / ')} m`;
     draw();
@@ -223,16 +191,33 @@ function draw() {
             ],
             '#db8554',
         );
+    if (stage === 4) {
+        ctx.fillStyle = '#e4a33b30';
+        ctx.fillRect(x(-state.radius), y(r.foot + state.height), state.radius * 2 * scale, (r.foot + state.height) * scale);
+        ctx.strokeStyle = '#bc6a28';
+        ctx.lineWidth = 3;
+        ctx.setLineDash([7, 4]);
+        ctx.strokeRect(x(-state.radius), y(r.foot + state.height), state.radius * 2 * scale, (r.foot + state.height) * scale);
+        ctx.setLineDash([]);
+    }
+    if (stage === 2) {
+        ctx.strokeStyle = '#bc6a28';
+        ctx.lineWidth = 5;
+        ctx.beginPath();
+        ctx.moveTo(x(-1.2), y(3 - 1.2 * slope));
+        ctx.lineTo(x(1.2), y(3 + 1.2 * slope));
+        ctx.stroke();
+    }
     ctx.setLineDash([4, 5]);
-    ctx.strokeStyle = '#157f7a';
-    ctx.lineWidth = 2;
+    ctx.strokeStyle = stage === 1 ? '#bc6a28' : '#157f7a';
+    ctx.lineWidth = stage === 1 ? 4 : 2;
     ctx.beginPath();
     ctx.moveTo(x(0), y(0));
     ctx.lineTo(x(0), y(Math.min(state.range, 2.6)));
     ctx.stroke();
     ctx.setLineDash([]);
     if (r.surface) {
-        ctx.fillStyle = '#157f7a';
+        ctx.fillStyle = stage === 1 ? '#bc6a28' : '#157f7a';
         ctx.beginPath();
         ctx.arc(x(0), y(2.6), 5, 0, 2 * Math.PI);
         ctx.fill();
@@ -260,7 +245,7 @@ function draw() {
             }
         }
     }
-    capsule(r.foot, r.space ? '#147f79' : '#d2763c', r.space ? '#198c7c20' : '#ec985c25', !didMove);
+    capsule(r.foot, stage === 3 ? '#bc6a28' : r.space ? '#147f79' : '#d2763c', stage === 3 ? '#e4a33b45' : r.space ? '#198c7c20' : '#ec985c25', !didMove);
     if (!didMove) capsule(0, '#147f79', '#198c7c30');
     ctx.font = '12px -apple-system,sans-serif';
     ctx.textAlign = 'left';
@@ -282,19 +267,18 @@ function draw() {
     ctx.fillStyle = '#546e75';
     ctx.textAlign = 'left';
     ctx.fillText(`${state.slope}°`, x(1.45), y(3 + 1.45 * slope + 0.15));
+    ctx.fillStyle = stage > 0 && stage < 5 ? '#9e551c' : '#546e75';
+    ctx.font = 'bold 13px -apple-system,sans-serif';
+    ctx.fillText(stage === 0 ? stageNames[0]! : `${String(stage).padStart(2, '0')} · ${stageNames[stage]}`, 14, 22);
 }
 const observer = new ResizeObserver(draw);
 observer.observe(canvas);
-setMenu(!menuMedia.matches, false);
 update();
-window.addEventListener('pagehide', (event) => {
+window.addEventListener('pagehide', () => {
+    playback.pause();
     observer.disconnect();
-    if (!event.persisted) {
-        document.removeEventListener('keydown', keydown);
-    }
 });
 window.addEventListener('pageshow', () => {
     observer.observe(canvas);
-    syncMenu();
     draw();
 });

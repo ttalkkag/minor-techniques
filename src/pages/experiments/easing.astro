@@ -1,61 +1,49 @@
 ---
-import Page from '../../layouts/Page.astro';
+import ExperimentLayout from '../../layouts/ExperimentLayout.astro';
+import ExperimentPlayback from '../../components/ExperimentPlayback.astro';
 ---
 
-<Page
+<ExperimentLayout
+    helpId="explain"
     title="멈추는 순간, 무엇이 튈까 · 게임 실험실"
     description="시간 곡선과 재생 시간을 바꾸며 위치·속도·가속도의 연결을 관찰합니다."
 >
-    <main class="lab">
-        <nav class="top" aria-label="실험실 탐색">
-            <button id="menu" aria-label="설정 메뉴 열기" aria-controls="settings" aria-expanded="false">
-                ☰
-            </button>
-            <a href="/">게임 실험실</a>
-            <button id="explain" aria-label="원인과 해결 설명 열기">
-                ?
-            </button>
-        </nav>
-        <header class="heading">
-            <p class="eyebrow">움직임의 조건을 바꾸다</p>
-            <h1>멈추는 순간, 무엇이 튈까</h1>
-            <p class="lead">시간 곡선과 재생 시간을 바꾸며 위치·속도·가속도의 연결을 관찰합니다.</p>
-        </header>
-        <div id="settings" class="settings" role="dialog" aria-modal="true" aria-labelledby="settings-title" hidden>
-            <header>
-                <h2 id="settings-title">실험 설정</h2>
-                <button id="close-menu" aria-label="설정 메뉴 닫기">
-                    ×
-                </button>
-            </header>
-            <label for="method">비교할 곡선</label>
-            <select id="method">
-                <option value="smooth">smoothstep</option>
-                <option value="smoother" selected>
-                    smootherstep
-                </option>
-                <option value="css">CSS 베지에 · x 역산</option>
-                <option value="naive">잘못된 CSS · u=t 대입</option>
-            </select>
-            <label for="duration">
-                이동 시간 <output id="duration-out"></output>
-            </label>
-            <input id="duration" type="range" min="0.5" max="4" step="0.5" value="2" />
-            <label for="distance">
-                이동 거리 <output id="distance-out"></output>
-            </label>
-            <input id="distance" type="range" min="1" max="10" value="5" />
-            <label for="css-x1">
-                CSS 제어점 x₁ <output id="x1-out"></output>
-            </label>
-            <input id="css-x1" type="range" min="0" max="1" step="0.05" value="0" />
-            <label for="css-x2">
-                CSS 제어점 x₂ <output id="x2-out"></output>
-            </label>
-            <input id="css-x2" type="range" min="0" max="1" step="0.05" value="1" />
-            <p>CSS 예시는 y₁=0, y₂=0으로 고정합니다.</p>
-            <button id="reverse">시간축 역재생</button>
-        </div>
+    <Fragment slot="settings">
+        <label for="method">비교할 곡선</label>
+        <select id="method">
+            <option value="smooth">smoothstep</option>
+            <option value="smoother" selected>smootherstep</option>
+            <option value="css">CSS 베지에 · x 역산</option>
+            <option value="naive">잘못된 CSS · u=t 대입</option>
+        </select>
+        <label for="duration">
+            이동 시간
+            <output id="duration-out"></output>
+        </label>
+        <input id="duration" type="range" min="0.5" max="4" step="0.5" value="2" />
+        <label for="distance">
+            이동 거리
+            <output id="distance-out"></output>
+        </label>
+        <input id="distance" type="range" min="1" max="10" value="5" />
+        <label for="css-x1">
+            CSS 제어점 x₁
+            <output id="x1-out"></output>
+        </label>
+        <input id="css-x1" type="range" min="0" max="1" step="0.05" value="0" />
+        <label for="css-x2">
+            CSS 제어점 x₂
+            <output id="x2-out"></output>
+        </label>
+        <input id="css-x2" type="range" min="0" max="1" step="0.05" value="1" />
+        <p>CSS 예시는 y₁=0, y₂=0으로 고정합니다.</p>
+    </Fragment>
+    <Fragment slot="body-header">
+        <p class="eyebrow">움직임의 조건을 바꾸다</p>
+        <h1>멈추는 순간, 무엇이 튈까</h1>
+        <p class="lead">시간 곡선과 재생 시간을 바꾸며 위치·속도·가속도의 연결을 관찰합니다.</p>
+    </Fragment>
+    <Fragment slot="graphics">
         <div class="scene">
             <svg
                 id="scene"
@@ -65,6 +53,8 @@ import Page from '../../layouts/Page.astro';
                 aria-describedby="summary"
             ></svg>
         </div>
+    </Fragment>
+    <Fragment slot="description">
         <section class="results" aria-label="관찰 결과">
             <article class="card">
                 <span>선택 곡선 · 위치 / 속도</span>
@@ -80,80 +70,60 @@ import Page from '../../layouts/Page.astro';
             </article>
         </section>
         <p class="hint" id="summary" role="status"></p>
+    </Fragment>
+    <Fragment slot="controls">
+        <ExperimentPlayback playId="play" stepId="step" resetId="reset">한 단계: 진행 5%</ExperimentPlayback>
         <div class="controls">
-            <button id="play" class="primary">
-                재생
-            </button>
-            <button id="reset">초기화</button>
+            <button id="reverse">시간축 역재생</button>
             <label for="progress">
-                진행 <input id="progress" type="range" min="0" max="1000" value="250" />
+                진행
+                <input id="progress" type="range" min="0" max="1000" value="250" />
             </label>
         </div>
+    </Fragment>
+    <Fragment slot="overlays">
         <dialog id="explanation" aria-labelledby="explanation-title">
-            <button class="close" id="close-explain" aria-label="설명 닫기">
-                ×
-            </button>
+            <button class="close" id="close-explain" aria-label="설명 닫기">×</button>
             <h2 id="explanation-title">멈추는 순간, 무엇이 튈까</h2>
             <h3>문제 · 위치가 이어져도 속도는 튑니다</h3>
             <p>
-                주황색 선형 이동은 정지 구간과 만날 때 속도가 뛰며, smoothstep은 속도는 이어져도 가속도가
-                뜁니다. smootherstep은 양 끝의 속도와 가속도가 모두 0입니다.
+                주황색 선형 이동은 정지 구간과 만날 때 속도가 뛰며, smoothstep은 속도는 이어져도
+                가속도가 뜁니다. smootherstep은 양 끝의 속도와 가속도가 모두 0입니다.
             </p>
             <h3>해결 · 멈춤 여부와 시간을 함께 선택합니다</h3>
             <p>
-                실제 속도는 거리×f′/시간, 가속도는 거리×f″/시간²입니다. 시간을 절반으로 줄이면 같은 진행률의
-                속도는 2배, 가속도는 4배가 됩니다. 그래프는 앞뒤 정지 구간을 포함합니다. 끝점 숫자는 정지 상태
-                0이며, 바로 안쪽 그래프가 경계의 변화를 보여줍니다.
+                실제 속도는 거리×f′/시간, 가속도는 거리×f″/시간²입니다. 시간을 절반으로 줄이면 같은
+                진행률의 속도는 2배, 가속도는 4배가 됩니다. 그래프는 앞뒤 정지 구간을 포함합니다.
+                끝점 숫자는 정지 상태 0이며, 바로 안쪽 그래프가 경계의 변화를 보여줍니다.
             </p>
             <h3>CSS와 대가</h3>
             <p>
-                CSS cubic-bezier의 x는 시간입니다. x(u)=t를 이분 탐색한 뒤 y(u)를 구합니다. u=t로 대입한
-                모드와 비교하세요. 역재생은 현재 시간축의 방향만 뒤집으므로 위치는 유지되지만 즉시 반전하는
-                속도는 연속이 아닙니다. 계속 달려야 하는 물체에 정지형 곡선을 쓰면 매 구간 멈춥니다. 그래프는
-                수식 계산이며 브라우저 CSS 실행 시간 측정이 아닙니다.
-                구간 밖에서 멈추는 것은 이 실험의 정책이며, CSS easing 함수 자체의 끝점 접선 외삽과는 다릅니다.
+                CSS cubic-bezier의 x는 시간입니다. x(u)=t를 이분 탐색한 뒤 y(u)를 구합니다. u=t로
+                대입한 모드와 비교하세요. 역재생은 현재 시간축의 방향만 뒤집으므로 위치는 유지되지만
+                즉시 반전하는 속도는 연속이 아닙니다. 계속 달려야 하는 물체에 정지형 곡선을 쓰면 매
+                구간 멈춥니다. 그래프는 수식 계산이며 브라우저 CSS 실행 시간 측정이 아닙니다. 구간
+                밖에서 멈추는 것은 이 실험의 정책이며, CSS easing 함수 자체의 끝점 접선 외삽과는
+                다릅니다.
             </p>
             <p>
-                x₁=1, x₂=0의 정확히 50% 지점은 수직 접선입니다. 위치는 정의되지만 유한한 속도·가속도는
-                없어 미분 불능으로 표시합니다. 그래프는 그 표본을 연결하거나 척도에 포함하지 않습니다.
-                바로 옆 지점의 큰 유한 미분값은 그대로 계산합니다.
+                x₁=1, x₂=0의 정확히 50% 지점은 수직 접선입니다. 위치는 정의되지만 유한한
+                속도·가속도는 없어 미분 불능으로 표시합니다. 그래프는 그 표본을 연결하거나 척도에
+                포함하지 않습니다. 바로 옆 지점의 큰 유한 미분값은 그대로 계산합니다.
             </p>
             <p>
                 <a href="https://www.w3.org/TR/css-easing-1/">W3C CSS Easing 정의</a>
             </p>
         </dialog>
-    </main>
-</Page>
-<script>
-    import '../../experiments/easing/client';
-</script>
+    </Fragment>
+    <script>
+        import '../../experiments/easing/client';
+    </script>
+</ExperimentLayout>
 <style>
     :global(body) {
         background: #edf1f3;
         color: #203d43;
         margin: 0;
-    }
-    .lab {
-        min-height: 100dvh;
-        overflow: hidden;
-    }
-    .top {
-        height: 66px;
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        padding: 0 24px;
-        border-bottom: 1px solid #d1dfe1;
-    }
-    .top a {
-        font-weight: 750;
-        color: #204b50;
-        text-decoration: none;
-    }
-    .top button {
-        width: 44px;
-        padding: 0;
-        font-size: 22px;
     }
     button,
     select,
@@ -180,11 +150,6 @@ import Page from '../../layouts/Page.astro';
         outline: 3px solid #e8954b;
         outline-offset: 3px;
     }
-    .heading {
-        padding: 26px 5vw 0;
-        max-width: 1100px;
-        margin: auto;
-    }
     .eyebrow {
         font-size: 12px;
         letter-spacing: 0.12em;
@@ -205,35 +170,33 @@ import Page from '../../layouts/Page.astro';
         margin: 8px 0;
     }
     .scene {
-        width: min(1120px, 94vw);
-        margin: 14px auto 0;
+        width: 100%;
+        height: 100%;
+        min-height: 0;
         position: relative;
     }
     .scene svg,
     .scene canvas {
-        display: block;
         width: 100%;
-        height: auto;
-        min-height: 250px;
-        max-height: 58vh;
+        height: 100%;
+        min-height: 280px;
+        display: block;
     }
     .scene svg text {
         font-family: inherit;
         fill: #24474c;
     }
     .scene canvas {
-        height: 53vh;
-        max-height: 600px;
-        min-height: 320px;
+        width: 100%;
+        height: 100%;
+        min-height: 280px;
+
         border-radius: 20px;
     }
     .results {
         display: flex;
         gap: 12px;
         flex-wrap: wrap;
-        max-width: 1080px;
-        margin: 10px auto;
-        padding: 0 20px;
     }
     .card {
         background: #ffffffbd;
@@ -255,90 +218,59 @@ import Page from '../../layouts/Page.astro';
     }
     .controls {
         display: flex;
-        justify-content: center;
+        justify-content: flex-start;
         align-items: center;
         flex-wrap: wrap;
         gap: 10px;
-        padding: 10px 20px 24px;
-    }
-    .primary {
-        background: #146f72;
-        color: white;
-        border-color: #146f72;
     }
     .controls label {
         display: flex;
+        flex-wrap: wrap;
+        width: 100%;
+        min-width: 0;
         align-items: center;
         gap: 10px;
     }
     .controls input {
-        width: 160px;
+        width: 100%;
+        min-width: 0;
         min-height: 40px;
         accent-color: #11797b;
     }
-    .settings {
-        position: fixed;
-        left: 16px;
-        top: 78px;
-        bottom: 16px;
-        overflow: auto;
-        width: min(320px, calc(100vw - 32px));
-        box-sizing: border-box;
-        padding: 22px;
-        background: #fafdfd;
-        box-shadow: 0 12px 60px #31585b38;
-        border: 1px solid #bdced1;
-        border-radius: 20px;
-        z-index: 5;
-    }
-    .settings[hidden] {
-        display: none;
-    }
-    .settings header {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-    }
-    .settings header h2 {
-        margin: 0;
-    }
-    .settings label {
+    :global(.experiment-settings) label {
         display: block;
         font-size: 14px;
         margin: 19px 0 7px;
     }
-    .settings input[type='range'] {
+    :global(.experiment-settings) input[type="range"] {
         width: 100%;
         accent-color: #14797b;
         min-height: 40px;
     }
-    .settings input[type='checkbox'] {
+    :global(.experiment-settings) input[type="checkbox"] {
         accent-color: #14797b;
         width: 20px;
         height: 20px;
         vertical-align: middle;
         margin-right: 8px;
     }
-    .settings select {
+    :global(.experiment-settings) select {
         width: 100%;
     }
-    .settings output {
+    :global(.experiment-settings) output {
         float: right;
         font-variant-numeric: tabular-nums;
     }
-    .settings .row {
+    :global(.experiment-settings) .row {
         display: flex;
         gap: 6px;
         flex-wrap: wrap;
         margin-top: 16px;
     }
     .hint {
-        max-width: 1000px;
-        margin: 8px auto;
         text-align: center;
         color: #46666a;
         font-size: 13px;
-        padding: 0 20px;
     }
     .teal {
         color: #087d7a;
@@ -395,32 +327,27 @@ import Page from '../../layouts/Page.astro';
         gap: 6px;
         flex-wrap: wrap;
     }
-    .object-list button[aria-pressed='true'] {
+    .object-list button[aria-pressed="true"] {
         background: #146f72;
         color: #fff;
     }
     @media (max-width: 600px) {
-        .top {
-            padding: 0 14px;
-            height: 58px;
-        }
-        .heading {
-            padding-top: 16px;
-        }
         .lead {
             font-size: 14px;
         }
         .scene {
             width: 100%;
-            margin-top: 8px;
+            height: 100%;
+            min-height: 0;
+            position: relative;
         }
         .scene svg {
-            min-height: 235px;
-            max-height: 44vh;
+            width: 100%;
+            height: 100%;
+            min-height: 280px;
         }
         .results {
             gap: 7px;
-            padding: 0 12px;
         }
         .card {
             padding: 10px 12px;
@@ -433,11 +360,7 @@ import Page from '../../layouts/Page.astro';
             font-size: 12px;
         }
         .controls {
-            padding: 10px 12px 18px;
             gap: 7px;
-        }
-        .settings {
-            top: 66px;
         }
         .hint {
             font-size: 12px;
@@ -446,8 +369,9 @@ import Page from '../../layouts/Page.astro';
             margin: 8px 12px 20px;
         }
         .scene canvas {
-            height: 42vh;
-            min-height: 290px;
+            width: 100%;
+            height: 100%;
+            min-height: 280px;
         }
     }
 </style>

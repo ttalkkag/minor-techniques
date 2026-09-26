@@ -1,58 +1,12 @@
+import { createPlayback } from '../../components/experiment-playback';
 import { search, edges, maze, names } from './model';
 import type { Rules } from './model';
 const get = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 const canvas = get<HTMLCanvasElement>('scene'),
     ctx = canvas.getContext('2d')!;
-const menu = get<HTMLButtonElement>('menu'),
-    settings = get<HTMLElement>('settings'),
-    info = get<HTMLDialogElement>('info');
-const background = [
-    ...document.querySelectorAll<HTMLElement>(
-        'main > :not(nav):not(#settings):not(dialog), nav > :not(#menu)',
-    ),
-];
-function menuOpen(open: boolean) {
-    settings.hidden = !open;
-    settings.setAttribute('role', 'dialog');
-    settings.setAttribute('aria-modal', String(open));
-    menu.setAttribute('aria-expanded', String(open));
-    menu.setAttribute('aria-label', open ? '설정 메뉴 닫기' : '설정 메뉴 열기');
-    menu.tabIndex = open ? -1 : 0;
-    background.forEach((element) => {
-        element.inert = open;
-    });
-    if (open) {
-        settings.scrollTop = 0;
-        get('close-menu').focus();
-    } else menu.focus();
-}
-menu.addEventListener('click', () => menuOpen(Boolean(settings.hidden)));
-get('close-menu').addEventListener('click', () => menuOpen(false));
+const info = get<HTMLDialogElement>('info');
 get('explain').addEventListener('click', () => info.showModal());
 get('close-info').addEventListener('click', () => info.close());
-document.addEventListener('keydown', (e) => {
-    if (settings.hidden || info.open) return;
-    if (e.key === 'Escape') {
-        e.preventDefault();
-        menuOpen(false);
-    } else if (e.key === 'Tab') {
-        const controls = [...settings.querySelectorAll<HTMLElement>('button, input, select, a[href]')].filter(
-            (element) => !element.hasAttribute('disabled') && element.getClientRects().length,
-        );
-        const first = controls[0],
-            last = controls[controls.length - 1];
-        if (e.shiftKey && (document.activeElement === first || !settings.contains(document.activeElement))) {
-            e.preventDefault();
-            last.focus();
-        } else if (
-            !e.shiftKey &&
-            (document.activeElement === last || !settings.contains(document.activeElement))
-        ) {
-            e.preventDefault();
-            first.focus();
-        }
-    }
-});
 function surface() {
     const r = canvas.getBoundingClientRect(),
         dpr = Math.min(devicePixelRatio, 2);
@@ -83,6 +37,7 @@ function rules(): Rules {
         bypass: get<HTMLInputElement>('bypass').checked,
     };
 }
+let progress = 0;
 function draw() {
     const { w, h } = surface(),
         mobile = w < 650,
@@ -128,7 +83,8 @@ function draw() {
             if (edge.door !== undefined) textAt('🔒', (a.x + b.x) / 2, (a.y + b.y) / 2 - 8, '#a9662d', 15);
             if (edge.jump) textAt('↑3', (a.x + b.x) / 2, (a.y + b.y) / 2 - 6, '#8b632b', 12);
         }
-        if (result.found) {
+        const visited = result.rooms.slice(0, progress);
+        if (result.found && progress >= result.rooms.length) {
             ctx.beginPath();
             result.path.forEach((s, i) => {
                 const p = point(s.room);
@@ -141,9 +97,9 @@ function draw() {
         }
         positions.forEach((_, id) => {
             const p = point(id);
-            ctx.fillStyle = result.rooms.includes(id) ? '#d0e9e2' : '#eef2f3';
-            ctx.strokeStyle = id === 4 ? '#dd9b48' : '#617e81';
-            ctx.lineWidth = 2;
+            ctx.fillStyle = visited.includes(id) ? '#d0e9e2' : '#eef2f3';
+            ctx.strokeStyle = id === visited.at(-1) ? '#df873a' : id === 4 ? '#dd9b48' : '#617e81';
+            ctx.lineWidth = id === visited.at(-1) ? 4 : 2;
             ctx.beginPath();
             ctx.arc(p.x, p.y, mobile ? 14 : 20, 0, Math.PI * 2);
             ctx.fill();
@@ -158,7 +114,7 @@ function draw() {
     textAt('방 내부 DFS 미로 · 상위 진행과 별도', w / 2, my - 18, '#526e73', 13);
     ctx.strokeStyle = '#2f847e';
     ctx.lineWidth = Math.max(5, size * 0.34);
-    links.forEach(([a, b]) => {
+    links.slice(0, progress).forEach(([a, b]) => {
         ctx.beginPath();
         ctx.moveTo(mx + ((a % 5) + 0.5) * size, my + (Math.floor(a / 5) + 0.5) * size);
         ctx.lineTo(mx + ((b % 5) + 0.5) * size, my + (Math.floor(b / 5) + 0.5) * size);
@@ -176,23 +132,44 @@ function draw() {
         );
         ctx.fill();
     }
-    get('metric-0').textContent = left.found ? '도달 가능' : '도달 불가';
-    get('metric-1').textContent = right.found ? '도달 가능' : '도달 불가';
-    get('metric-2').textContent = `${links.length} / 25`;
+    get('metric-0').textContent =
+        progress < left.rooms.length ? '방 방문 확인 중' : left.found ? '도달 가능' : '도달 불가';
+    get('metric-1').textContent =
+        progress < right.rooms.length ? '방 방문 확인 중' : right.found ? '도달 가능' : '도달 불가';
+    get('metric-2').textContent = `${Math.min(progress, links.length)} / 25`;
+    get('playback-status').textContent =
+        `방 첫 방문 ${Math.min(progress, left.rooms.length)}/${left.rooms.length} · 상태 검사 ${Math.min(progress, right.rooms.length)}/${right.rooms.length} · 미로 통로 ${Math.min(progress, links.length)}/${links.length}`;
     get('summary').textContent =
-        `선택 검사 ${left.expanded}개, 상태 검사 ${right.expanded}개 상태 확장. ${right.found ? '실제 경로: ' + right.path.map((s) => `${names[s.room].split(' ').at(-1)}[열쇠${s.keys}]`).join(' → ') : '규칙을 지키는 출구 경로가 없습니다.'} ${links.length === 24 ? 'DFS는 순환 없는 트리입니다.' : '추가 통로로 미로에 순환이 생겼습니다.'}`;
+        `선택 검사 ${left.expanded}개, 상태 검사 ${right.expanded}개 상태 확장. ${right.found ? '실제 경로: ' + right.path.map((s) => `${names[s.room].split(' ').at(-1)}[열쇠${s.keys}]`).join(' → ') : '규칙을 지키는 출구 경로가 없습니다.'} ${links.length === 24 ? 'DFS는 순환 없는 트리입니다.' : '추가 통로로 미로에 순환이 생겼습니다.'} 재생은 각 방의 첫 방문과 미로 통로의 생성 순서를 보여 줍니다.`;
+}
+const playback = createPlayback({
+    interval: 450,
+    advance: () => {
+        const total = maze(
+            Number(get<HTMLInputElement>('seed').value),
+            get<HTMLInputElement>('extra').checked,
+        ).length;
+        progress = progress >= total ? 1 : progress + 1;
+        draw();
+        return progress < total;
+    },
+});
+function restart() {
+    playback.pause();
+    progress = 0;
+    draw();
 }
 document
     .querySelectorAll<HTMLInputElement | HTMLSelectElement>('#settings input,#settings select')
     .forEach((c) => {
-        c.addEventListener('input', draw);
-        c.addEventListener('change', draw);
+        c.addEventListener('input', restart);
+        c.addEventListener('change', restart);
     });
 get('fix').addEventListener('click', () => {
     get<HTMLSelectElement>('key-room').value = '1';
     get<HTMLInputElement>('platform').checked = false;
     get<HTMLInputElement>('key-count').value = '2';
-    draw();
+    restart();
 });
 get('reset').addEventListener('click', () => {
     get<HTMLSelectElement>('key-room').value = '2';
@@ -202,7 +179,7 @@ get('reset').addEventListener('click', () => {
     get<HTMLInputElement>('key-count').value = '1';
     get<HTMLInputElement>('jump').value = '2';
     get<HTMLInputElement>('seed').value = '7';
-    draw();
+    restart();
 });
 const observer = new ResizeObserver(draw);
 observer.observe(canvas);

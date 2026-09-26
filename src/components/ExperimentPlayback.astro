@@ -1,0 +1,22 @@
+---
+interface Props {
+    playId?: string;
+    stepId?: string;
+    resetId?: string;
+    resetForm?: string;
+    resetLabel?: string;
+}
+const {
+    playId = 'play', stepId = 'step', resetId = 'reset', resetForm,
+    resetLabel = '실험 초기화',
+} = Astro.props;
+---
+
+<div class="experiment-playback" role="group" aria-label="실험 재생과 단계 진행">
+    <button id={resetId} class="experiment-playback-reset" data-playback-reset type={resetForm ? 'reset' : 'button'} form={resetForm} aria-label={resetLabel} title={resetLabel}>
+        <span class="experiment-reset-symbol" aria-hidden="true">↺</span>
+    </button>
+    <button id={playId} class="experiment-playback-play" data-experiment-play type="button" aria-pressed="false">실험 재생</button>
+    <button id={stepId} class="experiment-playback-step" data-experiment-step type="button">한 스텝 <span aria-hidden="true">→|</span></button>
+    {Astro.slots.has('default') && <div class="experiment-playback-status"><slot /></div>}
+</div>

@@ -1,0 +1,21 @@
+---
+interface Props {
+    id: string;
+    label: string;
+    options: { value: string; label: string; selected?: boolean }[];
+}
+
+const { id, label, options } = Astro.props;
+const selected = options.find((option) => option.selected)?.value ?? options[0]?.value;
+---
+
+<div class="experiment-view-switch" role="group" aria-label={label}>
+    <select id={id} hidden tabindex="-1" aria-hidden="true">
+        {options.map((option) => <option value={option.value} selected={option.value === selected}>{option.label}</option>)}
+    </select>
+    {options.map((option) => (
+        <button type="button" data-view-select={id} data-view-value={option.value} aria-pressed={option.value === selected}>
+            {option.label}
+        </button>
+    ))}
+</div>

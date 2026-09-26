@@ -1,3 +1,4 @@
+import { setPlaybackState } from '../../components/experiment-playback';
 import {
     targets,
     walls,
@@ -16,8 +17,6 @@ const input = (id: string) => document.getElementById(`pv-${id}`) as HTMLInputEl
 const el = (id: string) => document.getElementById(`pv-${id}`)!;
 const canvas = el('canvas') as HTMLCanvasElement;
 const context = canvas.getContext('2d')!;
-const settings = el('settings');
-const menu = el('menu');
 const dialog = el('dialog') as HTMLDialogElement;
 const method = el('method') as HTMLSelectElement;
 let bake = precompute(8, 5, false);
@@ -33,40 +32,6 @@ const abort = new AbortController();
 const listen = (target: EventTarget, event: string, callback: EventListener) =>
     target.addEventListener(event, callback, { signal: abort.signal });
 
-const menuMedia = matchMedia('(max-width: 760px)');
-const menuBackground = Array.from(document.querySelectorAll<HTMLElement>('.pv-scene, .pv-lab > nav > a, #pv-explain'));
-function menuControls() {
-    return Array.from(settings.querySelectorAll<HTMLElement>('button, input, select, a[href]'))
-        .filter((control) => control.getClientRects().length && !control.hasAttribute('disabled'));
-}
-function syncMenu() {
-    const modal = !settings.hidden && menuMedia.matches;
-    for (const element of menuBackground) element.inert = modal;
-    settings.setAttribute('role', modal ? 'dialog' : 'complementary');
-    if (modal) settings.setAttribute('aria-modal', 'true');
-    else settings.removeAttribute('aria-modal');
-}
-function trapMenu(event: KeyboardEvent) {
-    if (dialog.open || settings.hidden || !menuMedia.matches || event.key !== 'Tab') return;
-    const controls = menuControls(), first = controls[0], last = controls.at(-1);
-    if (!first || !last) return;
-    if (!settings.contains(document.activeElement) || (event.shiftKey ? document.activeElement === first : document.activeElement === last)) {
-        event.preventDefault();
-        (event.shiftKey ? last : first).focus();
-    }
-}
-menuMedia.addEventListener('change', () => {
-    syncMenu();
-    if (!settings.hidden && menuMedia.matches && !dialog.open) menuControls()[0]?.focus();
-});
-function setMenu(open: boolean, focus = true) {
-    settings.hidden = !open;
-    menu.setAttribute('aria-expanded', String(open));
-    menu.setAttribute('aria-label', open ? '설정 닫기' : '설정 열기');
-    syncMenu();
-    if (focus) (open ? menuControls()[0] : menu)?.focus();
-}
-
 function rebuild() {
     const start = performance.now();
     bake = precompute(Number(input('bins').value), Number(input('samples').value), input('states').checked);
@@ -76,7 +41,7 @@ function rebuild() {
 function stop() {
     running = false;
     cancelAnimationFrame(frame);
-    el('play').textContent = '레일 이동';
+    setPlaybackState('pv-play', false);
 }
 
 function label(text: string, x: number, y: number, color = '#607581', size = 11) {
@@ -335,24 +300,11 @@ function reset() {
     draw();
 }
 
-listen(menu, 'click', () => setMenu(Boolean(settings.hidden)));
-listen(el('close-menu'), 'click', () => {
-    setMenu(false);
-    menu.focus();
-});
 listen(el('explain'), 'click', () => {
     stop();
     dialog.showModal();
 });
 listen(el('close-dialog'), 'click', () => dialog.close());
-listen(document, 'keydown', (event) => {
-    if (dialog.open) return;
-    if ((event as KeyboardEvent).key === 'Escape' && !settings.hidden) {
-        event.preventDefault();
-        setMenu(false);
-    }
-    trapMenu(event as KeyboardEvent);
-});
 listen(el('reset'), 'click', reset);
 listen(el('door-preset'), 'click', () => {
     reset();
@@ -399,11 +351,10 @@ listen(el('play'), 'click', () => {
         running = true;
         playbackProgress = Number(input('progress').value);
         lastTime = performance.now();
-        el('play').textContent = '일시 정지';
+        setPlaybackState('pv-play', true);
         frame = requestAnimationFrame(animate);
     }
 });
-setMenu(!menuMedia.matches, false);
 rebuild();
 let resizeFrame = 0;
 const observer = new ResizeObserver(() => {
@@ -419,6 +370,5 @@ window.addEventListener('pagehide', (event) => {
 });
 window.addEventListener('pageshow', () => {
     observer.observe(canvas);
-    syncMenu();
     resize();
 });

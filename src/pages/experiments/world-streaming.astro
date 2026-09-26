@@ -1,196 +1,185 @@
 ---
-import Page from '../../layouts/Page.astro';
+import ExperimentLayout from '../../layouts/ExperimentLayout.astro';
+import ExperimentPlayback from '../../components/ExperimentPlayback.astro';
 ---
 
-<Page
+<ExperimentLayout
     title="플레이어보다 늦게 도착한 월드 · 게임 실험실"
     description="이동 속도와 준비 시간을 맞추고, 돌아갈 공간까지 보관할지 비교하세요."
+    id="lab"
+    class="lab"
+    style="--experiment-graphics-min-height: 440px"
+    helpId="help"
 >
-    <main id="lab" class="lab">
-        <nav aria-label="실험실 탐색">
-            <button id="menu" aria-label="설정 메뉴 열기" aria-controls="settings" aria-expanded="false">
-                ☰
-            </button>
-            <a href="/">게임 실험실</a>
-            <button id="help" aria-label="원인과 해결 설명 열기">
-                ?
-            </button>
-        </nav>
-        <header>
-            <p>청크 · 예측 · 준비 · 메모리</p>
-            <h1>플레이어보다 늦게 도착한 월드</h1>
-            <span>이동 속도와 준비 시간을 맞추고, 돌아갈 공간까지 보관할지 비교하세요.</span>
-        </header>
-        <div id="settings" role="complementary" hidden aria-label="실험 설정">
-            <div class="panel-title">
-                <h2>조건을 바꿔 보세요</h2>
-                <button id="close-menu" aria-label="설정 메뉴 닫기">
-                    ×
-                </button>
-            </div>
-            <div class="presets">
-                <button id="fast-preset">빠른 이동</button>
-                <button id="memory-preset">메모리 부족</button>
-                <button id="turn-preset">6초에 유턴</button>
-            </div>
-            <label for="speed">
-                이동 속도 (m/s)<output id="speed-value"></output>
-            </label>
-            <input id="speed" type="range" min="3" max="18" step="1" value="6" />
-            <label for="prediction">
-                진행 방향 요청 거리 (m)<output id="prediction-value"></output>
-            </label>
-            <input id="prediction" type="range" min="10" max="60" step="5" value="30" />
-            <label for="sight">
-                미리 보이는 거리 (m)<output id="sight-value"></output>
-            </label>
-            <input id="sight" type="range" min="0" max="15" step="1" value="0" />
-            <label for="queue">
-                작업 대기 (초)<output id="queue-value"></output>
-            </label>
-            <input id="queue" type="range" min="0" max="3" step="0.25" value="1" />
-            <label for="read">
-                읽기 (초)<output id="read-value"></output>
-            </label>
-            <input id="read" type="range" min="0.5" max="6" step="0.25" value="2" />
-            <label for="prepare">
-                읽은 뒤 준비 (초)<output id="prepare-value"></output>
-            </label>
-            <input id="prepare" type="range" min="0" max="2" step="0.25" value="1" />
-            <label for="budget">
-                메모리 예산 (MB)<output id="budget-value"></output>
-            </label>
-            <input id="budget" type="range" min="64" max="160" step="16" value="96" />
-            <label class="check">
-                <input id="retain" type="checkbox" />
-                이전 청크를 10m 더 보관
-            </label>
-            <label class="check">
-                <input id="gate" type="checkbox" checked />
-                미준비 청크 진입 시 대기
-            </label>
-            <button id="reset" class="wide">
-                초기화
-            </button>
+    <Fragment slot="settings">
+        <div class="presets">
+            <button id="fast-preset">빠른 이동</button>
+            <button id="memory-preset">메모리 부족</button>
+            <button id="turn-preset">6초에 유턴</button>
         </div>
-        <section class="scene-area">
-            <div class="canvas-wrap">
-                <canvas
-                    id="scene"
-                    aria-label="플레이어보다 늦게 도착한 월드 수치 모델 장면"
-                    aria-describedby="summary"
-                ></canvas>
-            </div>
-            <div class="stats">
-                <article>
-                    <span>플레이어 위치</span>
-                    <strong id="metric-0"></strong>
-                    <small id="detail-0">청크당 경로 30m</small>
-                </article>
-                <article>
-                    <span>메모리 점유 / 예산</span>
-                    <strong id="metric-1"></strong>
-                    <small id="detail-1">공통 16 · 청크 32 · 작업 16MB</small>
-                </article>
-                <article>
-                    <span>첫 경계 시간 여유</span>
-                    <strong id="metric-2"></strong>
-                    <small id="detail-2">가시 거리와 요청 거리 반영</small>
-                </article>
-                <article>
-                    <span>누적 진입 대기</span>
-                    <strong id="metric-3"></strong>
-                    <small id="detail-3">준비가 끝날 때까지 정지</small>
-                </article>
-            </div>
-            <div class="toolbar">
-                <button id="play" aria-pressed="false">
-                    이동 재생
-                </button>
-                <button id="turn">지금 유턴</button>
-                <label for="time">
-                    관찰 시각
-                    <input id="time" type="range" min="0" max="25" step="0.05" value="0" />
-                </label>
-                <output id="time-value"></output>
-            </div>
-            <p id="summary" role="status" aria-live="polite"></p>
-            <p class="note">5개 청크 · 한 번에 하나씩 읽고 준비 · 설명용 카메라는 요청을 만들지 않습니다.</p>
-            <div id="log" class="log" role="region" aria-label="최근 상태 기록"></div>
-        </section>
-    </main>
-    <dialog id="explanation" aria-labelledby="explanation-title">
-        <button id="close-dialog" class="dialog-close" aria-label="설명 닫기">
-            ×
-        </button>
-        <p class="eyebrow">문제 · 원인 · 해결 · 대가</p>
-        <h2 id="explanation-title">플레이어보다 늦게 도착한 월드</h2>
-        <h3>문제와 원인</h3>
-        <p>
-            요청 후 사용까지 30m를 초당 6m로 이동하면 5초가 있습니다. 준비에 4초가 필요하면 1초 여유지만, 속도
-            12m/s에서는 1.5초 늦습니다. 멀리 보이는 지형은 진입 전에 필요합니다. 시야를 가려도 충돌을 위한
-            진입 시점은 남습니다.
+        <label for="speed">
+            이동 속도 (m/s)
+            <output id="speed-value"></output>
+        </label>
+        <input id="speed" type="range" min="3" max="18" step="1" value="6" />
+        <label for="prediction">
+            진행 방향 요청 거리 (m)
+            <output id="prediction-value"></output>
+        </label>
+        <input id="prediction" type="range" min="10" max="60" step="5" value="30" />
+        <label for="sight">
+            미리 보이는 거리 (m)
+            <output id="sight-value"></output>
+        </label>
+        <input id="sight" type="range" min="0" max="15" step="1" value="0" />
+        <label for="queue">
+            작업 대기 (초)
+            <output id="queue-value"></output>
+        </label>
+        <input id="queue" type="range" min="0" max="3" step="0.25" value="1" />
+        <label for="read">
+            읽기 (초)
+            <output id="read-value"></output>
+        </label>
+        <input id="read" type="range" min="0.5" max="6" step="0.25" value="2" />
+        <label for="prepare">
+            읽은 뒤 준비 (초)
+            <output id="prepare-value"></output>
+        </label>
+        <input id="prepare" type="range" min="0" max="2" step="0.25" value="1" />
+        <label for="budget">
+            메모리 예산 (MB)
+            <output id="budget-value"></output>
+        </label>
+        <input id="budget" type="range" min="64" max="160" step="16" value="96" />
+        <label class="check">
+            <input id="retain" type="checkbox" />
+            이전 청크를 10m 더 보관
+        </label>
+        <label class="check">
+            <input id="gate" type="checkbox" checked />
+            미준비 청크 진입 시 대기
+        </label>
+    </Fragment>
+    <Fragment slot="body-header">
+        <p class="topic-eyebrow">청크 · 예측 · 준비 · 메모리</p>
+        <h1>플레이어보다 늦게 도착한 월드</h1>
+        <span class="topic-intro">
+            이동 속도와 준비 시간을 맞추고, 돌아갈 공간까지 보관할지 비교하세요.
+        </span>
+    </Fragment>
+    <Fragment slot="graphics">
+        <div class="canvas-wrap">
+            <canvas
+                id="scene"
+                aria-label="플레이어보다 늦게 도착한 월드 수치 모델 장면"
+                aria-describedby="summary"
+            ></canvas>
+        </div>
+    </Fragment>
+    <Fragment slot="description">
+        <div class="stats">
+            <article>
+                <span>플레이어 위치</span>
+                <strong id="metric-0"></strong>
+                <small id="detail-0">청크당 경로 30m</small>
+            </article>
+            <article>
+                <span>메모리 점유 / 예산</span>
+                <strong id="metric-1"></strong>
+                <small id="detail-1">공통 16 · 청크 32 · 작업 16MB</small>
+            </article>
+            <article>
+                <span>첫 경계 시간 여유</span>
+                <strong id="metric-2"></strong>
+                <small id="detail-2">가시 거리와 요청 거리 반영</small>
+            </article>
+            <article>
+                <span>누적 진입 대기</span>
+                <strong id="metric-3"></strong>
+                <small id="detail-3">준비가 끝날 때까지 정지</small>
+            </article>
+        </div>
+        <p id="summary" role="status" aria-live="polite"></p>
+        <p class="note">
+            5개 청크 · 한 번에 하나씩 읽고 준비 · 설명용 카메라는 요청을 만들지 않습니다.
         </p>
-        <h3>시간과 공간을 함께 맞추기</h3>
-        <p>
-            요청을 앞당기거나 통로를 늘리면 시간을 벌지만 현재 청크와 다음 청크를 함께 보관해야 합니다. 이
-            모형의 최소 교체 예산은 현재 32 + 다음 32 + 공통 16 + 작업 16 = 96MB입니다. 공간이 없으면 요청돼도
-            작업을 시작하지 못합니다.
-        </p>
-        <h3>유턴의 대가</h3>
-        <p>
-            이전 청크를 바로 버리면 유턴할 때 다시 읽어야 합니다. 10m 더 보관하면 되돌아갈 자원을 유지하지만
-            다음 청크의 공간이 늦게 비워질 수 있습니다. 「6초에 유턴」에서 보관 정책을 비교하세요. 진행 방향
-            후보는 요청 후 취소하지 않으므로 방향 전환 뒤 낡은 요청도 작업을 차지할 수 있습니다.
-        </p>
-        <h3>계산 범위</h3>
-        <p>
-            직선 경로, 일정 속도와 0.05초 간격의 상태 모델입니다. 대기·읽기·준비를 순차 합산하며, 메모리는
-            준비 중인 청크 공간까지 예약합니다. 실제 구현에서 읽기와 복원이 겹치면 전체 경과 시간으로 비교해야
-            합니다. Jak and Daxter 개발자 회고는 시간·두 청크 제약의 역사적 근거이며 이 수치가 원작 DVD
-            성능이나 메모리 배치를 뜻하지 않습니다.
-        </p>
-        <p class="sources">
-            <a
-                href="https://blog.playstation.com/archive/2017/08/24/extended-play-how-naughty-dog-went-from-crash-to-jak-daxter/"
-                target="_blank"
-                rel="noreferrer"
-            >
-                PlayStation Andy Gavin 인터뷰
-            </a>{' '}
-            ·{' '}
-            <a
-                href="https://www.gamesradar.com/the-secret-art-of-the-video-game-loading-screen-and-why-they-wont-be-going-away-anytime-soon/"
-                target="_blank"
-                rel="noreferrer"
-            >
-                Gavin의 청크 제약 직접 발언
-            </a>
-        </p>
-    </dialog>
+        <div id="log" class="log" role="region" aria-label="최근 상태 기록"></div>
+    </Fragment>
+    <Fragment slot="controls">
+        <ExperimentPlayback playId="play" stepId="step" resetId="reset" />
+        <div class="toolbar">
+            <button id="turn">지금 유턴</button>
+            <label for="time">
+                관찰 시각
+                <input id="time" type="range" min="0" max="25" step="0.05" value="0" />
+            </label>
+            <output id="time-value"></output>
+        </div>
+    </Fragment>
+    <Fragment slot="overlays">
+        <dialog id="explanation" aria-labelledby="explanation-title">
+            <button id="close-dialog" class="dialog-close" aria-label="설명 닫기">×</button>
+            <p class="eyebrow">문제 · 원인 · 해결 · 대가</p>
+            <h2 id="explanation-title">플레이어보다 늦게 도착한 월드</h2>
+            <h3>문제와 원인</h3>
+            <p>
+                요청 후 사용까지 30m를 초당 6m로 이동하면 5초가 있습니다. 준비에 4초가 필요하면 1초
+                여유지만, 속도 12m/s에서는 1.5초 늦습니다. 멀리 보이는 지형은 진입 전에 필요합니다.
+                시야를 가려도 충돌을 위한 진입 시점은 남습니다.
+            </p>
+            <h3>시간과 공간을 함께 맞추기</h3>
+            <p>
+                요청을 앞당기거나 통로를 늘리면 시간을 벌지만 현재 청크와 다음 청크를 함께 보관해야
+                합니다. 이 모형의 최소 교체 예산은 현재 32 + 다음 32 + 공통 16 + 작업 16 =
+                96MB입니다. 공간이 없으면 요청돼도 작업을 시작하지 못합니다.
+            </p>
+            <h3>유턴의 대가</h3>
+            <p>
+                이전 청크를 바로 버리면 유턴할 때 다시 읽어야 합니다. 10m 더 보관하면 되돌아갈
+                자원을 유지하지만 다음 청크의 공간이 늦게 비워질 수 있습니다. 「6초에 유턴」에서
+                보관 정책을 비교하세요. 진행 방향 후보는 요청 후 취소하지 않으므로 방향 전환 뒤 낡은
+                요청도 작업을 차지할 수 있습니다.
+            </p>
+            <h3>계산 범위</h3>
+            <p>
+                직선 경로, 일정 속도와 0.05초 간격의 상태 모델입니다. 대기·읽기·준비를 순차
+                합산하며, 메모리는 준비 중인 청크 공간까지 예약합니다. 실제 구현에서 읽기와 복원이
+                겹치면 전체 경과 시간으로 비교해야 합니다. Jak and Daxter 개발자 회고는 시간·두 청크
+                제약의 역사적 근거이며 이 수치가 원작 DVD 성능이나 메모리 배치를 뜻하지 않습니다.
+            </p>
+            <p class="sources">
+                <a
+                    href="https://blog.playstation.com/archive/2017/08/24/extended-play-how-naughty-dog-went-from-crash-to-jak-daxter/"
+                    target="_blank"
+                    rel="noreferrer"
+                >
+                    PlayStation Andy Gavin 인터뷰
+                </a>
+                {' '} ·{' '}
+                <a
+                    href="https://www.gamesradar.com/the-secret-art-of-the-video-game-loading-screen-and-why-they-wont-be-going-away-anytime-soon/"
+                    target="_blank"
+                    rel="noreferrer"
+                >
+                    Gavin의 청크 제약 직접 발언
+                </a>
+            </p>
+        </dialog>
+    </Fragment>
     <script>
         import '../../experiments/world-streaming/client';
     </script>
-</Page>
+</ExperimentLayout>
 <style>
-    .lab {
-        min-height: 100svh;
-        padding: 18px 28px 30px;
-        color: #263b43;
+    .canvas-wrap {
         position: relative;
+        height: 100%;
+        min-height: 0;
     }
-    nav {
-        display: flex;
-        align-items: center;
-        gap: 14px;
-    }
-    nav a {
-        font-weight: 750;
-        color: inherit;
-        text-decoration: none;
-    }
-    nav button:last-child {
-        margin-left: auto;
+    .canvas-wrap canvas {
+        position: absolute;
+        inset: 0;
     }
     button {
         min-height: 42px;
@@ -204,15 +193,7 @@ import Page from '../../layouts/Page.astro';
     button:hover {
         background: #e2efed;
     }
-    nav button {
-        width: 44px;
-        padding: 0;
-        font-size: 23px;
-    }
-    header {
-        padding: 24px 0 20px;
-    }
-    header p,
+    .topic-eyebrow,
     .eyebrow {
         font-size: 12px;
         letter-spacing: 0.08em;
@@ -225,44 +206,9 @@ import Page from '../../layouts/Page.astro';
         letter-spacing: -0.055em;
         word-break: keep-all;
     }
-    header span {
+    .topic-intro {
         font-size: 14px;
         color: #52676e;
-    }
-    .scene-area {
-        transition: margin 0.15s;
-    }
-    .open .scene-area {
-        margin-left: 300px;
-    }
-    #settings {
-        position: absolute;
-        z-index: 5;
-        top: 210px;
-        left: 28px;
-        width: 276px;
-        padding: 18px;
-        background: #f9fbfb;
-        border: 1px solid #d3dfe0;
-        border-radius: 18px;
-        box-shadow: 0 12px 40px #25434b0b;
-        max-height: calc(100svh - 230px);
-        overflow: auto;
-    }
-    .panel-title {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-    }
-    .panel-title h2 {
-        font-size: 16px;
-        margin: 0;
-    }
-    .panel-title button {
-        border: 0;
-        font-size: 23px;
-        padding: 0;
-        min-width: 40px;
     }
     .presets {
         display: flex;
@@ -316,13 +262,6 @@ import Page from '../../layouts/Page.astro';
         accent-color: #0f706b;
         flex-shrink: 0;
     }
-    .wide {
-        width: 100%;
-        margin-top: 13px;
-    }
-    .canvas-wrap {
-        height: clamp(370px, 51vh, 540px);
-    }
     canvas {
         display: block;
         width: 100%;
@@ -367,20 +306,18 @@ import Page from '../../layouts/Page.astro';
         justify-content: center;
         gap: 9px;
         flex-wrap: wrap;
-        margin-top: 18px;
-    }
-    .toolbar button:first-child {
-        background: #187f78;
-        color: #fff;
-        border-color: #187f78;
     }
     .toolbar label {
+        flex: 1 1 100%;
+        min-width: 0;
         margin: 0;
         align-items: center;
         white-space: nowrap;
     }
     .toolbar input {
-        width: 150px;
+        flex: 1;
+        min-width: 0;
+        width: auto;
     }
     .toolbar output {
         font-size: 12px;
@@ -456,33 +393,13 @@ import Page from '../../layouts/Page.astro';
         color: #52676e;
     }
     @media (max-width: 700px) {
-        .lab {
-            padding: 14px 16px 24px;
-        }
-        header {
-            padding-top: 18px;
-        }
         h1 {
             font-size: 28px;
         }
-        header span {
+        .topic-intro {
             font-size: 12px;
             line-height: 1.6;
             display: block;
-        }
-        .open .scene-area {
-            margin-left: 0;
-        }
-        #settings {
-            position: fixed;
-            top: 75px;
-            left: 12px;
-            width: min(300px, calc(100% - 24px));
-            max-height: calc(100svh - 92px);
-            box-shadow: 0 10px 80px #183c4260;
-        }
-        .canvas-wrap {
-            height: 440px;
         }
         .stats {
             grid-template-columns: repeat(2, minmax(0, 1fr));

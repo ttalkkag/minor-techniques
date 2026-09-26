@@ -1,4 +1,5 @@
 import { makeSprites, selectLine } from './model';
+import { setPlaybackState } from '../../components/experiment-playback';
 const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
 const canvas = $<HTMLCanvasElement>('canvas');
 const ctx = canvas.getContext('2d')!;
@@ -81,7 +82,7 @@ function draw() {
 function stop() {
     playing = false;
     clearInterval(timer);
-    $('play').textContent = '관찰 재생';
+    setPlaybackState('play', false);
 }
 function reset() {
     stop();
@@ -115,7 +116,7 @@ $('play').addEventListener('click', () => {
     if (playing) stop();
     else {
         playing = true;
-        $('play').textContent = '일시 정지';
+        setPlaybackState('play', true);
         timer = window.setInterval(step, 220);
     }
 });
@@ -123,60 +124,18 @@ $('spread').addEventListener('click', () => {
     $<HTMLInputElement>('offset').value = String(value('pieces') === 4 ? 16 : 8);
     reset();
 });
-const media = matchMedia('(max-width: 800px)');
-const panel = $('settings'), menuButton = $('menu');
 const dialog = $<HTMLDialogElement>('explanation');
-function menu(open: boolean, moveFocus = true) {
-    panel.hidden = !open;
-    $('scanline-lab').classList.toggle('open', open);
-    menuButton.setAttribute('aria-expanded', String(open));
-    menuButton.setAttribute('aria-label', open ? '설정 메뉴 접기' : '설정 메뉴 열기');
-    const modal = open && media.matches;
-    $('backdrop').hidden = !modal;
-    panel.setAttribute('role', modal ? 'dialog' : 'complementary');
-    if (modal) panel.setAttribute('aria-modal', 'true');
-    else panel.removeAttribute('aria-modal');
-    for (const child of Array.from(panel.parentElement!.children))
-        if (child instanceof HTMLElement && child !== panel && child.id !== 'backdrop' && child.tagName !== 'NAV')
-            child.inert = modal;
-    for (const child of Array.from(menuButton.parentElement!.children))
-        if (child instanceof HTMLElement && child !== menuButton) child.inert = modal;
-    if (moveFocus) (open ? $('close-menu') : menuButton).focus();
-}
-menuButton.addEventListener('click', () => menu(Boolean(panel.hidden)));
-$('close-menu').addEventListener('click', () => menu(false));
-$('backdrop').addEventListener('click', () => menu(false));
-media.addEventListener('change', () => menu(!media.matches, media.matches));
 $('explain').addEventListener('click', () => {
     stop();
     dialog.showModal();
 });
 $('close-explanation').addEventListener('click', () => dialog.close());
-document.addEventListener('keydown', (event) => {
-    if (dialog.open || panel.hidden) return;
-    if (event.key === 'Escape') {
-        event.preventDefault();
-        menu(false);
-    } else if (event.key === 'Tab' && media.matches) {
-        const controls = Array.from(panel.querySelectorAll<HTMLElement>('button, input, select'));
-        const first = controls[0]!, last = controls[controls.length - 1]!;
-        if (event.shiftKey && (document.activeElement === first || !panel.contains(document.activeElement))) {
-            event.preventDefault();
-            last.focus();
-        } else if (!event.shiftKey && (document.activeElement === last || !panel.contains(document.activeElement))) {
-            event.preventDefault();
-            first.focus();
-        }
-    }
-});
 document.addEventListener('visibilitychange', () => {
     if (document.hidden) stop();
 });
 window.addEventListener('pagehide', stop);
 window.addEventListener('pageshow', () => {
-    menu(!panel.hidden, false);
     draw();
 });
 new ResizeObserver(draw).observe(canvas);
-menu(!media.matches, false);
 draw();

@@ -1,14 +1,15 @@
 import { integrate, viewRay, billboard } from './model';
 import type { DensityState, Method } from './model';
+import { createPlayback } from '../../components/experiment-playback';
 const el = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 const field = (id: string) => el<HTMLInputElement | HTMLSelectElement>(id);
 const value = (id: string) => Number(field(id).value);
-const settings = el('settings'),
-    dialog = el<HTMLDialogElement>('explanation');
+const dialog = el<HTMLDialogElement>('explanation');
 const canvases = [el<HTMLCanvasElement>('view-a'), el<HTMLCanvasElement>('view-b')];
 let hole = false,
     eventNumber = 0,
-    queued = 0;
+    queued = 0,
+    orbitDirection = 1;
 const offscreen = document.createElement('canvas');
 offscreen.width = 180;
 offscreen.height = 128;
@@ -125,33 +126,20 @@ function update() {
 function schedule() {
     if (!queued) queued = requestAnimationFrame(update);
 }
-const menuBackground = document.querySelectorAll<HTMLElement>(
-    'main > :not(nav):not(#settings):not(dialog), nav > :not(#menu)',
-);
-function syncMenu() {
-    const modal = !settings.hidden && window.innerWidth < 1100;
-    menuBackground.forEach((element) => {
-        element.inert = modal;
-    });
-    if (modal) {
-        settings.setAttribute('role', 'dialog');
-        settings.setAttribute('aria-modal', 'true');
-        if (!dialog.open && !settings.contains(document.activeElement)) el('close-menu').focus();
-    } else {
-        settings.setAttribute('role', 'complementary');
-        settings.removeAttribute('aria-modal');
-    }
-}
-function menu(open: boolean, focus = true) {
-    settings.hidden = !open;
-    el('menu').setAttribute('aria-expanded', String(open));
-    el('menu').setAttribute('aria-label', open ? '설정 메뉴 닫기' : '설정 메뉴 열기');
-    document.querySelector('.lab')!.classList.toggle('menu-open', open);
-    schedule();
-    syncMenu();
-    if (focus) (open ? el('close-menu') : el('menu')).focus();
-}
+const playback = createPlayback({
+    interval: 300,
+    advance: () => {
+        if (dialog.open) return;
+        const current = value('angle');
+        if (current >= 90) orbitDirection = -1;
+        if (current <= 0) orbitDirection = 1;
+        field('angle').value = String(current + orbitDirection * 5);
+        schedule();
+    },
+});
 function reset(uniform = false, withHole = false) {
+    playback.pause();
+    orbitDirection = 1;
     field('method').value = 'corrected';
     field('shape').value = uniform ? 'uniform' : 'cloud';
     field('beta').value = uniform ? '0.5' : '2.4';
@@ -164,6 +152,7 @@ function reset(uniform = false, withHole = false) {
     eventNumber = withHole ? 1 : 0;
     schedule();
 }
+field('angle').addEventListener('input', () => playback.pause());
 for (const id of ['method', 'shape', 'beta', 'samples', 'angle', 'drift', 'hole-radius', 'threshold']) {
     field(id).addEventListener('input', schedule);
     field(id).addEventListener('change', schedule);
@@ -176,42 +165,8 @@ el('hole').addEventListener('click', () => {
 el('reset').addEventListener('click', () => reset());
 el('uniform-preset').addEventListener('click', () => reset(true));
 el('cloud-preset').addEventListener('click', () => reset(false, true));
-el('menu').addEventListener('click', () => menu(Boolean(settings.hidden)));
-el('close-menu').addEventListener('click', () => {
-    menu(false);
-    el('menu').focus();
-});
 el('help').addEventListener('click', () => dialog.showModal());
 el('close-help').addEventListener('click', () => dialog.close());
-document.addEventListener('keydown', (event) => {
-    if (dialog.open || settings.hidden) return;
-    if (event.key === 'Escape') {
-        event.preventDefault();
-        menu(false);
-    } else if (event.key === 'Tab' && window.innerWidth < 1100) {
-        const controls = Array.from(
-            settings.querySelectorAll<HTMLElement>('button, input, select, a[href], [tabindex]'),
-        ).filter(
-            (control) =>
-                !control.matches(':disabled') && control.tabIndex >= 0 && control.getClientRects().length,
-        );
-        const first = controls[0]!,
-            last = controls[controls.length - 1]!;
-        if (
-            event.shiftKey &&
-            (document.activeElement === first || !settings.contains(document.activeElement))
-        ) {
-            event.preventDefault();
-            last.focus();
-        } else if (
-            !event.shiftKey &&
-            (document.activeElement === last || !settings.contains(document.activeElement))
-        ) {
-            event.preventDefault();
-            first.focus();
-        }
-    }
-});
 const observer = new ResizeObserver(schedule);
 observer.observe(canvases[0]!);
 window.addEventListener('pagehide', (event) => {
@@ -222,9 +177,7 @@ window.addEventListener('pagehide', (event) => {
 window.addEventListener('pageshow', (event) => {
     if (event.persisted) {
         observer.observe(canvases[0]!);
-        syncMenu();
         schedule();
     }
 });
-window.addEventListener('resize', syncMenu);
-menu(window.innerWidth >= 1100, false);
+schedule();

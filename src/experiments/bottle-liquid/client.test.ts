@@ -72,6 +72,12 @@ test('two cached departures stop sloshing and allow a fresh impulse after each r
         },
         cancelAnimationFrame: (id: number) => frames.delete(id),
     });
+    const playbackSource = ts.transpileModule(
+        readFileSync(new URL('../../components/experiment-playback.ts', import.meta.url), 'utf8'),
+        { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } },
+    ).outputText;
+    const playback = runInContext(`(() => { const exports = {}; ${playbackSource}; return exports; })()`, context);
+    context.require = (id: string) => id.includes('experiment-playback') ? playback : model;
     runInContext(
         ts.transpileModule(readFileSync(new URL('./client.ts', import.meta.url), 'utf8'), {
             compilerOptions: {
@@ -82,6 +88,18 @@ test('two cached departures stop sloshing and allow a fresh impulse after each r
         context,
     );
     const emit = (name: string) => listeners.get(name)?.forEach((callback) => callback({ persisted: true }));
+    assert.equal(frames.size, 0);
+    element('step').handlers.get('click')();
+    const stepped = runInContext('slosh', context);
+    assert.ok(stepped > 0);
+    assert.equal(frames.size, 0);
+    element('play').handlers.get('click')();
+    assert.equal(frames.size, 1);
+    element('play').handlers.get('click')();
+    assert.equal(frames.size, 0);
+    assert.equal(runInContext('slosh', context), stepped);
+    element('reset').handlers.get('click')();
+    assert.equal(runInContext('slosh + velocity', context), 0);
     for (let cycle = 0; cycle < 2; cycle++) {
         element('pulse').handlers.get('click')();
         assert.equal(frames.size, 1);

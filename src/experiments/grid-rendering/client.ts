@@ -1,38 +1,10 @@
 import { castRay, columnRay, makeMap, projection } from './model';
 import type { Point, RayHit } from './model';
+import { createPlayback } from '../../components/experiment-playback';
 
 const canvas = document.querySelector<HTMLCanvasElement>('#gr-scene')!;
 const ctx = canvas.getContext('2d')!;
-const menu = document.querySelector<HTMLElement>('#gr-settings')!;
-const backdrop = document.querySelector<HTMLElement>('#gr-backdrop')!;
-const menuButton = document.querySelector<HTMLButtonElement>('#gr-menu')!;
 const dialog = document.querySelector<HTMLDialogElement>('#gr-dialog')!;
-const menuMedia = matchMedia('(min-width: 0px)');
-const menuBackground = Array.from(document.querySelectorAll<HTMLElement>('.grid-lab > nav, .grid-lab > header, .scene-wrap, .grid-lab > footer'));
-function menuControls() {
-    return Array.from(menu.querySelectorAll<HTMLElement>('button, input, select, a[href]'))
-        .filter((control) => control.getClientRects().length && !control.hasAttribute('disabled'));
-}
-function syncMenu() {
-    const modal = !menu.hidden && menuMedia.matches;
-    for (const element of menuBackground) element.inert = modal;
-    menu.setAttribute('role', modal ? 'dialog' : 'complementary');
-    if (modal) menu.setAttribute('aria-modal', 'true');
-    else menu.removeAttribute('aria-modal');
-}
-function trapMenu(event: KeyboardEvent) {
-    if (dialog.open || menu.hidden || !menuMedia.matches || event.key !== 'Tab') return;
-    const controls = menuControls(), first = controls[0], last = controls.at(-1);
-    if (!first || !last) return;
-    if (!menu.contains(document.activeElement) || (event.shiftKey ? document.activeElement === first : document.activeElement === last)) {
-        event.preventDefault();
-        (event.shiftKey ? last : first).focus();
-    }
-}
-menuMedia.addEventListener('change', () => {
-    syncMenu();
-    if (!menu.hidden && menuMedia.matches && !dialog.open) menuControls()[0]?.focus();
-});
 const controls = {
     map: document.querySelector<HTMLSelectElement>('#gr-map')!,
     bearing: document.querySelector<HTMLInputElement>('#gr-bearing')!,
@@ -263,16 +235,6 @@ function resize() {
     draw();
 }
 
-function toggleMenu(open: boolean) {
-    menu.hidden = !open;
-    backdrop.hidden = !open;
-    menuButton.setAttribute('aria-expanded', String(open));
-    menuButton.setAttribute('aria-label', open ? '설정 메뉴 닫기' : '설정 메뉴 열기');
-    syncMenu();
-    if (open) document.querySelector<HTMLButtonElement>('#gr-close')!.focus();
-    else menuButton.focus();
-}
-
 function move(dx: number, dy: number) {
     const next = { x: origin.x + dx, y: origin.y + dy };
     const margin = 0.12;
@@ -296,24 +258,19 @@ function reset() {
     draw();
 }
 
-menuButton.addEventListener('click', () => toggleMenu(Boolean(menu.hidden)), eventOptions);
-document.querySelector('#gr-close')!.addEventListener('click', () => toggleMenu(false), eventOptions);
-backdrop.addEventListener('click', () => toggleMenu(false), eventOptions);
 document.querySelector('#gr-help')!.addEventListener('click', () => dialog.showModal(), eventOptions);
 document.querySelector('#gr-dialog-close')!.addEventListener('click', () => dialog.close(), eventOptions);
 document.querySelector('#gr-reset')!.addEventListener('click', reset, eventOptions);
-document.addEventListener(
-    'keydown',
-    (event) => {
-        if (dialog.open) return;
-        if (event.key === 'Escape' && !menu.hidden) {
-            event.preventDefault();
-            toggleMenu(false);
-        }
-        trapMenu(event);
+createPlayback({
+    playId: 'gr-play',
+    stepId: 'gr-step',
+    resetId: 'gr-reset',
+    interval: 100,
+    advance: () => {
+        controls.column.value = String((Number(controls.column.value) + 1) % 101);
+        draw();
     },
-    eventOptions,
-);
+});
 controls.map.addEventListener(
     'change',
     () => {
@@ -358,7 +315,6 @@ window.addEventListener('pagehide', (event) => {
 });
 window.addEventListener('pageshow', () => {
     observer.observe(canvas);
-    syncMenu();
     resize();
 });
 resize();

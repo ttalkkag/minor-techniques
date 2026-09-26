@@ -1,57 +1,12 @@
+import { syncViewControls } from '../../layouts/experiment-layout';
+import { createPlayback } from '../../components/experiment-playback';
 import { astar, reverseField, gridGraph, counterexample } from './model';
 const get = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 const canvas = get<HTMLCanvasElement>('scene'),
     ctx = canvas.getContext('2d')!;
-const menu = get<HTMLButtonElement>('menu'),
-    settings = get<HTMLElement>('settings'),
-    info = get<HTMLDialogElement>('info');
-const background = [
-    ...document.querySelectorAll<HTMLElement>(
-        'main > :not(nav):not(#settings):not(dialog), nav > :not(#menu)',
-    ),
-];
-function menuOpen(open: boolean) {
-    settings.hidden = !open;
-    settings.setAttribute('role', 'dialog');
-    settings.setAttribute('aria-modal', String(open));
-    menu.setAttribute('aria-expanded', String(open));
-    menu.setAttribute('aria-label', open ? '설정 메뉴 닫기' : '설정 메뉴 열기');
-    menu.tabIndex = open ? -1 : 0;
-    background.forEach((element) => {
-        element.inert = open;
-    });
-    if (open) {
-        settings.scrollTop = 0;
-        get('close-menu').focus();
-    } else menu.focus();
-}
-menu.addEventListener('click', () => menuOpen(Boolean(settings.hidden)));
-get('close-menu').addEventListener('click', () => menuOpen(false));
+const info = get<HTMLDialogElement>('info');
 get('explain').addEventListener('click', () => info.showModal());
 get('close-info').addEventListener('click', () => info.close());
-document.addEventListener('keydown', (e) => {
-    if (settings.hidden || info.open) return;
-    if (e.key === 'Escape') {
-        e.preventDefault();
-        menuOpen(false);
-    } else if (e.key === 'Tab') {
-        const controls = [...settings.querySelectorAll<HTMLElement>('button, input, select, a[href]')].filter(
-            (element) => !element.hasAttribute('disabled') && element.getClientRects().length,
-        );
-        const first = controls[0],
-            last = controls[controls.length - 1];
-        if (e.shiftKey && (document.activeElement === first || !settings.contains(document.activeElement))) {
-            e.preventDefault();
-            last.focus();
-        } else if (
-            !e.shiftKey &&
-            (document.activeElement === last || !settings.contains(document.activeElement))
-        ) {
-            e.preventDefault();
-            first.focus();
-        }
-    }
-});
 function surface() {
     const r = canvas.getBoundingClientRect(),
         dpr = Math.min(devicePixelRatio, 2);
@@ -73,9 +28,11 @@ function range(id: string) {
 }
 let goal = 94,
     units = [81, 17, 145],
+    pathProgress = 0,
     targetMessage = '',
     gridBounds = { x: 0, y: 0, cell: 1 };
 function draw() {
+    syncViewControls();
     const { w, h } = surface();
     if (w <= 24 || h <= 120) return;
     const graphScene = get<HTMLSelectElement>('scene-mode').value === 'graph',
@@ -142,7 +99,7 @@ function draw() {
                 }),
             );
             ctx.beginPath();
-            result.path.forEach((id, i) => {
+            result.path.slice(0, pathProgress + 1).forEach((id, i) => {
                 const p = point(id);
                 if (i === 0) ctx.moveTo(p.x, p.y);
                 else ctx.lineTo(p.x, p.y);
@@ -154,7 +111,8 @@ function draw() {
                 const p = point(i);
                 ctx.beginPath();
                 ctx.arc(p.x, p.y, 21, 0, Math.PI * 2);
-                ctx.fillStyle = '#f8fcfc';
+                ctx.fillStyle =
+                    i === result.path[Math.min(pathProgress, result.path.length - 1)] ? '#f6d8ac' : '#f8fcfc';
                 ctx.fill();
                 ctx.strokeStyle = '#5f7d83';
                 ctx.lineWidth = 2;
@@ -172,6 +130,8 @@ function draw() {
         get('metric-0').textContent = String(selected.cost);
         get('metric-1').textContent = String(reference.cost);
         get('metric-2').textContent = `${selected.expansions} / ${selected.reopens}`;
+        get('playback-status').textContent =
+            `경로 따라가기 ${Math.min(pathProgress, selected.path.length - 1)}/${selected.path.length - 1} · 기준 ${Math.min(pathProgress, reference.path.length - 1)}/${reference.path.length - 1} 간선`;
         get('summary').textContent =
             `선택 경로 ${selected.path.map((i) => ['S', 'A', 'B', 'G'][i]).join(' → ')}. ${heuristic > 1 ? 'h(B) > cost(B,A)+h(A)로 일관성이 깨집니다.' : '이 설정은 모든 간선에서 일관성을 만족합니다.'} ${selected.cost === reference.cost ? '기준 최단 비용과 같습니다.' : '기준보다 비용 ' + (selected.cost - reference.cost) + '만큼 깁니다.'}`;
     } else {
@@ -273,22 +233,42 @@ function draw() {
         get('metric-0').textContent = Number.isFinite(cost) ? String(cost) : '도달 불가';
         get('metric-1').textContent = Number.isFinite(reference.cost) ? String(reference.cost) : '∞';
         get('metric-2').textContent = `${result.expansions} / ${result.reopens}`;
+        get('playback-status').textContent =
+            `유닛 위치: ${units.map((u) => `(${u % 16}, ${Math.floor(u / 16)})`).join(' · ')}`;
         get('summary').textContent =
             `공유 필드는 ${field.expansions}개 셀을 확정했습니다. ${get<HTMLInputElement>('zero').checked ? '비용 0 셀도 동점으로 덮어쓰지 않아 목표 트리를 유지합니다.' : ''} 세 유닛은 필드를 공유하며 겹침 ${3 - new Set(units).size}개입니다. ${algorithm === 'bfs' ? 'BFS가 고른 경로의 실제 가중 비용을 표시합니다.' : ''} 목표 (${goal % 16},${Math.floor(goal / 16)}). ${targetMessage}`;
     }
 }
-get('step').addEventListener('click', () => {
-    get<HTMLSelectElement>('scene-mode').value = 'grid';
+function advance() {
+    if (get<HTMLSelectElement>('scene-mode').value === 'graph') {
+        const selected = astar(
+                counterexample,
+                0,
+                3,
+                (n) => (n === 2 ? Number(get<HTMLInputElement>('heuristic').value) : 0),
+                get<HTMLInputElement>('reopen').checked,
+                get<HTMLInputElement>('early').checked,
+            ),
+            reference = astar(counterexample, 0, 3, () => 0),
+            total = Math.max(selected.path.length, reference.path.length) - 1;
+        pathProgress = pathProgress >= total ? 1 : pathProgress + 1;
+        draw();
+        return pathProgress < total;
+    }
     const { graph } = gridGraph(
             Number(get<HTMLInputElement>('weight').value),
             get<HTMLInputElement>('door').checked,
             get<HTMLInputElement>('zero').checked,
         ),
         field = reverseField(graph, goal);
+    const previous = units;
     units = units.map((u) => (field.next[u] >= 0 ? field.next[u] : u));
     draw();
-});
+    return units.some((u, i) => u !== previous[i]) && units.some((u) => field.next[u] >= 0);
+}
+const playback = createPlayback({ interval: 550, advance });
 function selectGoal(x: number, y: number) {
+    playback.pause();
     get<HTMLSelectElement>('scene-mode').value = 'grid';
     get<HTMLInputElement>('goal-x').value = String(x);
     get<HTMLInputElement>('goal-y').value = String(y);
@@ -316,14 +296,21 @@ canvas.addEventListener('click', (e) => {
         selectGoal(x, y);
     }
 });
+function changeSettings() {
+    playback.pause();
+    pathProgress = 0;
+    draw();
+}
+get('scene-mode').addEventListener('change', changeSettings);
 document
     .querySelectorAll<HTMLInputElement | HTMLSelectElement>('#settings input,#settings select')
     .forEach((c) => {
-        c.addEventListener('input', draw);
-        c.addEventListener('change', draw);
+        c.addEventListener('input', changeSettings);
+        c.addEventListener('change', changeSettings);
     });
 get('reset').addEventListener('click', () => {
     goal = 94;
+    pathProgress = 0;
     targetMessage = '';
     get<HTMLInputElement>('goal-x').value = '14';
     get<HTMLInputElement>('goal-y').value = '5';

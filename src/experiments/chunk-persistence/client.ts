@@ -1,58 +1,12 @@
+import { createPlayback } from '../../components/experiment-playback';
 import { SIZE, address, baseCell, effectiveCell, edit, selectionBounds, validSave } from './model';
 import type { Save } from './model';
 const get = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 const canvas = get<HTMLCanvasElement>('scene'),
     ctx = canvas.getContext('2d')!;
-const menu = get<HTMLButtonElement>('menu'),
-    settings = get<HTMLElement>('settings'),
-    info = get<HTMLDialogElement>('info');
-const background = [
-    ...document.querySelectorAll<HTMLElement>(
-        'main > :not(nav):not(#settings):not(dialog), nav > :not(#menu)',
-    ),
-];
-function menuOpen(open: boolean) {
-    settings.hidden = !open;
-    settings.setAttribute('role', 'dialog');
-    settings.setAttribute('aria-modal', String(open));
-    menu.setAttribute('aria-expanded', String(open));
-    menu.setAttribute('aria-label', open ? '설정 메뉴 닫기' : '설정 메뉴 열기');
-    menu.tabIndex = open ? -1 : 0;
-    background.forEach((element) => {
-        element.inert = open;
-    });
-    if (open) {
-        settings.scrollTop = 0;
-        get('close-menu').focus();
-    } else menu.focus();
-}
-menu.addEventListener('click', () => menuOpen(Boolean(settings.hidden)));
-get('close-menu').addEventListener('click', () => menuOpen(false));
+const info = get<HTMLDialogElement>('info');
 get('explain').addEventListener('click', () => info.showModal());
 get('close-info').addEventListener('click', () => info.close());
-document.addEventListener('keydown', (e) => {
-    if (settings.hidden || info.open) return;
-    if (e.key === 'Escape') {
-        e.preventDefault();
-        menuOpen(false);
-    } else if (e.key === 'Tab') {
-        const controls = [...settings.querySelectorAll<HTMLElement>('button, input, select, a[href]')].filter(
-            (element) => !element.hasAttribute('disabled') && element.getClientRects().length,
-        );
-        const first = controls[0],
-            last = controls[controls.length - 1];
-        if (e.shiftKey && (document.activeElement === first || !settings.contains(document.activeElement))) {
-            e.preventDefault();
-            last.focus();
-        } else if (
-            !e.shiftKey &&
-            (document.activeElement === last || !settings.contains(document.activeElement))
-        ) {
-            e.preventDefault();
-            first.focus();
-        }
-    }
-});
 function surface() {
     const r = canvas.getBoundingClientRect(),
         dpr = Math.min(devicePixelRatio, 2);
@@ -191,7 +145,20 @@ function draw() {
     get('metric-2').textContent = `v${activeVersion()} / v${readSave().version}`;
     get('summary').textContent =
         `선택 (${selectedX.value}, ${selectedY.value}) → 청크 ${a.chunk}, 로컬 x ${a.local}. 기본=${baseCell(Number(selectedX.value), Number(selectedY.value), world.seed, activeVersion())}, 현재=${effectiveCell(Number(selectedX.value), Number(selectedY.value), world, activeVersion())}. ${message}`;
+    get('playback-status').textContent =
+        `셀 (${selectedX.value}, ${selectedY.value}) · 기본 ${baseCell(Number(selectedX.value), Number(selectedY.value), world.seed, activeVersion())} → 적용 ${effectiveCell(Number(selectedX.value), Number(selectedY.value), world, activeVersion())}`;
 }
+const playback = createPlayback({
+    interval: 500,
+    advance: () => {
+        const { chunk, local } = address(Number(selectedX.value));
+        selectedX.value = String(chunk * SIZE + ((local + 1) % SIZE));
+        rebuild();
+        draw();
+    },
+});
+for (const id of ['remove', 'place', 'travel', 'save', 'reload'])
+    get(id).addEventListener('click', playback.pause);
 function change(value: number) {
     const x = Number(selectedX.value),
         y = Number(selectedY.value);
@@ -235,24 +202,31 @@ get('reload').addEventListener('click', () => {
 });
 [selectedX, selectedY].forEach((c) =>
     c.addEventListener('input', () => {
+        playback.pause();
         rebuild();
         draw();
     }),
 );
 [version, compatibility].forEach((c) =>
     c.addEventListener('change', () => {
+        playback.pause();
         rebuild();
         message = '버전 정책에 따라 기본 지형을 다시 평가했습니다.';
         draw();
     }),
 );
-get('visible').addEventListener('change', draw);
+get('mode').addEventListener('change', playback.pause);
+get('visible').addEventListener('change', () => {
+    playback.pause();
+    draw();
+});
 canvas.addEventListener('click', (e) => {
     const r = canvas.getBoundingClientRect(),
         x = e.clientX - r.left,
         y = e.clientY - r.top;
     const p = panels.find((p) => x >= p.x && x < p.x + p.size * 8 && y >= p.y && y < p.y + p.size * 8);
     if (p) {
+        playback.pause();
         selectedX.value = String(p.chunk * 8 + Math.floor((x - p.x) / p.size));
         selectedY.value = String(7 - Math.floor((y - p.y) / p.size));
         rebuild();

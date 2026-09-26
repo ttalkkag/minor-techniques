@@ -8,6 +8,7 @@ import {
     type Build,
     type CycleResult,
 } from './model';
+import { createPlayback } from '../../components/experiment-playback';
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 const value = (id: string) => Number($<HTMLInputElement>(id).value),
     choice = (id: string) => $<HTMLSelectElement>(id).value;
@@ -29,6 +30,7 @@ function log(message: string) {
 }
 function execute() {
     const verified = choice('policy') === 'verified';
+    let canContinue = false;
     if (choice('scenario') === 'move') {
         result = cycle(
             world,
@@ -45,6 +47,12 @@ function execute() {
         log(
             `관측 #${observation.id}: ${observation.capturedAt}틱 ${observation.map} x=${observation.x} → 판단 나이 ${result.age}틱 → ${result.sent}명령 / 실제 ${result.moved}칸`,
         );
+        canContinue = !world.delivered && world.map === '마을' && result.moved > 0;
+        $('playback-detail').textContent = world.delivered
+            ? '소포 전달 완료 · 재생을 멈췄습니다.'
+            : world.map === '전투'
+              ? '전투로 전환되었습니다. 전투 종료 후 재생을 이어가세요.'
+              : '관측 → 행동 → 결과 확인을 한 사이클씩 진행합니다.';
     } else {
         const before = build.blocks.filter((v) => v === '벽').length;
         build = buildBatch(build, verified);
@@ -53,10 +61,21 @@ function execute() {
         $('result-detail').textContent =
             `이번 명령 ${build.commands}개 · 실제 새 벽 ${filled - before}개 · 남은 청사진 ${10 - filled}칸 · 자원 ${build.stock}개`;
         log(`벽 배치: 요청 ${build.commands}명령, 실제 ${filled}/10칸, 자원 ${build.stock}`);
+        canContinue = filled < 10 && build.stock > 0 && filled > before;
+        $('playback-detail').textContent = filled === 10
+            ? '벽 10칸 완료 · 재생을 멈췄습니다.'
+            : build.stock === 0
+              ? '자원이 부족합니다. 자원을 추가한 뒤 재시도하세요.'
+              : filled === before
+                ? '새로 배치한 벽이 없습니다. 변경분 재시도와 비교하세요.'
+                : '청사진과 실제 월드의 차이를 확인하며 배치합니다.';
     }
     paint();
+    return canContinue;
 }
+const playback = createPlayback({ stepId: 'cycle', interval: 700, advance: execute });
 function reset() {
+    playback.pause();
     world = { tick: 0, x: 1, map: '마을', delivered: false, interrupted: false };
     observation = { ...world, id: 0, capturedAt: 0 };
     result = null;
@@ -66,6 +85,9 @@ function reset() {
     logs.length = 0;
     $('events').textContent = '';
     $('result-detail').textContent = '관측을 캡처하고 한정된 행동을 실행합니다.';
+    $('playback-detail').textContent = choice('scenario') === 'move'
+        ? '관측 → 행동 → 결과 확인을 한 사이클씩 진행합니다.'
+        : '청사진과 실제 월드의 차이를 확인하며 배치합니다.';
     paint();
 }
 function grid(
@@ -201,50 +223,15 @@ function paint() {
         : `버전 보호 ${choice('policy') === 'verified' ? '켜짐' : '꺼짐'} · 되돌리기 충돌 ${build.conflicts}개. 최대 6명령 예산을 중복 명령이 소모할 수 있습니다.`;
     $('resolve').hidden = !isMove;
     for (const id of ['restock', 'concurrent', 'rollback']) $(id).hidden = isMove;
-    $('cycle').textContent = isMove ? '관측 → 행동 한 사이클' : '벽 배치 / 재시도';
     for (const id of ['delay', 'burst', 'interrupt']) $<HTMLInputElement>(id).disabled = !isMove;
     for (const id of ['delay', 'burst']) $(id + '-value').textContent = String(value(id));
 }
-function menu(open: boolean) {
-    const wasOpen = !panel.hidden;
-    panel.hidden = !open;
-    $('backdrop').hidden = !open;
-    $('menu').setAttribute('aria-expanded', String(open));
-    for (const sibling of panel.parentElement!.children) {
-        if (sibling instanceof HTMLElement && sibling !== panel && sibling.id !== 'backdrop')
-            sibling.inert = open;
-    }
-    if (open) {
-        panel.scrollTop = 0;
-        $('close-menu').focus();
-    } else if (wasOpen) $('menu').focus();
-}
-$('menu').onclick = () => menu(true);
-$('close-menu').onclick = () => menu(false);
-$('backdrop').onclick = () => menu(false);
-$('help').onclick = () => dialog.showModal();
+$('help').onclick = () => {
+    playback.pause();
+    dialog.showModal();
+};
 $('close-help').onclick = () => dialog.close();
-document.addEventListener('keydown', (e) => {
-    if (panel.hidden || dialog.open) return;
-    if (e.key === 'Escape') {
-        e.preventDefault();
-        menu(false);
-    } else if (e.key === 'Tab') {
-        const controls = [...panel.querySelectorAll<HTMLElement>('button,input,select,a[href],[tabindex]')].filter(
-            (element) => !element.hasAttribute('disabled') && element.tabIndex >= 0 && element.getClientRects().length,
-        );
-        const first = controls[0],
-            last = controls.at(-1)!;
-        if (e.shiftKey && document.activeElement === first) {
-            e.preventDefault();
-            last.focus();
-        } else if (!e.shiftKey && document.activeElement === last) {
-            e.preventDefault();
-            first.focus();
-        }
-    }
-});
-$('cycle').onclick = execute;
+
 $('reset').onclick = () => {
     for (const [id, v] of Object.entries({ policy: 'unsafe', delay: '3', burst: '5' }))
         $<HTMLInputElement>(id).value = v;
@@ -252,24 +239,32 @@ $('reset').onclick = () => {
     reset();
 };
 $('resolve').onclick = () => {
+    playback.pause();
     world.map = '마을';
     world.tick++;
+    $('playback-detail').textContent = '마을로 돌아왔습니다. 재생하면 현재 상태를 다시 관측합니다.';
     log('전투 종료 → 현재 마을로 복귀');
     paint();
 };
 $('restock').onclick = () => {
+    playback.pause();
     build.stock += 4;
+    $('playback-detail').textContent = '자원을 보충했습니다. 재생 또는 한 스텝으로 배치를 재시도하세요.';
     log('건축 자원 +4');
     paint();
 };
 $('concurrent').onclick = () => {
+    playback.pause();
     build.blocks[2] = '나무';
     build.versions[2]++;
+    $('playback-detail').textContent = '다른 작업이 3번 칸을 바꿨습니다. 변경분 재시도나 되돌리기를 비교하세요.';
     log(`다른 작업: 3번 칸을 나무로 변경, 버전 ${build.versions[2]}`);
     paint();
 };
 $('rollback').onclick = () => {
+    playback.pause();
     build = rollback(build, choice('policy') === 'verified');
+    $('playback-detail').textContent = '이번 작업을 되돌렸습니다. 실제 월드와 보존된 충돌 칸을 확인하세요.';
     report = build.conflicts ? `충돌 ${build.conflicts}개 보존` : '변경 복원';
     $('result-detail').textContent =
         `다른 작업과 충돌한 ${build.conflicts}개 칸을 건너뛰었습니다. 자원 반환은 이 복원 실험 범위에 포함하지 않습니다.`;
@@ -283,7 +278,6 @@ for (const input of panel.querySelectorAll('input,select')) {
 const resize = new ResizeObserver(paint);
 resize.observe(canvas);
 window.addEventListener('pagehide', () => {
-    menu(false);
     resize.disconnect();
 });
 window.addEventListener('pageshow', () => {

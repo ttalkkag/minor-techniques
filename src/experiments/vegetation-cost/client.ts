@@ -1,8 +1,6 @@
 import { defaults, plants, grassMetrics, type GrassOptions } from './model';
+import { setPlaybackState } from '../../components/experiment-playback';
 const byId = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
-const root = byId('vc-lab'),
-    panel = byId('vc-settings'),
-    menu = byId<HTMLButtonElement>('vc-menu');
 const dialog = byId<HTMLDialogElement>('vc-dialog'),
     canvas = byId<HTMLCanvasElement>('vc-canvas');
 const ctx = canvas.getContext('2d')!;
@@ -22,54 +20,8 @@ const toggles = [
     'reuseMain',
 ] as const;
 const numeric = ['camera', 'padding', 'wind'] as const;
-const menuMedia = matchMedia('(max-width: 700px)');
-const menuBackground = Array.from(document.querySelectorAll<HTMLElement>('.scene-area, nav > a, #vc-help'));
-function menuControls() {
-    return Array.from(panel.querySelectorAll<HTMLElement>('button, input, select, a[href]'))
-        .filter((control) => control.getClientRects().length && !control.hasAttribute('disabled'));
-}
-function syncMenu() {
-    const modal = !panel.hidden && menuMedia.matches;
-    for (const element of menuBackground) element.inert = modal;
-    panel.setAttribute('role', modal ? 'dialog' : 'complementary');
-    if (modal) panel.setAttribute('aria-modal', 'true');
-    else panel.removeAttribute('aria-modal');
-}
-function trapMenu(event: KeyboardEvent) {
-    if (dialog.open || panel.hidden || !menuMedia.matches || event.key !== 'Tab') return;
-    const controls = menuControls(), first = controls[0], last = controls.at(-1);
-    if (!first || !last) return;
-    if (!panel.contains(document.activeElement) || (event.shiftKey ? document.activeElement === first : document.activeElement === last)) {
-        event.preventDefault();
-        (event.shiftKey ? last : first).focus();
-    }
-}
-menuMedia.addEventListener('change', () => {
-    syncMenu();
-    if (!panel.hidden && menuMedia.matches && !dialog.open) menuControls()[0]?.focus();
-});
-function setMenu(open: boolean, focus = true) {
-    panel.hidden = !open;
-    root.classList.toggle('open', open);
-    menu.setAttribute('aria-expanded', String(open));
-    menu.setAttribute('aria-label', open ? '설정 메뉴 닫기' : '설정 메뉴 열기');
-    syncMenu();
-    if (focus) (open ? menuControls()[0] : menu)?.focus();
-    requestAnimationFrame(draw);
-}
-menu.addEventListener('click', () => setMenu(Boolean(panel.hidden)));
-byId('vc-close').addEventListener('click', () => setMenu(false));
 byId('vc-help').addEventListener('click', () => dialog.showModal());
 byId('vc-dialog-close').addEventListener('click', () => dialog.close());
-const keydown = (e: KeyboardEvent) => {
-    if (dialog.open) return;
-    if (e.key === 'Escape' && !panel.hidden) {
-        e.preventDefault();
-        setMenu(false);
-    }
-    trapMenu(e);
-};
-document.addEventListener('keydown', keydown);
 for (const key of toggles)
     byId<HTMLInputElement>(`vc-${key}`).addEventListener('change', (e) => {
         options[key] = (e.target as HTMLInputElement).checked;
@@ -87,8 +39,7 @@ byId<HTMLInputElement>('vc-cards').addEventListener('change', (e) => {
 function stop() {
     playing = false;
     cancelAnimationFrame(frame);
-    byId('vc-play').textContent = '바람 재생';
-    byId('vc-play').setAttribute('aria-pressed', 'false');
+    setPlaybackState('vc-play', false);
 }
 byId('vc-reset').addEventListener('click', () => {
     stop();
@@ -115,6 +66,11 @@ byId<HTMLInputElement>('vc-time').addEventListener('input', (e) => {
     time = Number((e.target as HTMLInputElement).value);
     update();
 });
+byId('vc-step').addEventListener('click', () => {
+    stop();
+    time = (time + 0.1) % (Math.PI * 2);
+    update();
+});
 function animate(stamp: number) {
     if (!playing) return;
     time = (time + Math.min((stamp - last) / 1000, 0.05)) % (Math.PI * 2);
@@ -130,8 +86,7 @@ byId('vc-play').addEventListener('click', () => {
     }
     playing = true;
     last = performance.now();
-    byId('vc-play').textContent = '바람 일시 정지';
-    byId('vc-play').setAttribute('aria-pressed', 'true');
+    setPlaybackState('vc-play', true);
     frame = requestAnimationFrame(animate);
 });
 function update(announce = true) {
@@ -325,7 +280,6 @@ function draw() {
 }
 const observer = new ResizeObserver(draw);
 observer.observe(canvas);
-setMenu(!menuMedia.matches, false);
 update();
 const onVisibility = () => {
     if (document.hidden) stop();
@@ -335,12 +289,10 @@ window.addEventListener('pagehide', (event) => {
     stop();
     observer.disconnect();
     if (!event.persisted) {
-        document.removeEventListener('keydown', keydown);
         document.removeEventListener('visibilitychange', onVisibility);
     }
 });
 window.addEventListener('pageshow', () => {
     observer.observe(canvas);
-    syncMenu();
     draw();
 });

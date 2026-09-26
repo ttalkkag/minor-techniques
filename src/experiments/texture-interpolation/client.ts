@@ -10,6 +10,7 @@ import {
     type Triangle,
     type UV,
 } from './model';
+import { createPlayback } from '../../components/experiment-playback';
 
 const element = <T extends HTMLElement>(id: string) => document.getElementById(`texture-${id}`) as T;
 const current = element<HTMLCanvasElement>('current');
@@ -22,7 +23,6 @@ const yawInput = element<HTMLInputElement>('yaw');
 const distanceInput = element<HTMLInputElement>('distance');
 const resolutionInput = element<HTMLSelectElement>('resolution');
 const wireInput = element<HTMLInputElement>('wire');
-const settings = element<HTMLElement>('settings');
 const dialog = element<HTMLDialogElement>('explanation');
 const abort = new AbortController();
 let probe: Point = { x: 0.04, y: 0.035 };
@@ -175,17 +175,8 @@ function render() {
 function schedule() {
     if (!frame) frame = requestAnimationFrame(render);
 }
-function menu(open: boolean) {
-    settings.hidden = !open;
-    element('backdrop').hidden = !open;
-    element('menu').setAttribute('aria-expanded', String(open));
-    for (const child of settings.parentElement!.children)
-        if (child instanceof HTMLElement && child !== settings && child !== element('backdrop'))
-            child.inert = open;
-    if (open) element('close-menu').focus();
-    else element('menu').focus();
-}
 function reset() {
+    tiltDirection = 1;
     methodInput.value = 'affine';
     spaceInput.value = 'world';
     divisionsInput.value = '1';
@@ -197,15 +188,27 @@ function reset() {
     probe = { x: 0.04, y: 0.035 };
     schedule();
 }
+let tiltDirection = 1;
+const playback = createPlayback({
+    playId: 'texture-play',
+    stepId: 'texture-step',
+    resetId: 'texture-reset',
+    interval: 160,
+    advance: () => {
+        const tilt = Number(tiltInput.value);
+        if (tilt >= 75) tiltDirection = -1;
+        else if (tilt <= 0) tiltDirection = 1;
+        tiltInput.value = String(tilt + tiltDirection);
+        schedule();
+    },
+});
 const on = (target: EventTarget, name: string, callback: EventListener) =>
     target.addEventListener(name, callback, { signal: abort.signal });
-on(element('menu'), 'click', () => menu(true));
-on(element('close-menu'), 'click', () => menu(false));
-on(element('backdrop'), 'click', () => menu(false));
 on(element('help'), 'click', () => dialog.showModal());
 on(element('close-help'), 'click', () => dialog.close());
 on(element('reset'), 'click', reset);
 on(element('flat'), 'click', () => {
+    playback.pause();
     tiltInput.value = '0';
     yawInput.value = '0';
     schedule();
@@ -213,25 +216,6 @@ on(element('flat'), 'click', () => {
 on(element('probe-center'), 'click', () => {
     probe = { x: 0, y: 0 };
     schedule();
-});
-on(document, 'keydown', (event) => {
-    if (dialog.open || settings.hidden) return;
-    const key = event as KeyboardEvent;
-    if (key.key === 'Escape') {
-        key.preventDefault();
-        menu(false);
-    } else if (key.key === 'Tab') {
-        const controls = Array.from(settings.querySelectorAll<HTMLElement>('button, input, select'))
-            .filter((control) => !control.hasAttribute('disabled') && control.getClientRects().length);
-        const first = controls[0]!, last = controls[controls.length - 1]!;
-        if (key.shiftKey && document.activeElement === first) {
-            key.preventDefault();
-            last.focus();
-        } else if (!key.shiftKey && document.activeElement === last) {
-            key.preventDefault();
-            first.focus();
-        }
-    }
 });
 for (const input of [
     methodInput,

@@ -1,50 +1,11 @@
+import { setPlaybackState } from '../../components/experiment-playback';
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 const canvas = $<HTMLCanvasElement>('scene');
 const ctx = canvas.getContext('2d')!;
-const menu = $<HTMLButtonElement>('menu'),
-    settings = $<HTMLElement>('settings');
-function setMenuOpen(open: boolean) {
-    settings.hidden = !open;
-    $('menu-backdrop').hidden = !open;
-    menu.setAttribute('aria-expanded', String(open));
-    for (const region of document.querySelectorAll<HTMLElement>(
-        'main > :not(nav):not(#settings):not(#menu-backdrop), nav > :not(#menu)',
-    )) region.inert = open;
-    if (open) {
-        keys.clear();
-        $('close-menu').focus();
-    }
-    else menu.focus();
-}
-function closeMenu() {
-    setMenuOpen(false);
-}
-menu.onclick = () => setMenuOpen(Boolean(settings.hidden));
-$<HTMLButtonElement>('close-menu').onclick = closeMenu;
-$('menu-backdrop').onclick = closeMenu;
+const settings = $<HTMLElement>('settings');
 const dialog = $<HTMLDialogElement>('explanation');
 $<HTMLButtonElement>('explain').onclick = () => dialog.showModal();
 $<HTMLButtonElement>('close-explanation').onclick = () => dialog.close();
-document.addEventListener('keydown', (e) => {
-    if (dialog.open || settings.hidden) return;
-    if (e.key === 'Escape') {
-        e.preventDefault();
-        closeMenu();
-    }
-    if (e.key === 'Tab') {
-        const controls = [...settings.querySelectorAll<HTMLElement>(
-            'button:not(:disabled), input:not(:disabled), select:not(:disabled), a[href]',
-        )];
-        const first = controls[0]!, last = controls[controls.length - 1]!;
-        if (!settings.contains(document.activeElement) || (e.shiftKey && document.activeElement === first)) {
-            e.preventDefault();
-            (e.shiftKey ? last : first).focus();
-        } else if (!e.shiftKey && document.activeElement === last) {
-            e.preventDefault();
-            first.focus();
-        }
-    }
-});
 let width = 900,
     height = 450;
 function resize() {
@@ -73,7 +34,7 @@ let tick = -1,
     naive = 0,
     deduped = 0,
     seen = new Set<string>(),
-    running = true,
+    running = false,
     queued = false,
     stopUntil = 0,
     realTime = 0,
@@ -93,7 +54,7 @@ function attack() {
         seen.clear();
     }
     running = true;
-    $('play').textContent = '일시 정지';
+    setPlaybackState('play', running);
     draw();
 }
 function reset() {
@@ -107,9 +68,9 @@ function reset() {
     realTime = 0;
     gameTime = 0;
     attackerX = 100;
-    running = true;
+    running = false;
     acc = 0;
-    $('play').textContent = '일시 정지';
+    setPlaybackState('play', running);
     $('log').textContent = '공격 버튼 또는 한 틱으로 시작하세요.';
     draw();
 }
@@ -158,6 +119,9 @@ function step() {
             tick = 0;
             attackId++;
             seen.clear();
+        } else {
+            running = false;
+            setPlaybackState('play', false);
         }
     }
     draw();
@@ -240,7 +204,7 @@ function frame(now: number) {
     realTime += elapsed * 1000;
     if (running && realTime >= stopUntil) {
         acc += Math.min(elapsed, (realTime - stopUntil) / 1000);
-        while (acc >= 0.05 && realTime >= stopUntil) {
+        while (acc >= 0.05 && realTime >= stopUntil && running) {
             acc -= 0.05;
             step();
         }
@@ -251,12 +215,16 @@ function frame(now: number) {
 }
 $('attack').onclick = attack;
 $('play').onclick = () => {
+    if (!running && tick < 0) {
+        attack();
+        return;
+    }
     running = !running;
-    $('play').textContent = running ? '일시 정지' : '재생';
+    setPlaybackState('play', running);
 };
 $('step').onclick = () => {
     running = false;
-    $('play').textContent = '재생';
+    setPlaybackState('play', running);
     stopUntil = 0;
     if (tick < 0) {
         tick = 0;
@@ -273,7 +241,7 @@ function move(d: number) {
 $('left').onclick = () => move(-1);
 $('right').onclick = () => move(1);
 document.addEventListener('keydown', (e) => {
-    if (dialog.open || !settings.hidden || ['INPUT', 'SELECT', 'BUTTON'].includes((e.target as HTMLElement).tagName)) return;
+    if (dialog.open || settings.getAttribute('aria-modal') === 'true' || ['INPUT', 'SELECT', 'BUTTON'].includes((e.target as HTMLElement).tagName)) return;
     if (e.code === 'Space') {
         e.preventDefault();
         if (!e.repeat) attack();
@@ -308,4 +276,9 @@ reset();
 raf = requestAnimationFrame((now) => {
     last = now;
     frame(now);
+});
+
+document.addEventListener('experiment:layoutchange', () => {
+    if (settings.hidden) return;
+    keys.clear();
 });
