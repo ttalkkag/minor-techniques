@@ -8,6 +8,11 @@ export interface Experiment {
     href: string;
 }
 
+export const listedExperimentIds = new Set([
+    'collision-tunneling',
+    'lag-compensation',
+]);
+
 const entries = import.meta.glob<Omit<Experiment, 'order'>>('../experiments/*/entry.json', {
     eager: true,
     import: 'default',
