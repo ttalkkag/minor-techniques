@@ -17,7 +17,6 @@
 | [애니메이션과 효과](animation-effects/README.md) | 5 | 곡선 이동·이징·머리카락·파괴·상태 반응 |
 | [카메라와 레벨 설계](camera-level-design/README.md) | 6 | 카메라 추적·좁은 문·동선·튜토리얼·락온·기차 장비 |
 | [월드와 절차 생성](world-generation/README.md) | 6 | 노이즈·파도·던전·청크·복셀·경로 찾기 |
-| [보상·난이도·무작위성](game-rules/README.md) | 6 | 전투 보상·동적 난이도·난수·분포·매칭·규칙 AI |
 | [게임 AI](game-ai-agents/README.md) | 2 | 관측 지연·행동 결과·목표 상태·강화학습 보상 |
 | [네트워크와 저장](network-storage/README.md) | 5 | 지연 보상·롤백·히트스캔·저장·패스워드 |
 | [실행 자원과 데이터 표현](runtime-resources/README.md) | 8 | 풀링·셰이더 준비·스트리밍·압축·레트로 제약·입력과 실행 경계 |

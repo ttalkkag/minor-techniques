@@ -44,4 +44,4 @@
 
 빠른 이동·텔레포트는 생성 작업이 표시 요청을 따라오지 못하는 상황을 만든다. 저장 도중 종료는 최근 수정 보존 정책을 드러낸다. 생성 버전 변경은 이전 D가 새 B에서 엉뚱한 벽을 지우는 충돌을 만든다. 큰 좌표의 정밀도, 파일 쓰기의 원자성, 저장 용량 제한은 좌표 기반 재현만으로 해결되지 않는다.
 
-지형의 형태 계산은 [노이즈 분석](../noise-fields/analysis.md), 경계 면 재생성은 [복셀 메시 분석](../voxel-meshing/analysis.md), 난수 호출 순서는 [RNG 재현 분석](../../game-rules/deterministic-rng/analysis.md)과 연결된다.
+지형의 형태 계산은 [노이즈 분석](../noise-fields/analysis.md), 경계 면 재생성은 [복셀 메시 분석](../voxel-meshing/analysis.md)과 연결된다.
