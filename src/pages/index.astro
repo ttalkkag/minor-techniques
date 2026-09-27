@@ -55,21 +55,27 @@ const listedNumbers = new Map(catalog
     const list = document.querySelector<HTMLOListElement>('#experiments');
     const viewButtons = document.querySelectorAll<HTMLButtonElement>('.app-view-switch button');
 
-    const displayAll = new URLSearchParams(window.location.search).get('display') === 'all';
-    const items = Array.from(list?.querySelectorAll<HTMLLIElement>(':scope > li') ?? []);
-    for (let index = items.length - 1; index > 0; index--) {
-        const randomIndex = Math.floor(Math.random() * (index + 1));
-        [items[index], items[randomIndex]] = [items[randomIndex]!, items[index]!];
-    }
-    let visibleNumber = 0;
-    for (const item of items) {
-        item.hidden = !displayAll && item.dataset.listed !== 'true';
-        if (!item.hidden) {
-            item.querySelector('.number')!.textContent = String(++visibleNumber).padStart(2, '0');
-            item.querySelector('img')!.loading = visibleNumber === 1 ? 'eager' : 'lazy';
+    function shuffleCatalog() {
+        const displayAll = new URLSearchParams(window.location.search).get('display') === 'all';
+        const items = Array.from(list?.querySelectorAll<HTMLLIElement>(':scope > li') ?? []);
+        for (let index = items.length - 1; index > 0; index--) {
+            const randomIndex = Math.floor(Math.random() * (index + 1));
+            [items[index], items[randomIndex]] = [items[randomIndex]!, items[index]!];
         }
+        let visibleNumber = 0;
+        for (const item of items) {
+            item.hidden = !displayAll && item.dataset.listed !== 'true';
+            if (!item.hidden) {
+                item.querySelector('.number')!.textContent = String(++visibleNumber).padStart(2, '0');
+                item.querySelector('img')!.loading = visibleNumber === 1 ? 'eager' : 'lazy';
+            }
+        }
+        list?.append(...items);
     }
-    list?.append(...items);
+    shuffleCatalog();
+    window.addEventListener('pageshow', (event) => {
+        if (event.persisted) shuffleCatalog();
+    });
 
     for (const button of viewButtons) {
         button.addEventListener('click', () => {
