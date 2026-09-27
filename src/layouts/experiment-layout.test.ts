@@ -12,6 +12,9 @@ function layout(mobile = false) {
         hidden = false;
         inert = false;
         visible = true;
+        scrollTop = 0;
+        summary = false;
+        insideClosedDetails = false;
         attributes = new Map<string, string>();
         listeners = new Map<string, () => void>();
         children: Element[] = [];
@@ -32,9 +35,11 @@ function layout(mobile = false) {
         focus() { document.activeElement = this; }
         contains(element: Element) { return element === this || this.children.includes(element); }
         getClientRects() { return this.visible ? [{}] : []; }
-        querySelectorAll(_selector: string) { return this.children; }
+        closest(_selector: string) { return this.insideClosedDetails ? {} : null; }
+        querySelectorAll(selector: string) { return this.children.filter((child) => !child.summary || selector.includes('summary')); }
     }
     const settings = new Element(), toggle = new Element(), close = new Element(), backdrop = new Element();
+    const settingsContent = new Element();
     const resetAll = new Element(), playbackReset = new Element(), help = new Element(), play = new Element();
     let resets = 0, reloads = 0, playClicks = 0;
     playbackReset.addEventListener('click', () => resets++);
@@ -48,9 +53,10 @@ function layout(mobile = false) {
     viewScene.dataset = { viewSelect: 'view', viewValue: 'scene' };
     viewSection.dataset = { viewSelect: 'view', viewValue: 'section' };
     const viewButtons = [viewScene, viewSection];
-    const range = new Element(), last = new Element(), hiddenControl = new Element();
+    const range = new Element(), last = new Element(), hiddenControl = new Element(), summary = new Element();
+    summary.summary = true;
     hiddenControl.visible = false;
-    settings.children = [close, range, last, hiddenControl];
+    settings.children = [close, range, summary, last, hiddenControl];
     const content = new Element(), actions = new Element(), brand = new Element(), outside = new Element();
     const regions = [content, actions, brand];
     const shell = new Element();
@@ -59,6 +65,7 @@ function layout(mobile = false) {
         ['[data-settings-close]', close], ['[data-settings-backdrop]', backdrop],
         ['[data-experiment-reset-all]', resetAll], ['[data-playback-reset]', playbackReset],
         ['[data-experiment-help]', help], ['[data-experiment-play]', play],
+        ['.experiment-settings-content', settingsContent],
     ]);
     Object.assign(shell, {
         querySelector: (selector: string) => selectors.get(selector),
@@ -106,7 +113,7 @@ function layout(mobile = false) {
         compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
     }).outputText, context);
     return {
-        settings, toggle, close, backdrop, range, last, hiddenControl, outside, regions, document, shell, changes,
+        settings, settingsContent, toggle, close, backdrop, range, last, hiddenControl, summary, outside, regions, document, shell, changes,
         viewSelect, viewScene, viewSection,
         resetAll, resetCounts: () => ({ resets, reloads }),
         help, play, playClicks: () => playClicks,
@@ -142,6 +149,7 @@ test('full reset clears the current experiment before reloading all page state',
 
 test('an experiment can restore its complete state without a page reload', () => {
     const l = layout();
+    l.settingsContent.scrollTop = 450;
     let customResets = 0;
     l.document.addEventListener('experiment:reset-all', (event) => {
         event.preventDefault();
@@ -150,6 +158,7 @@ test('an experiment can restore its complete state without a page reload', () =>
     l.resetAll.click();
     assert.equal(customResets, 1);
     assert.deepEqual(l.resetCounts(), { resets: 0, reloads: 0 });
+    assert.equal(l.settingsContent.scrollTop, 0);
 });
 
 test('desktop starts with a complementary settings column and can collapse and reopen it', () => {
@@ -168,6 +177,21 @@ test('desktop starts with a complementary settings column and can collapse and r
     assert.equal(l.settings.hidden, false);
     assert.equal(l.toggle.getAttribute('aria-expanded'), 'true');
     assert.equal(l.document.activeElement, l.close);
+});
+
+test('full reset clears a hidden mobile settings scroll when the panel reopens', () => {
+    const l = layout(true);
+    l.toggle.click();
+    l.settingsContent.scrollTop = 450;
+    l.close.click();
+    l.document.addEventListener('experiment:reset-all', (event) => event.preventDefault());
+    l.resetAll.click();
+    l.toggle.click();
+    assert.equal(l.settingsContent.scrollTop, 0);
+    l.settingsContent.scrollTop = 200;
+    l.close.click();
+    l.toggle.click();
+    assert.equal(l.settingsContent.scrollTop, 200);
 });
 
 test('view buttons update the selected view through native input and change events', () => {
@@ -276,4 +300,18 @@ test('mobile Tab recovers focus into the overlay if focus was moved outside it',
     l.outside.focus();
     assert.equal(l.key('Tab', true).prevented, true);
     assert.equal(l.document.activeElement, l.last);
+});
+
+test('mobile Tab includes advanced settings summaries and skips controls in closed details', () => {
+    const l = layout(true);
+    l.toggle.click();
+    l.summary.focus();
+    assert.equal(l.key('Tab').prevented, false);
+    assert.equal(l.key('Tab', true).prevented, false);
+    l.last.insideClosedDetails = true;
+    l.toggle.focus();
+    assert.equal(l.key('Tab', true).prevented, true);
+    assert.equal(l.document.activeElement, l.summary);
+    assert.equal(l.key('Tab').prevented, true);
+    assert.equal(l.document.activeElement, l.toggle);
 });

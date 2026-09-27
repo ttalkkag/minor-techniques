@@ -1,4 +1,5 @@
 const compact = window.matchMedia('(max-width: 800px)');
+let resetSettingsScroll = false;
 
 export function syncViewControls() {
     for (const button of document.querySelectorAll<HTMLButtonElement>('[data-view-select]')) {
@@ -13,6 +14,10 @@ export function setSettingsOpen(open: boolean, focus = true) {
     const toggle = shell.querySelector<HTMLButtonElement>('[data-settings-toggle]')!;
     const overlay = open && compact.matches;
     settings.hidden = !open;
+    if (open && resetSettingsScroll) {
+        shell.querySelector<HTMLElement>('.experiment-settings-content')!.scrollTop = 0;
+        resetSettingsScroll = false;
+    }
     shell.toggleAttribute('data-settings-open', open);
     toggle.setAttribute('aria-expanded', String(open));
     toggle.setAttribute('aria-label', open ? '설정 메뉴 접기' : '설정 메뉴 열기');
@@ -34,8 +39,14 @@ if (shell) {
         if (play.getAttribute('aria-pressed') === 'true') play.click();
     }, { capture: true });
     shell.querySelector('[data-experiment-reset-all]')!.addEventListener('click', () => {
+        resetSettingsScroll = true;
         const event = new CustomEvent('experiment:reset-all', { cancelable: true });
-        if (document.dispatchEvent(event)) {
+        const reload = document.dispatchEvent(event);
+        if (!shell.querySelector<HTMLElement>('[data-experiment-region="settings"]')!.hidden) {
+            shell.querySelector<HTMLElement>('.experiment-settings-content')!.scrollTop = 0;
+            resetSettingsScroll = false;
+        }
+        if (reload) {
             shell.querySelector<HTMLButtonElement>('[data-playback-reset]')!.click();
             window.location.reload();
         }
@@ -65,8 +76,8 @@ if (shell) {
             setSettingsOpen(false);
         }
         if (event.key === 'Tab' && compact.matches) {
-            const controls = [toggle, ...settings.querySelectorAll<HTMLElement>('button:not(:disabled), input:not(:disabled), select:not(:disabled), textarea:not(:disabled), a[href]')]
-                .filter((control) => control.getClientRects().length > 0);
+            const controls = [toggle, ...settings.querySelectorAll<HTMLElement>('button:not(:disabled), input:not(:disabled), select:not(:disabled), textarea:not(:disabled), a[href], summary')]
+                .filter((control) => control.getClientRects().length > 0 && !control.closest('details:not([open]) > :not(summary)'));
             const first = controls[0]!;
             const last = controls[controls.length - 1]!;
             if (!controls.includes(document.activeElement as HTMLElement)) {

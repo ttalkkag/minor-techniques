@@ -172,6 +172,7 @@ document.addEventListener('experiment:reset-all', (event) => {
     syncViewControls();
     scene?.setView('free');
     scene?.resetCamera();
+    setSettingsOpen(!matchMedia('(max-width: 800px)').matches, false);
     resetClip();
 }, { signal: abort.signal });
 
