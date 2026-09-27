@@ -29,6 +29,10 @@ export function setSettingsOpen(open: boolean, focus = true) {
 
 const shell = document.querySelector<HTMLElement>('[data-experiment-layout]');
 if (shell) {
+    shell.querySelector('[data-experiment-help]')!.addEventListener('click', () => {
+        const play = shell.querySelector<HTMLButtonElement>('[data-experiment-play]')!;
+        if (play.getAttribute('aria-pressed') === 'true') play.click();
+    }, { capture: true });
     shell.querySelector('[data-experiment-reset-all]')!.addEventListener('click', () => {
         const event = new CustomEvent('experiment:reset-all', { cancelable: true });
         if (document.dispatchEvent(event)) {

@@ -35,9 +35,14 @@ function layout(mobile = false) {
         querySelectorAll(_selector: string) { return this.children; }
     }
     const settings = new Element(), toggle = new Element(), close = new Element(), backdrop = new Element();
-    const resetAll = new Element(), playbackReset = new Element();
-    let resets = 0, reloads = 0;
+    const resetAll = new Element(), playbackReset = new Element(), help = new Element(), play = new Element();
+    let resets = 0, reloads = 0, playClicks = 0;
     playbackReset.addEventListener('click', () => resets++);
+    play.setAttribute('aria-pressed', 'false');
+    play.addEventListener('click', () => {
+        playClicks++;
+        play.setAttribute('aria-pressed', String(play.getAttribute('aria-pressed') !== 'true'));
+    });
     const viewSelect = new Element(), viewScene = new Element(), viewSection = new Element();
     viewSelect.value = 'scene';
     viewScene.dataset = { viewSelect: 'view', viewValue: 'scene' };
@@ -53,6 +58,7 @@ function layout(mobile = false) {
         ['[data-experiment-region="settings"]', settings], ['[data-settings-toggle]', toggle],
         ['[data-settings-close]', close], ['[data-settings-backdrop]', backdrop],
         ['[data-experiment-reset-all]', resetAll], ['[data-playback-reset]', playbackReset],
+        ['[data-experiment-help]', help], ['[data-experiment-play]', play],
     ]);
     Object.assign(shell, {
         querySelector: (selector: string) => selectors.get(selector),
@@ -103,6 +109,7 @@ function layout(mobile = false) {
         settings, toggle, close, backdrop, range, last, hiddenControl, outside, regions, document, shell, changes,
         viewSelect, viewScene, viewSection,
         resetAll, resetCounts: () => ({ resets, reloads }),
+        help, play, playClicks: () => playClicks,
         syncViews: () => exports.syncViewControls!(),
         setOpen: (open: boolean, focus = true) => exports.setSettingsOpen!(open, focus),
         setMobile(value: boolean) { media.matches = value; breakpointChanged(); },
@@ -114,6 +121,18 @@ function layout(mobile = false) {
         },
     };
 }
+
+test('opening help pauses a running experiment without starting an idle experiment', () => {
+    const l = layout();
+    l.help.click();
+    assert.equal(l.playClicks(), 0);
+    l.play.click();
+    l.help.click();
+    assert.equal(l.play.getAttribute('aria-pressed'), 'false');
+    assert.equal(l.playClicks(), 2);
+    l.help.click();
+    assert.equal(l.playClicks(), 2);
+});
 
 test('full reset clears the current experiment before reloading all page state', () => {
     const l = layout();
