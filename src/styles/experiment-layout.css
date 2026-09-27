@@ -8,24 +8,6 @@
     color: #263340;
     background: #edf1f3;
 }
-.experiment-app-header { position: relative; z-index: 8; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; padding: 12px 16px; }
-.experiment-navigation { display: flex; align-items: center; gap: 8px; }
-.experiment-menu-button { display: flex; flex: 0 0 auto; flex-direction: column; align-items: center; justify-content: center; gap: 3px; width: 30px; height: 30px; padding: 0; border: 1px solid #dce3e6; border-radius: 8px; background: #fff; cursor: pointer; }
-.experiment-menu-button span { width: 12px; height: 2px; border-radius: 1px; background: #31474f; }
-.experiment-brand { color: #53616d; font-size: 20px; font-weight: 600; line-height: 1.5; text-decoration: none; white-space: nowrap; }
-.experiment-header-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; margin-left: auto; gap: 8px; min-width: 0; max-width: 100%; }
-.experiment-header-actions:empty { display: none; }
-.experiment-page-actions { display: flex; align-items: center; gap: 4px; }
-.experiment-app-header .experiment-page-actions button { display: inline-flex; align-items: center; justify-content: center; height: 30px; min-height: 30px; min-width: 30px; padding: 4px 9px; border: 1px solid #dce3e6; border-radius: 8px; color: #526b77; background: #fff; font: inherit; font-size: 12px; line-height: 1; cursor: pointer; }
-.experiment-app-header .experiment-page-actions .experiment-reset-all,
-.experiment-app-header .experiment-page-actions .experiment-help-button { width: 30px; padding: 0; }
-.experiment-reset-symbol { font-size: 18px; line-height: 1; }
-.experiment-page-actions button:hover { background: #e4eeec; }
-.experiment-header-actions > button { min-height: 30px; height: 30px; padding: 4px 12px; font-size: 12px; }
-.experiment-view-switch { display: flex; flex-wrap: wrap; align-items: center; gap: 2px; min-width: 0; max-width: 100%; padding: 2px; border: 1px solid #dce3e6; border-radius: 9px; background: #ffffffb3; }
-.experiment-view-switch select[hidden] { display: none !important; }
-.experiment-view-switch button { min-height: 24px; padding: 4px 10px; border: 0; border-radius: 5px; color: #617581; background: transparent; font: inherit; font-size: 12px; cursor: pointer; }
-.experiment-view-switch button[aria-pressed='true'] { color: #263f45; background: #fff; box-shadow: 0 1px 5px #22384012; }
 .experiment-body { position: relative; display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; min-height: 0; padding: 8px 16px 16px; }
 .experiment-shell[data-settings-open] .experiment-body { grid-template-columns: var(--experiment-sidebar-width) minmax(0, 1fr); }
 .experiment-settings { grid-column: 1; grid-row: 1; display: flex; flex-direction: column; min-width: 0; min-height: 0; overflow: hidden; border: 1px solid #fff; border-radius: 14px; background: #ffffffeb; box-shadow: 0 10px 50px #334b5510, 0 1px 2px #334b550a; }
@@ -62,7 +44,6 @@
     .experiment-settings-heading { padding-left: 18px; }
 }
 @media (max-width: 800px) {
-    .experiment-app-header { padding-inline: 12px; }
     .experiment-shell[data-settings-open] .experiment-body { grid-template-columns: minmax(0, 1fr); }
     .experiment-content { grid-template-rows: auto minmax(var(--experiment-graphics-mobile-min-height, var(--experiment-graphics-min-height, 320px)), 1fr) auto; padding: 0; }
     .experiment-body-header h1 { font-size: 29px; }

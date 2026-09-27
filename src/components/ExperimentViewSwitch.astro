@@ -9,7 +9,7 @@ const { id, label, options } = Astro.props;
 const selected = options.find((option) => option.selected)?.value ?? options[0]?.value;
 ---
 
-<div class="experiment-view-switch" role="group" aria-label={label}>
+<div class="app-view-switch" role="group" aria-label={label}>
     <select id={id} hidden tabindex="-1" aria-hidden="true">
         {options.map((option) => <option value={option.value} selected={option.value === selected}>{option.label}</option>)}
     </select>

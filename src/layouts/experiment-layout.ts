@@ -20,7 +20,7 @@ export function setSettingsOpen(open: boolean, focus = true) {
     settings.setAttribute('role', overlay ? 'dialog' : 'complementary');
     if (overlay) settings.setAttribute('aria-modal', 'true');
     else settings.removeAttribute('aria-modal');
-    for (const region of shell.querySelectorAll<HTMLElement>('.experiment-content, .experiment-header-actions, .experiment-brand')) {
+    for (const region of shell.querySelectorAll<HTMLElement>('.experiment-content, .app-header-actions, .app-brand')) {
         region.inert = overlay;
     }
     if (focus) (open ? shell.querySelector<HTMLButtonElement>('[data-settings-close]')! : toggle).focus();
