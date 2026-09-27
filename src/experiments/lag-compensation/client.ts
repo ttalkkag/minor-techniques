@@ -86,10 +86,16 @@ function update() {
                 : `사수가 본 장면은 ${Math.round(1000 - result.visibleTime)}ms 전, 검사는 ${Math.round(1000 - result.q)}ms 전입니다.`
             : '사격 명령이 도착했을 때의 현재 장면으로 검사했습니다.');
         if (result.clamped && !result.reason) detail = `이력이 부족해 ${Math.round(1000 - result.q)}ms 전의 가장 오래된 모습으로 검사했습니다.`;
+        if (!result.reason && config.mode === 'history' && Math.abs(result.past.sampleTime - result.q) > 0.01) {
+            detail = result.clamped
+                ? `이력이 부족해 요청 시각을 ${Math.round(1000 - result.q)}ms 전으로 제한했습니다.`
+                : `사수가 본 장면은 ${Math.round(1000 - result.visibleTime)}ms 전, 요청 시각은 ${Math.round(1000 - result.q)}ms 전입니다.`;
+            detail += ` ${config.subtick ? '순간이동 구간은 보간하지 않아' : '틱 사이 위치 보간을 꺼'} ${Math.round(1000 - result.past.sampleTime)}ms 전의 저장 표본으로 검사했습니다.`;
+        }
     }
     text('scene-heading', heading);
     text('scene-detail', detail);
-    text('history-info', `조회 ${result.q.toFixed(0)}ms · 표본 ${result.past.before.toFixed(1)} / ${result.past.after.toFixed(1)}ms · ${config.hz}Hz${result.past.discontinuous ? ' · 순간이동은 보간 제외' : ''}`);
+    text('history-info', `조회 ${result.q.toFixed(0)}ms · 실제 위치 ${result.past.sampleTime.toFixed(1)}ms · 표본 ${result.past.before.toFixed(1)} / ${result.past.after.toFixed(1)}ms · ${config.hz}Hz${result.past.discontinuous ? ' · 순간이동은 보간 제외' : ''}`);
     (el('duplicate') as HTMLButtonElement).disabled = !frame.resolved || Boolean(result.reason);
 }
 

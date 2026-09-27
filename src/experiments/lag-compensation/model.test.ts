@@ -44,6 +44,22 @@ test('subtick interpolates continuous motion but does not blend through a telepo
     assert.equal(before.discontinuous, true);
     assert.ok(after.x - before.x > 2);
 });
+test('sample time identifies the stored position used when interpolation is unavailable', () => {
+    const interpolated = sample(880, 10, 5, true, false);
+    assert.equal(interpolated.sampleTime, 880);
+    const stored = sample(880, 10, 5, false, false);
+    assert.equal(stored.sampleTime, 800);
+    assert.equal(stored.x, 3);
+    const beforeTeleport = sample(905, 10, 5, true, true);
+    const afterTeleport = sample(920, 10, 5, true, true);
+    assert.equal(beforeTeleport.sampleTime, 900);
+    assert.equal(beforeTeleport.x, 3.5);
+    assert.equal(afterTeleport.sampleTime, 1000);
+    assert.equal(afterTeleport.x, 6);
+    const clamped = evaluate({ ...defaults, window: 75, limit: 'clamp', subtick: false, hz: 10 });
+    assert.equal(clamped.q, 925);
+    assert.equal(clamped.past.sampleTime, 900);
+});
 test('history limits, duplicate sequence and forged times are enforced', () => {
     assert.match(evaluate({ ...defaults, window: 50 }).reason, /이력/);
     assert.equal(evaluate({ ...defaults, window: 50, limit: 'clamp' }).q, 950);

@@ -56,7 +56,8 @@ export function sample(time: number, hz: number, speed: number, subtick: boolean
         b = positionAt(after, speed, teleport);
     const discontinuous = teleport && before < 910 && after >= 910;
     const x = !subtick ? a : discontinuous ? (time < 910 ? a : b) : a + (b - a) * alpha;
-    return { x, before, after, alpha, discontinuous };
+    const sampleTime = !subtick ? before : discontinuous ? (time < 910 ? before : after) : time;
+    return { x, before, after, alpha, discontinuous, sampleTime };
 }
 export function evaluate(options: Options, duplicate = false, aimOffset = 0) {
     const visibleTime = now - options.up - options.down - options.interpolation;
