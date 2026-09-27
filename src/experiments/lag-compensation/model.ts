@@ -5,10 +5,9 @@ export type Options = {
     window: number;
     hz: number;
     speed: number;
-    mode: 'current' | 'mixed' | 'history';
+    mode: 'current' | 'history';
     clock: 'aligned' | 'half';
     limit: 'reject' | 'clamp';
-    door: 'closing' | 'opening' | 'none';
     subtick: boolean;
     teleport: boolean;
     claim: 'normal' | 'future' | 'forged';
@@ -23,17 +22,30 @@ export const defaults: Options = {
     mode: 'history',
     clock: 'aligned',
     limit: 'reject',
-    door: 'closing',
     subtick: true,
     teleport: false,
     claim: 'normal',
 };
 export const now = 1000;
+export const arena = {
+    targetZ: -3.5,
+    shooterX: -3.5,
+    shooterZ: 5,
+    coverMinX: -0.78,
+    coverMaxX: 3.6,
+    coverFrontZ: -2.3,
+    coverBackZ: -2.85,
+    coverHeight: 2.55,
+};
+export function coverBlocks(x: number) {
+    const dx = x - 4 - arena.shooterX;
+    const dz = arena.targetZ - arena.shooterZ;
+    const frontX = arena.shooterX + (dx * (arena.coverFrontZ - arena.shooterZ)) / dz;
+    const backX = arena.shooterX + (dx * (arena.coverBackZ - arena.shooterZ)) / dz;
+    return Math.max(frontX, backX) >= arena.coverMinX && Math.min(frontX, backX) <= arena.coverMaxX;
+}
 export function positionAt(time: number, speed: number, teleport: boolean) {
     return 4 + (speed * (time - now)) / 1000 + (teleport && time >= 910 ? 2 : 0);
-}
-export function doorClosed(time: number, mode: Options['door']) {
-    return mode === 'closing' ? time >= 940 : mode === 'opening' ? time < 940 : false;
 }
 export function sample(time: number, hz: number, speed: number, subtick: boolean, teleport: boolean) {
     const interval = 1000 / hz,
@@ -46,9 +58,10 @@ export function sample(time: number, hz: number, speed: number, subtick: boolean
     const x = !subtick ? a : discontinuous ? (time < 910 ? a : b) : a + (b - a) * alpha;
     return { x, before, after, alpha, discontinuous };
 }
-export function evaluate(options: Options, duplicate = false) {
+export function evaluate(options: Options, duplicate = false, aimOffset = 0) {
     const visibleTime = now - options.up - options.down - options.interpolation;
-    const aim = positionAt(visibleTime, options.speed, options.teleport);
+    const visible = positionAt(visibleTime, options.speed, options.teleport);
+    const aim = visible + aimOffset;
     const current = positionAt(now, options.speed, options.teleport);
     let requested = options.clock === 'aligned' ? visibleTime : now - (options.up + options.down) / 2;
     if (options.claim === 'future') requested = now + 100;
@@ -68,8 +81,7 @@ export function evaluate(options: Options, duplicate = false) {
     if (options.mode === 'current') q = now;
     const past = sample(q, options.hz, options.speed, options.subtick, options.teleport);
     const queryX = options.mode === 'current' ? current : past.x;
-    const doorTime = options.mode === 'history' ? q : now;
-    const blocked = doorClosed(doorTime, options.door);
+    const blocked = coverBlocks(aim);
     const hit = !reason && !blocked && Math.abs(queryX - aim) <= 0.18;
     return {
         visibleTime,
@@ -78,13 +90,14 @@ export function evaluate(options: Options, duplicate = false) {
         aim,
         current,
         queryX,
-        doorTime,
+        currentCovered: coverBlocks(current),
+        visibleCovered: coverBlocks(visible),
         blocked,
         hit,
         reason,
         past,
         clamped: requested !== q && options.mode !== 'current',
-        outcome: reason || (blocked ? '문에 막힘' : hit ? '표적 명중' : '표적 빗나감'),
+        outcome: reason || (blocked ? '엄폐물에 막힘' : hit ? '표적 명중' : '표적 빗나감'),
         bytes: (Math.ceil((options.window * options.hz) / 1000) + 1) * 100 * 64,
     };
 }

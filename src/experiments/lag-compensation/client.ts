@@ -1,202 +1,223 @@
-import { evaluate, defaults, doorClosed } from './model';
+import { defaults, evaluate } from './model';
 import type { Options } from './model';
-import { createPlayback } from '../../components/experiment-playback';
+import { clipFrame, timing } from './clip';
+import { createShootingScene } from './render-3d';
+import type { View } from './scene-state';
+import { setPlaybackState } from '../../components/experiment-playback';
+import { setSettingsOpen, syncViewControls } from '../../layouts/experiment-layout';
+
 const el = (id: string) => document.getElementById(id)!;
 const input = (id: string) => el(id) as HTMLInputElement;
 const select = (id: string) => el(id) as HTMLSelectElement;
 const canvas = el('scene') as HTMLCanvasElement;
-const ctx = canvas.getContext('2d')!;
 const abort = new AbortController();
 const on = (id: string, type: string, fn: EventListener) =>
     el(id).addEventListener(type, fn, { signal: abort.signal });
-let w = 0,
-    h = 0;
-const text = (value: string, x: number, y: number, color = '#3c5b65', size = 13, maxWidth?: number) => {
-    ctx.fillStyle = color;
-    ctx.font = `600 ${size}px -apple-system, BlinkMacSystemFont, sans-serif`;
-    ctx.fillText(value, x, y, maxWidth);
+const text = (id: string, value: string) => {
+    if (el(id).textContent !== value) el(id).textContent = value;
 };
-const rect = (x: number, y: number, width: number, height: number, color: string, radius = 10) => {
-    ctx.fillStyle = color;
-    ctx.beginPath();
-    ctx.roundRect(x, y, Math.max(0, width), Math.max(0, height), radius);
-    ctx.fill();
-};
-const line = (x1: number, y1: number, x2: number, y2: number, color: string, dashed = false, size = 2) => {
-    ctx.strokeStyle = color;
-    ctx.lineWidth = size;
-    ctx.setLineDash(dashed ? [5, 5] : []);
-    ctx.beginPath();
-    ctx.moveTo(x1, y1);
-    ctx.lineTo(x2, y2);
-    ctx.stroke();
-    ctx.setLineDash([]);
-};
-const dot = (x: number, y: number, radius: number, color: string) => {
-    ctx.fillStyle = color;
-    ctx.beginPath();
-    ctx.arc(x, y, radius, 0, Math.PI * 2);
-    ctx.fill();
-};
-function boot(draw: () => void) {
-    on('help', 'click', () => (el('explanation') as HTMLDialogElement).showModal());
-    on('explain-close', 'click', () => (el('explanation') as HTMLDialogElement).close());
-    const resize = () => {
-        const bounds = canvas.getBoundingClientRect();
-        w = bounds.width;
-        h = bounds.height;
-        const dpr = Math.min(devicePixelRatio || 1, 2);
-        canvas.width = Math.round(w * dpr);
-        canvas.height = Math.round(h * dpr);
-        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-        draw();
-    };
-    const observer = new ResizeObserver(resize);
-    observer.observe(canvas);
-    window.addEventListener('pagehide', (event) => {
-        observer.disconnect();
-        if (!event.persisted) abort.abort();
-    });
-    window.addEventListener('pageshow', (event) => {
-        if (event.persisted) {
-            observer.observe(canvas);
-            resize();
-        }
-    });
-    resize();
+
+let config = { ...defaults };
+let time = timing(config).start;
+let playing = false;
+let view: View = 'free';
+let inspect = true;
+let scene: ReturnType<typeof createShootingScene> | undefined;
+let frameId = 0;
+let lastFrame = 0;
+let disposed = false;
+let pageActive = true;
+
+function pause() {
+    playing = false;
+    setPlaybackState('play', false);
 }
-let sequence = 0;
-let lastAccepted = false;
-let lastMessage = '';
-function options(): Options {
-    return {
-        up: +input('up').value,
-        down: +input('down').value,
-        interpolation: +input('interpolation').value,
-        window: +input('window').value,
-        hz: +input('hz').value,
-        speed: +input('speed').value,
-        mode: select('mode').value as Options['mode'],
-        clock: select('clock').value as Options['clock'],
-        limit: select('limit').value as Options['limit'],
-        door: select('door').value as Options['door'],
-        claim: select('claim').value as Options['claim'],
-        subtick: input('subtick').checked,
-        teleport: input('teleport').checked,
-    };
+
+function start() {
+    if (!scene) return;
+    if (time >= timing(config).end) time = timing(config).start;
+    playing = true;
+    setPlaybackState('play', true);
+    if (matchMedia('(max-width: 800px)').matches) setSettingsOpen(false);
 }
-function draw() {
-    const o = options(),
-        result = evaluate(o);
-    for (const key of ['up', 'down', 'interpolation', 'window', 'hz', 'speed'] as const)
-        el(`${key}-value`).textContent = `${o[key]}${key === 'hz' ? 'Hz' : key === 'speed' ? 'm/s' : 'ms'}`;
-    el('metric-0').textContent = result.reason ? '명령 거부' : result.outcome;
-    el('metric-1').textContent = `${result.visibleTime.toFixed(0)} / ${result.q.toFixed(0)}ms`;
-    el('metric-2').textContent = `${Math.abs(result.current - result.aim).toFixed(2)}m`;
-    el('summary').textContent =
-        lastMessage ||
-        `미리 보기: ${result.outcome}${result.clamped ? ' · 이력 경계로 제한됨' : ''}. 표적과 문을 같은 시각으로 복원했는지 확인하세요.`;
-    el('history-info').textContent =
-        `이력 ${o.hz}Hz · 경계 포함 ${Math.ceil((o.window * o.hz) / 1000) + 1}개 표본 × 100개 × 64B = ${result.bytes.toLocaleString()}B. 질의 사이 틱 ${result.past.before.toFixed(2)} / ${result.past.after.toFixed(2)}ms · α ${result.past.alpha.toFixed(2)}${result.past.discontinuous ? ' · 순간이동 구간은 보간하지 않음' : ''}.`;
-    ctx.clearRect(0, 0, w, h);
-    const rows = [
-        {
-            title: '사수가 본 화면',
-            time: result.visibleTime,
-            x: result.aim,
-            closed: doorClosed(result.visibleTime, o.door),
-        },
-        { title: '서버의 현재', time: 1000, x: result.current, closed: doorClosed(1000, o.door) },
-        { title: '판정에 쓴 장면', time: result.q, x: result.queryX, closed: result.blocked },
-    ];
-    const rowHeight = (h - 98) / 3,
-        px = (x: number) => 28 + ((x + 1) / 10) * (w - 56);
-    rows.forEach((row, i) => {
-        const y = 12 + i * rowHeight;
-        rect(12, y, w - 24, rowHeight - 8, '#f7fafb');
-        text(
-            `${row.title} · ${row.time.toFixed(0)}ms`,
-            24,
-            y + 22,
-            i === 2 ? '#157f74' : '#476872',
-            w < 500 ? 11 : 13,
-        );
-        line(28, y + 44, w - 28, y + 44, '#d9e5e7', true, 1);
-        const aim = px(result.aim),
-            target = px(row.x);
-        const bottom = y + rowHeight - 20,
-            doorY = y + (rowHeight + 32) / 2;
-        line(aim, bottom, aim, y + 43, '#d7894f', true, 2);
-        dot(target, y + 44, 8, '#208f82');
-        if (row.closed) line(30, doorY, w - 30, doorY, '#6c838d', false, 6);
-        else {
-            line(30, doorY, 46, doorY, '#b4c8ce', false, 3);
-            line(w - 46, doorY, w - 30, doorY, '#b4c8ce', false, 3);
-        }
-        dot(aim, bottom, 4, '#d7894f');
-        text(row.closed ? '문 닫힘' : '문 열림', w - 82, doorY - 8, '#647f89', 10);
-        if (i === 2)
-            text(
-                result.reason ? '거부' : result.hit ? '명중' : '차단 / 빗나감',
-                25,
-                bottom,
-                result.hit ? '#158777' : '#b67641',
-                11,
-            );
+
+function readOptions(): Options {
+    return Object.fromEntries(Object.entries(defaults).map(([key, value]) => [
+        key,
+        typeof value === 'boolean' ? input(key).checked : typeof value === 'number' ? +input(key).value : select(key).value,
+    ])) as Options;
+}
+
+function update() {
+    const frame = clipFrame(config, time, view, inspect, +input('aim').value);
+    const result = frame.result;
+    const times = timing(config);
+    const progress = (time - times.start) / (times.end - times.start);
+    scene?.update(frame.scene);
+    canvas.dataset.phase = frame.phase;
+    canvas.dataset.time = time.toFixed(1);
+    canvas.dataset.result = frame.scene.result;
+    canvas.dataset.view = view;
+    input('scrub').value = String(Math.round(progress * 1000));
+    text('scrub-value', `${Math.round(progress * 100)}%`);
+    for (const key of ['up', 'down', 'interpolation', 'window', 'hz', 'speed'] as const) {
+        text(`${key}-value`, `${config[key]}${key === 'hz' ? 'Hz' : key === 'speed' ? 'm/s' : 'ms'}`);
+    }
+    text('aim-value', `${+input('aim').value > 0 ? '+' : ''}${(+input('aim').value).toFixed(2)}m`);
+    text('compare', config.mode === 'history' ? '보상 끄고 다시 보기' : '보상 켜고 다시 보기');
+    let heading: string;
+    let detail: string;
+    if (!frame.fired) {
+        heading = '표적이 벽 뒤로 이동합니다.';
+        detail = `사수에게는 서버보다 ${config.down + config.interpolation}ms 늦은 모습이 보입니다.`;
+    } else if (frame.scene.result === 'pending') {
+        heading = frame.resolved ? '사수는 판정 소식을 기다립니다.' : '사수가 방아쇠를 당겼습니다.';
+        detail = frame.resolved
+            ? `서버의 판정이 돌아오는 데 ${config.down}ms 걸립니다.`
+            : result.visibleCovered ? '사수 화면에서도 표적이 벽 뒤로 사라졌습니다.'
+            : '사수에게는 아직 벽 밖에 있는 표적이 보입니다.';
+    } else {
+        heading = result.reason ? '서버가 이 사격을 거부했습니다.'
+            : result.hit ? result.currentCovered ? '벽 뒤로 숨은 표적에게 피해가 반영됩니다.' : '표적을 맞혔습니다.'
+            : result.blocked ? '사격이 고정된 벽에 막힙니다.' : '사격이 표적을 빗나갑니다.';
+        detail = result.reason || (config.mode === 'history'
+            ? Math.abs(result.q - result.visibleTime) < 0.01
+                ? `사수가 본 ${Math.round(1000 - result.q)}ms 전의 표적 위치로 검사했습니다.`
+                : `사수가 본 장면은 ${Math.round(1000 - result.visibleTime)}ms 전, 검사는 ${Math.round(1000 - result.q)}ms 전입니다.`
+            : '사격 명령이 도착했을 때의 현재 장면으로 검사했습니다.');
+        if (result.clamped && !result.reason) detail = `이력이 부족해 ${Math.round(1000 - result.q)}ms 전의 가장 오래된 모습으로 검사했습니다.`;
+    }
+    text('scene-heading', heading);
+    text('scene-detail', detail);
+    text('history-info', `조회 ${result.q.toFixed(0)}ms · 표본 ${result.past.before.toFixed(1)} / ${result.past.after.toFixed(1)}ms · ${config.hz}Hz${result.past.discontinuous ? ' · 순간이동은 보간 제외' : ''}`);
+    (el('duplicate') as HTMLButtonElement).disabled = !frame.resolved || Boolean(result.reason);
+}
+
+function resetClip() {
+    pause();
+    time = timing(config).start;
+    text('command-status', '');
+    update();
+}
+
+for (const [key, value] of Object.entries(defaults)) {
+    on(key, typeof value === 'number' ? 'input' : 'change', () => {
+        config = readOptions();
+        time = Math.min(time, timing(config).end);
+        text('command-status', '');
+        update();
     });
-    const ty = h - 46,
-        tx = (t: number) => 24 + Math.max(0, Math.min(1, (t - 500) / 500)) * (w - 48);
-    text('과거 이력', 24, h - 65, '#55737c', 11);
-    line(24, ty, w - 24, ty, '#c1d2d7', false, 5);
-    line(tx(1000 - o.window), ty, tx(1000), ty, '#78b9af', false, 7);
-    for (let t = 1000 - o.window; t <= 1000; t += 1000 / o.hz)
-        line(tx(t), ty - 6, tx(t), ty + 6, '#388f84', false, 1);
-    dot(tx(result.visibleTime), ty, 5, '#d48649');
-    dot(tx(result.q), ty, 3, '#133f48');
-    text('500ms', 24, h - 20, '#7a929a', 10);
-    text('현재 1000ms', w - 104, h - 20, '#7a929a', 10);
 }
-function reset() {
-    playback.pause();
+on('aim', 'input', update);
+on('play', 'click', () => { if (playing) pause(); else start(); });
+on('step', 'click', () => {
+    pause();
+    const times = timing(config);
+    time = time >= times.end ? times.start : Math.min(times.end, time + 10);
+    update();
+});
+on('reset', 'click', resetClip);
+on('scrub', 'input', () => {
+    pause();
+    const times = timing(config);
+    time = times.start + (+input('scrub').value / 1000) * (times.end - times.start);
+    text('command-status', '');
+    update();
+});
+on('fire', 'click', () => {
+    time = timing(config).fire - 70;
+    text('command-status', '');
+    update();
+    start();
+});
+on('compare', 'click', () => {
+    select('mode').value = config.mode === 'history' ? 'current' : 'history';
+    config = readOptions();
+    resetClip();
+    start();
+});
+on('view', 'change', () => {
+    view = select('view').value as View;
+    scene?.setView(view);
+    update();
+});
+on('history-toggle', 'click', () => {
+    inspect = !inspect;
+    el('history-toggle').setAttribute('aria-pressed', String(inspect));
+    update();
+});
+on('duplicate', 'click', () => {
+    pause();
+    text('command-status', `${evaluate(config, true).reason} 피해를 다시 적용하지 않았습니다.`);
+});
+on('help', 'click', () => {
+    pause();
+    (el('explanation') as HTMLDialogElement).showModal();
+});
+on('explain-close', 'click', () => (el('explanation') as HTMLDialogElement).close());
+document.addEventListener('experiment:reset-all', (event) => {
+    event.preventDefault();
     for (const [key, value] of Object.entries(defaults)) {
         if (typeof value === 'boolean') input(key).checked = value;
         else input(key).value = String(value);
     }
-    sequence = 0;
-    lastAccepted = false;
-    lastMessage = '';
-    draw();
+    input('aim').value = '0';
+    select('rate').value = '0.1';
+    select('view').value = view = 'free';
+    inspect = true;
+    el('history-toggle').setAttribute('aria-pressed', 'true');
+    (document.querySelector('.advanced') as HTMLDetailsElement).open = false;
+    (el('explanation') as HTMLDialogElement).close();
+    config = { ...defaults };
+    syncViewControls();
+    scene?.setView('free');
+    scene?.resetCamera();
+    resetClip();
+}, { signal: abort.signal });
+
+function animate(stamp: number) {
+    if (disposed || !pageActive) return;
+    const delta = lastFrame ? Math.min((stamp - lastFrame) / 1000, 0.05) : 0;
+    lastFrame = stamp;
+    if (playing) {
+        time = Math.min(timing(config).end, time + delta * 1000 * +select('rate').value);
+        if (time >= timing(config).end) pause();
+        update();
+    }
+    scene?.render(delta);
+    frameId = requestAnimationFrame(animate);
 }
-for (const [key, value] of Object.entries(defaults))
-    on(key, typeof value === 'number' ? 'input' : 'change', () => {
-        playback.pause();
-        lastMessage = '';
-        draw();
-    });
-on('fire', 'click', () => {
-    playback.pause();
-    const result = evaluate(options());
-    lastAccepted = !result.reason;
-    lastMessage = `명령 #${++sequence} · ${result.outcome} · 현재 상태는 이동시키지 않고 조회했습니다.`;
-    draw();
+
+try {
+    scene = createShootingScene(canvas);
+} catch {
+    text('scene-error', '3D 장면을 열 수 없습니다. 브라우저의 하드웨어 가속을 켠 뒤 새로고침해 주세요.');
+    el('scene-error').hidden = false;
+    for (const id of ['play', 'step', 'fire', 'compare']) (el(id) as HTMLButtonElement).disabled = true;
+}
+const observer = new ResizeObserver(() => scene?.resize());
+observer.observe(canvas);
+update();
+frameId = requestAnimationFrame(animate);
+document.addEventListener('visibilitychange', () => {
+    if (document.hidden) pause();
+}, { signal: abort.signal });
+window.addEventListener('pagehide', (event) => {
+    pause();
+    pageActive = false;
+    observer.disconnect();
+    cancelAnimationFrame(frameId);
+    if (!event.persisted) {
+        disposed = true;
+        abort.abort();
+        scene?.dispose();
+    }
 });
-on('duplicate', 'click', () => {
-    playback.pause();
-    lastMessage =
-        sequence && lastAccepted
-            ? `명령 #${sequence} · ${evaluate(options(), true).reason} 피해를 다시 적용하지 않았습니다.`
-            : '먼저 정상 시각의 새 명령을 발사하세요.';
-    draw();
+window.addEventListener('pageshow', (event) => {
+    if (!event.persisted) return;
+    pageActive = true;
+    lastFrame = 0;
+    observer.observe(canvas);
+    scene?.resize();
+    frameId = requestAnimationFrame(animate);
 });
-on('reset', 'click', reset);
-const playback = createPlayback({
-    interval: 500,
-    advance: () => {
-        const delay = input('up');
-        const next = Number(delay.value) + Number(delay.step);
-        delay.value = String(next > Number(delay.max) ? Number(delay.min) : next);
-        lastMessage = '';
-        draw();
-    },
-});
-boot(draw);

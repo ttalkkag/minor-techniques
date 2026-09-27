@@ -1,488 +1,180 @@
 ---
 import ExperimentLayout from '../../layouts/ExperimentLayout.astro';
 import ExperimentPlayback from '../../components/ExperimentPlayback.astro';
+import ExperimentViewSwitch from '../../components/ExperimentViewSwitch.astro';
 ---
 
 <ExperimentLayout
+    helpId="help"
     title="엄폐한 뒤에 맞는 이유 · 게임 실험실"
-    description="편도 지연과 화면 보간량을 바꾸고, 표적과 문을 어느 시각으로 검사하는지 비교하세요."
-    class="lab"
+    description="달리는 표적을 쏘고, 사수와 표적의 시점을 오가며 지연 보상을 살펴보세요."
+    class="lag-lab"
     settingsId="settings"
     menuId="menu"
     closeSettingsId="close"
     backdropId="backdrop"
 >
+    <Fragment slot="header-actions">
+        <ExperimentViewSwitch id="view" label="관찰 시점" options={[
+            { value: 'free', label: '자유' },
+            { value: 'shooter', label: '사수' },
+            { value: 'target', label: '표적' },
+        ]} />
+        <button id="history-toggle" class="history-toggle" aria-pressed="true" title="서버가 사격을 검사한 모습 표시">판정 기록</button>
+    </Fragment>
+    <Fragment slot="controls">
+        <ExperimentPlayback resetLabel="재생 처음으로" />
+        <div class="clip-controls">
+            <label for="scrub">장면 되감기<output id="scrub-value">0%</output></label>
+            <input id="scrub" type="range" min="0" max="1000" step="1" value="0" />
+            <div class="timeline-marks" aria-hidden="true"><span>접근</span><span>발사</span><span>판정</span></div>
+            <label for="rate">재생 속도</label>
+            <select id="rate">
+                <option value="0.1">0.1× · 느리게</option>
+                <option value="0.25">0.25×</option>
+                <option value="1">1×</option>
+            </select>
+            <button id="fire" class="action-button">발사 순간부터 보기</button>
+        </div>
+    </Fragment>
     <Fragment slot="settings">
-        <label for="mode">판정에 사용할 장면</label>
+        <label for="mode">판정 방식</label>
         <select id="mode">
-            <option value="history">표적 + 문을 같은 과거로</option>
-            <option value="mixed">표적만 과거 / 문은 현재</option>
-            <option value="current">모두 서버 현재</option>
+            <option value="history">지연 보상 켜기</option>
+            <option value="current">지연 보상 끄기</option>
         </select>
-        <label for="up">
-            입력 → 서버 지연<output id="up-value"></output>
-        </label>
+        <button id="compare" class="action-button compare-button">보상 끄고 다시 보기</button>
+        <label for="up">사격 명령이 가는 시간<output id="up-value"></output></label>
         <input id="up" type="range" min="0" max="180" step="10" value="40" />
-        <label for="down">
-            서버 → 화면 지연<output id="down-value"></output>
-        </label>
+        <label for="down">서버 소식이 오는 시간<output id="down-value"></output></label>
         <input id="down" type="range" min="0" max="180" step="10" value="40" />
-        <label for="interpolation">
-            화면 보간 대기<output id="interpolation-value"></output>
-        </label>
+        <label for="interpolation">화면 보간 대기<output id="interpolation-value"></output></label>
         <input id="interpolation" type="range" min="0" max="100" step="10" value="40" />
-        <label for="window">
-            저장 이력 길이<output id="window-value"></output>
-        </label>
-        <input id="window" type="range" min="50" max="400" step="25" value="250" />
-        <label for="hz">
-            이력 저장 빈도<output id="hz-value"></output>
-        </label>
-        <input id="hz" type="range" min="10" max="120" step="10" value="60" />
-        <label for="speed">
-            표적 이동 속도<output id="speed-value"></output>
-        </label>
+        <label for="speed">표적 이동 속도<output id="speed-value"></output></label>
         <input id="speed" type="range" min="1" max="10" step="1" value="5" />
-        <label for="clock">질의 시각 계산</label>
-        <select id="clock">
-            <option value="aligned">편도 둘 + 보간량 반영</option>
-            <option value="half">RTT/2만 사용해 보기</option>
-        </select>
-        <label for="limit">이력 초과 정책</label>
-        <select id="limit">
-            <option value="reject">명령 거부</option>
-            <option value="clamp">가장 오래된 시각으로 제한</option>
-        </select>
-        <label for="door">움직이는 문</label>
-        <select id="door">
-            <option value="closing">과거 열림 → 현재 닫힘</option>
-            <option value="opening">과거 닫힘 → 현재 열림</option>
-            <option value="none">문 없음</option>
-        </select>
-        <label for="claim">명령 시각 검사</label>
-        <select id="claim">
-            <option value="normal">정상 시각</option>
-            <option value="future">미래 시각으로 위조</option>
-            <option value="forged">80ms 더 과거로 위조</option>
-        </select>
-        <label class="check">
-            <input id="subtick" type="checkbox" checked />틱 사이 위치 보간
-        </label>
-        <label class="check">
-            <input id="teleport" type="checkbox" />
-            910ms에 순간이동
-        </label>
+        <label for="aim">조준 위치 옮기기<output id="aim-value"></output></label>
+        <input id="aim" type="range" min="-0.8" max="0.8" step="0.05" value="0" />
+        <details class="advanced">
+            <summary>고급 설정</summary>
+            <label for="window">저장 이력 길이<output id="window-value"></output></label>
+            <input id="window" type="range" min="50" max="400" step="25" value="250" />
+            <label for="hz">이력 저장 빈도<output id="hz-value"></output></label>
+            <input id="hz" type="range" min="10" max="120" step="10" value="60" />
+            <label for="clock">판정 시각 계산</label>
+            <select id="clock">
+                <option value="aligned">편도 둘 + 보간량 반영</option>
+                <option value="half">RTT/2만 사용</option>
+            </select>
+            <label for="limit">이력 초과 정책</label>
+            <select id="limit">
+                <option value="reject">명령 거부</option>
+                <option value="clamp">가장 오래된 시각으로 제한</option>
+            </select>
+            <label for="claim">명령 시각 검사</label>
+            <select id="claim">
+                <option value="normal">정상 시각</option>
+                <option value="future">미래 시각으로 위조</option>
+                <option value="forged">80ms 더 과거로 위조</option>
+            </select>
+            <label class="check"><input id="subtick" type="checkbox" checked />틱 사이 위치 보간</label>
+            <label class="check"><input id="teleport" type="checkbox" />이동 중 순간이동</label>
+            <button id="duplicate" class="action-button" disabled>같은 명령 재전송</button>
+            <p id="command-status" class="small-status" role="status"></p>
+            <p id="history-info" class="small-status"></p>
+        </details>
     </Fragment>
     <Fragment slot="body-header">
-        <p class="eyebrow">지연 보상 · 같은 장면의 다른 시각</p>
+        <p class="eyebrow">네트워크 · 지연 보상</p>
         <h1>엄폐한 뒤에 맞는 이유</h1>
-        <p class="intro">
-            편도 지연과 화면 보간량을 바꾸고, 표적과 문을 어느 시각으로 검사하는지 비교하세요.
-        </p>
     </Fragment>
     <Fragment slot="graphics">
-        <section class="stage" aria-label="엄폐한 뒤에 맞는 이유 실험 장면">
-            <canvas id="scene" aria-label="엄폐한 뒤에 맞는 이유 관찰도" aria-describedby="summary"></canvas>
+        <section class="stage" aria-label="지연 보상 사격장">
+            <canvas id="scene" tabindex="0" aria-label="3D 사격장. 드래그로 회전, 휠로 확대, 오른쪽 드래그로 이동. 키보드 방향키로 회전, 더하기와 빼기로 확대, Home으로 시점 복원." aria-describedby="summary"></canvas>
+            <div class="scene-footer">
+                <div class="legend"><span class="target-key">표적</span><span class="shot-key">사수의 한 발</span><span class="history-key">서버의 판정</span></div>
+                <span class="camera-hint desktop-hint">드래그 회전 · 휠 확대 · 우클릭 이동</span>
+                <span class="camera-hint touch-hint">한 손가락 회전 · 두 손가락 이동/확대</span>
+            </div>
+            <p id="scene-error" class="scene-error" role="alert" hidden></p>
         </section>
     </Fragment>
     <Fragment slot="description">
-        <section class="metrics" aria-label="계산 결과" aria-live="polite">
-            <div>
-                <span>선택한 판정 결과</span>
-                <strong id="metric-0">—</strong>
-            </div>
-            <div>
-                <span>사수 화면 / 질의 시각</span>
-                <strong id="metric-1">—</strong>
-            </div>
-            <div>
-                <span>현재와 보이는 위치 차이</span>
-                <strong id="metric-2">—</strong>
-            </div>
-        </section>
-        <p id="summary" class="status" role="status"></p>
-        <p id="history-info" class="extra"></p>
-    </Fragment>
-    <Fragment slot="controls">
-        <ExperimentPlayback>
-            <p>입력 → 서버 지연을 10ms씩 바꾸며 비교합니다.</p>
-        </ExperimentPlayback>
-        <div class="toolbar" role="group" aria-label="실험 실행">
-            <button id="fire" class="primary">새 명령 발사</button>
-            <button id="duplicate">같은 명령 재전송</button>
+        <div id="summary" class="summary" role="status" aria-atomic="true">
+            <p><strong id="scene-heading">표적이 벽 뒤로 이동합니다.</strong></p>
+            <p id="scene-detail">사수에게는 서버보다 늦은 모습이 보입니다.</p>
         </div>
     </Fragment>
     <Fragment slot="overlays">
         <dialog id="explanation" aria-labelledby="explain-title">
-            <div class="heading">
-                <h2 id="explain-title">원인과 해결</h2>
-                <button id="explain-close" aria-label="설명 닫기">
-                    ×
-                </button>
-            </div>
-            <h3>문제 · 명령이 도착할 때 표적은 이미 이동</h3>
-            <p>
-                이 가상 시계에서 서버 현재는 1000ms입니다. 사수가 본 상태는 두 편도 전달 시간과 보간 대기만큼
-                오래되었습니다. 기본 120ms, 5m/s에서는 표적 위치가 0.6m 어긋납니다. RTT/2 하나로 이 세 지연을
-                대신하면 다른 시점을 고르게 됩니다.
-            </p>
-            <h3>원인 · 서로 다른 시각을 섞은 장면</h3>
-            <p>
-                표적만 과거로 옮기고 문은 현재에 두면 동시에 존재하지 않았던 충돌 장면이 생깁니다. 동일 과거
-                시각의 표적과 문을 쓰는 방식과 비교하세요. 조회는 별도 상태에서 수행하여 현재 월드를 바꾸지
-                않습니다.
-            </p>
-            <h3>해결 · 이력과 명령의 범위를 검증</h3>
-            <p>
-                명령 순번 중복, 미래 시각, 합의된 시간 예산과 다른 80ms 위조를 거부합니다. 이력 초과는 거부
-                또는 제한을 선택합니다. 연속 위치는 두 틱을 보간하며, 순간이동을 가로지르는 구간은 사건 전후의
-                표본을 택해 섞지 않습니다.
-            </p>
-            <h3>비용과 공정성</h3>
-            <p>
-                긴 이력은 오래된 명령을 받아들이지만 피격자가 엄폐 후 맞는 시간도 늘립니다. 표시한 메모리는
-                100개 × 64B × 경계 표본 포함 틱 수의 단순 예산입니다. 반경 0.18m인 1차원 이동 표적과 순간 전환
-                문, 정렬된 가상 시계 모델이며 실제 패킷이나 애니메이션 이력은 없습니다. Photon의 현재
-                Collider와 과거 Hitbox 혼합 제한은 별도로 확인해야 합니다.
-            </p>
-            <p class="sources">
-                <a href="https://doc.photonengine.com/fusion/v2/manual/advanced/lag-compensation">
-                    Photon Fusion · Queries / Sub-tick Accuracy ↗
-                </a>
-            </p>
+            <div class="dialog-heading"><h2 id="explain-title">엄폐했는데도 맞는 이유</h2><button id="explain-close" aria-label="설명 닫기">×</button></div>
+            <h3>사수와 표적은 서로 다른 순간을 봅니다.</h3>
+            <p>벽은 처음부터 같은 자리에 있습니다. 표적이 달려가 벽 뒤로 숨지만, 사수의 화면에는 아직 벽 밖에 있던 모습이 남아 있습니다. 사수 시점으로 바꾸면 늦게 도착한 장면을, 자유·표적 시점에서는 서버 장면을 봅니다.</p>
+            <h3>현재 모습으로 검사하면 빗나갑니다.</h3>
+            <p>지연 보상을 끄고 같은 사격을 재생하세요. 사수는 벽 밖의 위치를 쐈지만, 표적은 이미 벽 뒤로 이동했습니다. 그 위치에는 이제 표적이 없어 사격이 빗나갑니다.</p>
+            <h3>서버는 사수가 본 과거를 검사합니다.</h3>
+            <p>지연 보상을 켜면 청록색 잔상과 광선이 검사에 쓴 과거 위치를 보여줍니다. 현재 캐릭터를 되돌리는 것이 아니라 저장된 충돌 상태를 조회합니다. 벽 밖에 있던 표적에 맞았다면, 이미 벽 뒤로 숨은 현재 표적에게 피해가 반영됩니다. 벽은 과거에도 지금도 같은 위치에 있으므로, 벽을 향해 쏜 한 발은 보상 여부와 관계없이 막힙니다.</p>
+            <h3>이 장면의 시간</h3>
+            <p>판정 순간을 1000ms로 고정했습니다. 사수가 본 시각은 1000ms에서 두 편도 지연과 보간 대기를 뺀 값입니다. 총구 섬광과 주황 궤적은 순간 사격의 기록이고, 청록 광선은 서버의 검사입니다. 총알이 천천히 날아가는 시간이 지연의 원인은 아닙니다. 판정 뒤에는 현재 장면을 멈춰 결과를 살펴봅니다.</p>
+            <h3>더 살펴보기</h3>
+            <p>조준 위치, 보관 이력, 틱 보간을 바꿔보세요. 순간이동 전후는 보간하지 않습니다. 고급 설정의 중복·미래 시각·오래된 명령 검사로 서버가 받아들이는 사격의 범위도 비교할 수 있습니다.</p>
+            <p class="sources"><a href="https://doc.photonengine.com/fusion/v2/manual/advanced/lag-compensation">Photon Fusion · Lag Compensation ↗</a><br /><a href="https://playvalorant.com/en-gb/news/dev/the-state-of-hit-registration/">VALORANT · The State of Hit Registration ↗</a></p>
         </dialog>
     </Fragment>
     <script>
         import '../../experiments/lag-compensation/client';
     </script>
 </ExperimentLayout>
+
 <style>
-    :global(.experiment-shell.lab) {
-        --experiment-graphics-min-height: 400px;
-    }
-    button {
-        min-height: 44px;
-        min-width: 44px;
-        border: 1px solid #c8d5d9;
-        border-radius: 11px;
-        background: #fff;
-        color: #26474c;
-        cursor: pointer;
-        padding: 8px 14px;
-    }
-    button:hover {
-        background: #deece9;
-    }
-    button:disabled {
-        opacity: 0.45;
-        cursor: default;
-    }
-    .eyebrow {
-        font-size: 12px;
-        font-weight: 750;
-        color: #0e726a;
-        letter-spacing: 0.07em;
-        margin: 0 0 6px;
-    }
-    h1 {
-        font-size: clamp(24px, 3vw, 37px);
-        letter-spacing: -0.04em;
-        margin: 0 0 7px;
-    }
-    .intro {
-        word-break: keep-all;
-        font-size: 14px;
-        line-height: 1.7;
-        color: #4c656e;
-        margin: 0;
-    }
-    .stage {
-        position: relative;
-        width: 100%;
-        height: 100%;
-        min-height: 0;
-        margin: 0;
-        background: #e4ecee;
-        border: 1px solid #d0dde0;
-        border-radius: 20px;
-        overflow: hidden;
-    }
-    canvas {
-        display: block;
-        position: absolute;
-        inset: 0;
-        width: 100%;
-        height: 100%;
-    }
-    .toolbar {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 9px;
-        margin: 0;
-        padding: 0;
-    }
-    .toolbar button {
-        flex: 1 1 100px;
-        min-width: 0;
-        max-width: 100%;
-        font-size: 13px;
-        line-height: 1.4;
-        word-break: keep-all;
-        overflow-wrap: anywhere;
-    }
-    .primary {
-        background: #147f77;
-        color: white;
-        border-color: #147f77;
-    }
-    .primary:hover {
-        background: #0c6962;
-    }
-    .metrics {
-        display: grid;
-        grid-template-columns: repeat(3, minmax(0, 1fr));
-        gap: 16px;
-        margin: 8px 0;
-        padding: 0;
-    }
-    .metrics span {
-        display: block;
-        font-size: 12px;
-        color: #4c656e;
-        margin-bottom: 6px;
-    }
-    .metrics strong {
-        font-size: 21px;
-        font-variant-numeric: tabular-nums;
-        overflow-wrap: anywhere;
-    }
-    .status {
-        margin: 8px 0;
-        padding: 0;
-        line-height: 1.7;
-        font-size: 13px;
-        color: #536e78;
-        min-height: 42px;
-    }
-    .heading {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: 14px;
-        margin-bottom: 12px;
-    }
-    .heading h2 {
-        font-size: 19px;
-        margin: 0;
-    }
-    .heading button {
-        font-size: 24px;
-        flex-shrink: 0;
-        padding: 5px;
-    }
-    :global(.experiment-settings-content) label {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        gap: 9px;
-        font-size: 13px;
-        font-weight: 650;
-        margin: 19px 0 6px;
-    }
-    input[type='range'] {
-        width: 100%;
-        accent-color: #12877e;
-        min-height: 40px;
-        margin: 0;
-    }
-    output {
-        color: #0c8177;
-        font-variant-numeric: tabular-nums;
-    }
-    select,
-    input[type='text'] {
-        min-height: 44px;
-        width: 100%;
-        border: 1px solid #c5d5da;
-        border-radius: 10px;
-        background: white;
-        color: inherit;
-        padding: 9px;
-    }
-    .check {
-        justify-content: flex-start;
-        min-height: 42px;
-        margin: 7px 0;
-    }
-    .check input {
-        width: 19px;
-        height: 19px;
-        accent-color: #168b81;
-        flex-shrink: 0;
-    }
-    .note {
-        font-size: 12px;
-        line-height: 1.8;
-        color: #536e78;
-    }
-    .items {
-        display: grid;
-        grid-template-columns: 1fr 1fr;
-        gap: 0 8px;
-    }
-    .items label {
-        font-size: 12px;
-    }
-    .drawer-button {
-        width: 100%;
-        margin-top: 9px;
-    }
-    dialog {
-        width: min(670px, calc(100vw - 28px));
-        max-height: calc(100svh - 36px);
-        padding: 25px;
-        border: 1px solid #c8d7db;
-        border-radius: 20px;
-        color: #263e47;
-        background: #f8fbfc;
-        overflow: auto;
-    }
-    dialog::backdrop {
-        background: #17354070;
-    }
-    dialog h3 {
-        font-size: 15px;
-        margin: 24px 0 7px;
-    }
-    dialog p {
-        font-size: 14px;
-        line-height: 1.85;
-        margin: 0;
-    }
-    dialog a {
-        color: #087c72;
-        font-size: 13px;
-        line-height: 1.8;
-        overflow-wrap: anywhere;
-    }
-    dialog .sources {
-        margin-top: 20px;
-    }
-    code {
-        overflow-wrap: anywhere;
-    }
-    .code-tools {
-        display: flex;
-        align-items: center;
-        flex-wrap: wrap;
-        gap: 10px;
-        margin: 8px 0;
-        padding: 0;
-    }
-    .code-tools label {
-        font-size: 13px;
-        font-weight: 650;
-    }
-    .code-tools input {
-        width: 150px;
-        font:
-            700 24px ui-monospace,
-            monospace;
-        letter-spacing: 0.12em;
-    }
-    .code-tools output {
-        font:
-            750 28px ui-monospace,
-            monospace;
-        letter-spacing: 0.15em;
-    }
-    .code-tools button {
-        min-width: 100px;
-    }
-    .bits {
-        margin: 8px 0;
-        padding: 0;
-        display: flex;
-        gap: 6px;
-        flex-wrap: wrap;
-        font:
-            12px ui-monospace,
-            monospace;
-    }
-    .bits span {
-        background: #dce9e7;
-        padding: 8px;
-        border-radius: 8px;
-    }
-    .extra {
-        margin: 8px 0;
-        padding: 0;
-        font-size: 12px;
-        line-height: 1.8;
-        color: #4c656e;
-        overflow-wrap: anywhere;
-    }
-    @media (max-width: 650px) {
-        .intro {
-            font-size: 12px;
-        }
-        h1 {
-            font-size: 25px;
-        }
-        .stage {
-            border-radius: 16px;
-        }
-        .toolbar {
-            padding: 0;
-            gap: 7px;
-        }
-        .toolbar button {
-            font-size: 12px;
-            padding: 8px 11px;
-        }
-        .metrics {
-            grid-template-columns: repeat(2, minmax(0, 1fr));
-            padding: 0;
-            gap: 12px;
-        }
-        .metrics > div:last-child {
-            grid-column: 1/-1;
-        }
-        .metrics strong {
-            font-size: 17px;
-        }
-        .metrics span {
-            font-size: 11px;
-            line-height: 1.55;
-        }
-        .status {
-            padding: 0;
-            font-size: 12px;
-        }
-        .code-tools {
-            padding: 0;
-        }
-        .bits,
-        .extra {
-            padding: 0;
-        }
-        .bits {
-            gap: 4px;
-            font-size: 10px;
-        }
-        .bits span {
-            padding: 6px;
-        }
-        .heading h2 {
-            font-size: 18px;
-        }
-        dialog {
-            padding: 20px;
-        }
-    }
+    :global(.experiment-shell.lag-lab) { --experiment-graphics-min-height: 430px; --experiment-graphics-mobile-min-height: 430px; }
+    .eyebrow { color: #31857c; font-size: 11px; font-weight: 700; letter-spacing: .09em; }
+    .clip-controls { width: 100%; }
+    :global(.lag-lab .experiment-settings-content) label { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 18px 0 6px; font-size: 12px; font-weight: 650; }
+    .clip-controls label:first-child { margin-top: 2px; }
+    output { color: #287b73; font-variant-numeric: tabular-nums; font-size: 12px; white-space: nowrap; }
+    input[type='range'] { display: block; width: 100%; min-height: 30px; margin: 0; accent-color: #2f8278; cursor: pointer; }
+    select { width: 100%; min-height: 40px; padding: 8px; border: 1px solid #d6e0e2; border-radius: 8px; background: #fff; color: #304c55; font-size: 12px; }
+    .timeline-marks { display: flex; justify-content: space-between; color: #73878e; font-size: 10px; }
+    .action-button { width: 100%; min-height: 36px; margin-top: 10px; padding: 8px; border: 1px solid #d8e3e4; border-radius: 8px; background: #f6f9f9; color: #356363; font: inherit; font-size: 12px; cursor: pointer; }
+    .action-button:hover { background: #e9f1ee; }
+    .action-button:disabled { opacity: .45; cursor: default; }
+    .compare-button { border-color: #bcd8d0; background: #eaf5ef; }
+    .history-toggle { min-width: 0; border: 1px solid #dce3e6; border-radius: 8px; color: #617581; background: #fff; cursor: pointer; }
+    .history-toggle[aria-pressed='true'] { color: #247d72; background: #e0f0e8; border-color: #bfddd2; }
+    .advanced { margin-top: 24px; border-top: 1px solid #e0e8e9; padding-top: 16px; }
+    .advanced summary { font-size: 12px; color: #536e78; cursor: pointer; }
+    :global(.lag-lab .experiment-settings-content) .check { justify-content: flex-start; line-height: 1.5; font-weight: 500; }
+    .check input { width: 17px; height: 17px; accent-color: #2e8077; }
+    .small-status { margin: 10px 0 0; font-size: 11px; line-height: 1.7; color: #6a8189; overflow-wrap: anywhere; }
+    .small-status:empty { display: none; }
+    .stage { position: relative; width: 100%; height: 100%; overflow: hidden; border-radius: 16px; background: #dae4e5; isolation: isolate; }
+    canvas { display: block; width: 100%; height: 100%; touch-action: none; }
+    canvas:focus-visible { outline: 2px solid #35897f; outline-offset: -3px; }
+    .scene-footer { position: absolute; left: 20px; right: 20px; bottom: 16px; display: flex; justify-content: space-between; flex-wrap: wrap; gap: 8px 12px; pointer-events: none; }
+    .legend { display: flex; flex-wrap: wrap; gap: 12px; }
+    .legend span, .camera-hint { color: #415f66; font-size: 10px; text-shadow: 0 1px 2px #fff; }
+    .legend span::before { content: ''; display: inline-block; width: 6px; height: 6px; border-radius: 50%; margin-right: 5px; vertical-align: 1px; }
+    .target-key::before { background: #d97759; }
+    .shot-key::before { background: #e9a638; }
+    .history-key::before { background: #279e96; }
+    .touch-hint { display: none; }
+    .scene-error { position: absolute; inset: 35% 24px auto; padding: 18px; border-radius: 10px; background: #fff; color: #684a43; line-height: 1.7; }
+    .summary { min-height: 48px; font-size: 13px; line-height: 1.8; color: #506a73; word-break: keep-all; overflow-wrap: anywhere; }
+    .summary p { margin: 0; }
+    .summary strong { color: #304c55; font-weight: 600; }
+    dialog { width: min(630px, calc(100vw - 30px)); max-height: calc(100svh - 32px); padding: 26px; border: 1px solid #d1dfdf; border-radius: 16px; background: #f9fbfb; color: #30464f; overflow: auto; }
+    dialog::backdrop { background: #16384470; }
+    .dialog-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+    .dialog-heading h2 { font-size: 20px; margin: 0; }
+    .dialog-heading button { width: 36px; height: 36px; border: 0; border-radius: 8px; background: #eaf0f0; font-size: 24px; color: #45616b; cursor: pointer; }
+    dialog h3 { margin: 24px 0 8px; font-size: 15px; }
+    dialog p { font-size: 13px; line-height: 1.85; margin: 0; word-break: keep-all; }
+    dialog .sources { margin-top: 24px; }
+    dialog a { color: #217d72; }
     @media (max-width: 800px) {
-        :global(.experiment-shell.lab) {
-            --experiment-graphics-min-height: 455px;
-        }
+        .scene-footer { left: 12px; right: 12px; bottom: 14px; flex-direction: column; gap: 8px; }
+        .desktop-hint { display: none; }
+        .touch-hint { display: inline; }
+        .legend { gap: 8px; }
     }
 </style>
